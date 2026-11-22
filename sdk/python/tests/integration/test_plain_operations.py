@@ -70,6 +70,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             return await ctx.settings() == expected
 
         class SettingsPlugin(Plugin):
+            identifier = "example"
             version = "1.0.0"
             operations: ClassVar[list[Callable[..., object]]] = [read]
 
@@ -248,6 +249,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             return BoolValue(value=not request.value)
 
         class PlainPlugin(Plugin):
+            identifier = "example"
             version = "1.0.0"
             operations: ClassVar[list[Callable[..., object]]] = [flag, text, number, integer, increment, structured]
 
@@ -300,6 +302,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             )
 
         class FailurePlugin(Plugin):
+            identifier = "example"
             version = "1.0.0"
             operations: ClassVar[list[Callable[..., object]]] = [fail]
 
@@ -371,12 +374,14 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         )
         call = invoke()
         try:
-            definition = next(item for item, _ in plugin._plugin._registrations()[0] if item.id == "readings.readings.start")
-            request = cast(Any, definition.request)(execution="execution", step="readings.readings.start", test_case=case, origin=origin)
+            definition = next(item for item, _ in plugin._plugin._registrations()[0] if item.id == "streams.readings.readings.start")
+            request = cast(Any, definition.request)(
+                execution="execution", step="streams.readings.readings.start", test_case=case, origin=origin
+            )
             await call.write(
                 InstanceInvokeRequest(
                     request=Request(
-                        operation="readings.readings.start",
+                        operation="streams.readings.readings.start",
                         payload=request.SerializeToString(),
                         invocation="start",
                         scope="execution",
@@ -397,12 +402,12 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         for name, row, expected in (("voltage", DoubleValue, [2.5, 2.5]), ("accepted", BoolValue, [True, True])):
             call = samples()
             try:
-                await call.write(InstanceSamplesRequest(open={"stream": f"readings.readings.{name}", "scope": "execution"}))
+                await call.write(InstanceSamplesRequest(open={"stream": f"streams.readings.readings.{name}", "scope": "execution"}))
                 await call.write(InstanceSamplesRequest(window={"start": {}, "count": 2, "period": {"seconds": 1}}))
                 response = await call.read()
                 assert isinstance(response, InstanceSamplesResponse)
                 self.assertEqual(response.batch.count, 2)
-                values = columns_type(row, f"readings.readings.{name}").FromString(response.batch.columns)
+                values = columns_type(row, f"streams.readings.readings.{name}").FromString(response.batch.columns)
                 self.assertEqual(MessageToDict(values)["value"], expected)
             finally:
                 call.cancel()
@@ -467,15 +472,15 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         definitions = {item.id: item for item, _ in plugin._plugin._registrations()[0]}
         requests: list[tuple[str, Message]] = [
             (
-                "capture.capture.save",
-                cast(Any, definitions["capture.capture.save"].request)(
-                    execution="execution", step="capture.capture.save", test_case=case, origin=origin
+                "records.capture.capture.save",
+                cast(Any, definitions["records.capture.capture.save"].request)(
+                    execution="execution", step="records.capture.capture.save", test_case=case, origin=origin
                 ),
             ),
             (
-                "capture.capture.matches",
-                cast(Any, definitions["capture.capture.matches"].request)(
-                    execution="execution", criterion="capture.capture.matches", test_case=case, origin=origin
+                "records.capture.capture.matches",
+                cast(Any, definitions["records.capture.capture.matches"].request)(
+                    execution="execution", criterion="records.capture.capture.matches", test_case=case, origin=origin
                 ),
             ),
         ]
@@ -500,7 +505,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                     assert isinstance(frame, InstanceInvokeResponse), "Invoke Template: Expected a Response Before End of Stream"
                     if frame.HasField("response"):
                         self.assertFalse(frame.response.HasField("failure"), frame.response.failure)
-                        if operation_id == "capture.capture.matches":
+                        if operation_id == "records.capture.capture.matches":
                             self.assertTrue(cast(Any, definitions[operation_id].response.FromString(frame.response.payload)).passed)
                         break
                     requirement = requirements[frame.child.operation]
@@ -512,14 +517,14 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                     elif kind == "dokime.host.v1.Prompts/Create":
                         asked = child
                         if asked.prompt_type:
-                            self.assertEqual(asked.prompt_type, "capture.capture.question")
+                            self.assertEqual(asked.prompt_type, "records.capture.capture.question")
                         action = next(action for action in asked.definition.actions if action.label == "No")
                         response.action = action.identifier
                         response.accepted = True
                     elif kind == "dokime.host.v1.evidence.Records/Append":
                         records[child.kind] = child.payload
                     elif kind == "dokime.host.v1.evidence.Records/List":
-                        self.assertEqual(child.step, "capture.capture.save")
+                        self.assertEqual(child.step, "records.capture.capture.save")
                         last = records.get(child.record_type)
                         response.count = int(last is not None)
                         if last is not None:
@@ -536,11 +541,11 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             set(records),
             {
-                "capture.capture.flag",
-                "capture.capture.text",
-                "capture.capture.integer",
-                "capture.capture.number",
-                "capture.capture.structured",
+                "records.capture.capture.flag",
+                "records.capture.capture.text",
+                "records.capture.capture.integer",
+                "records.capture.capture.number",
+                "records.capture.capture.structured",
             },
         )
 

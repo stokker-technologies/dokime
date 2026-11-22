@@ -394,7 +394,7 @@ mod tests {
     #[tokio::test]
     async fn plugin_observers_use_operation_context_and_share_the_author_state() -> Result<()> {
         for windowed in [false, true] {
-            let stream = Stream::<Reading>::new("shared.reading", "Shared Reading");
+            let stream = Stream::<Reading>::new("observer.shared.reading", "Shared Reading");
             let observer = if windowed {
                 Observer::operation_window(&stream, async |context: &operations::Context, window: &Window| {
                     Ok(Columns {
@@ -407,17 +407,17 @@ mod tests {
             .every(Duration::from_millis(1));
             let template = Template::of::<()>()
                 .identifier("sample")
-                .uses_stream("shared.reading")
+                .uses_stream("observer.shared.reading")
                 .step(Step::new("Sample", async |context: &Context| context.sleep(Duration::from_millis(3)).await).identifier("sample"));
             let plugin = Plugin::of::<()>("1.0.0")
                 .identifier("observer")
                 .state(State { value: 23 })
                 .stream(stream)
                 .observer(observer)
-                .suite(Suite::of::<()>().identifier("capture").template(template));
-            let report = Harness::new(plugin, "capture.sample").run().await?;
+                .suite(Suite::of::<()>().identifier("observer.capture").template(template));
+            let report = Harness::new(plugin, "observer.capture.sample").run().await?;
             assert!(report.failure().is_none(), "{report:?}");
-            let samples = report.samples::<Reading>("shared.reading")?;
+            let samples = report.samples::<Reading>("observer.shared.reading")?;
             assert_eq!(samples.iter().map(|sample| sample.value.value).collect::<Vec<_>>(), [23, 23, 23]);
         }
         Ok(())
@@ -425,48 +425,48 @@ mod tests {
 
     #[tokio::test]
     async fn an_unused_native_collection_does_not_block_ordinary_harness_observers() -> Result<()> {
-        let observed = Stream::<Reading>::new("observed", "Observed");
+        let observed = Stream::<Reading>::new("observer.observed", "Observed");
         let observer =
             Observer::operation(&observed, async |_: &operations::Context| Ok(Reading { value: 7 })).every(Duration::from_millis(1));
         let unused = ::harmos::plugin::Collection::operation(async |_, _| panic!("An Unobserved Collection Must Stay Idle"))
-            .stream(::harmos::plugin::Stream::<Reading>::new("unused"))
+            .stream(::harmos::plugin::Stream::<Reading>::new("observer.unused"))
             .every(prost_types::Duration { seconds: 0, nanos: 1_000_000 });
         let template = Template::of::<()>()
             .identifier("sample")
-            .uses_stream("observed")
+            .uses_stream("observer.observed")
             .step(Step::new("Sample", async |context: &Context| context.sleep(Duration::from_millis(1)).await).identifier("sample"));
         let plugin = Plugin::of::<()>("1.0.0")
             .identifier("observer")
             .stream(observed)
             .observer(observer)
             .collection(unused)
-            .suite(Suite::of::<()>().identifier("capture").template(template));
-        let report = Harness::new(plugin, "capture.sample").run().await?;
+            .suite(Suite::of::<()>().identifier("observer.capture").template(template));
+        let report = Harness::new(plugin, "observer.capture.sample").run().await?;
         assert!(report.failure().is_none(), "{report:?}");
-        assert_eq!(report.samples::<Reading>("observed")?.iter().map(|row| row.value.value).collect::<Vec<_>>(), [7]);
+        assert_eq!(report.samples::<Reading>("observer.observed")?.iter().map(|row| row.value.value).collect::<Vec<_>>(), [7]);
         Ok(())
     }
 
     #[tokio::test]
     async fn the_harness_refuses_native_collection_sampling_without_a_product_host() {
         let collection = ::harmos::plugin::Collection::operation(async |_, _| Ok(()))
-            .stream(::harmos::plugin::Stream::<Reading>::new("native"))
+            .stream(::harmos::plugin::Stream::<Reading>::new("collector.native"))
             .every(prost_types::Duration { seconds: 0, nanos: 1_000_000 });
         let template = Template::of::<()>()
             .identifier("sample")
-            .uses_stream("native")
+            .uses_stream("collector.native")
             .step(Step::new("Sample", async |context: &Context| context.sleep(Duration::from_millis(1)).await).identifier("sample"));
         let plugin = Plugin::of::<()>("1.0.0")
             .identifier("collector")
             .collection(collection)
-            .suite(Suite::of::<()>().identifier("capture").template(template));
-        assert!(Harness::new(plugin, "capture.sample").run().await.is_err());
+            .suite(Suite::of::<()>().identifier("collector.capture").template(template));
+        assert!(Harness::new(plugin, "collector.capture.sample").run().await.is_err());
     }
 
     #[test]
     fn plugin_observers_refuse_template_context_handlers() {
-        let stream = Stream::<Reading>::new("shared.reading", "Shared Reading");
+        let stream = Stream::<Reading>::new("observer.shared.reading", "Shared Reading");
         let observer = Observer::new(&stream, async |_: &Context| Ok(Reading { value: 0 })).every(Duration::from_millis(1));
-        assert!(Plugin::of::<()>("1.0.0").stream(stream).observer(observer).declarations().is_err());
+        assert!(Plugin::of::<()>("1.0.0").identifier("observer").stream(stream).observer(observer).declarations().is_err());
     }
 }

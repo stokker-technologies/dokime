@@ -90,7 +90,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             // Complete a Real Execution Through the In-Process Host
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
-            let origin = host.materialize(&entry, "execution.capture", super::support::parameters(23.0, 0, true)).await?;
+            let origin = host.materialize(&entry, "execution.execution.capture", super::support::parameters(23.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![origin]).await?;
             let retained_id = cycle.executions[0].clone();
             let prompt = host.next_prompt(&retained_id).await?;
@@ -129,7 +129,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 .entry
                 .unwrap();
             super::support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
-            let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
+            let cases = super::support::materialize(&client, "thermal.thermal", "thermal.thermal.cycle", HashMap::new()).await?;
             let created = cycles
                 .create_with(
                     cases.into_iter().map(|case| case.origin.unwrap()).collect(),
@@ -226,7 +226,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                     execution_id: Some(identifier.clone()),
                     ..Default::default()
                 }),
-                streams: vec!["thermal.cycle.temperature".into()],
+                streams: vec!["thermal.thermal.cycle.temperature".into()],
                 between: Some(Window {
                     start: Some(Timestamp { seconds: 1, nanos: 0 }),
                     end: Some(Timestamp { seconds: 2, nanos: 0 }),

@@ -52,7 +52,7 @@ fn execution_capabilities() -> Result<(), Box<dyn Error>> {
             let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
-            let origin = host.materialize(&entry, "execution.capture", super::support::parameters(29.0, 0, true)).await?;
+            let origin = host.materialize(&entry, "execution.execution.capture", super::support::parameters(29.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![origin]).await?;
             let execution = cycle.executions[0].clone();
             host.next_prompt(&execution).await?;

@@ -102,6 +102,7 @@ class AccuracySuite : public Suite {
 public:
   static Suite definition() {
     auto value = Suite::from<AccuracySuite>();
+    value.identifier = "example.accuracy";
     value.template_value(HTTPAccuracyTestTemplate::definition());
     return value;
   }
@@ -117,12 +118,12 @@ TEST_CASE("Author Classes Describe Explicit Suite and Template Membership") {
   const ExamplePlugin plugin;
   const auto value = plugin.describe();
   REQUIRE(value.identifier == "example");
-  REQUIRE(value.suites.at(0).identifier == "accuracy");
+  REQUIRE(value.suites.at(0).identifier == "example.accuracy");
   REQUIRE(value.suites.at(0).label == "Accuracy");
-  REQUIRE(value.suites.at(0).templates.at(0).identifier == "accuracy.http_accuracy");
+  REQUIRE(value.suites.at(0).templates.at(0).identifier == "example.accuracy.http_accuracy");
   REQUIRE(value.suites.at(0).templates.at(0).label == "HTTP Accuracy");
-  REQUIRE(value.suites.at(0).templates.at(0).steps.at(0).identifier == "accuracy.http_accuracy.read_voltage");
-  REQUIRE(value.records.at(0).identifier == "accuracy.http_accuracy.accepted_reading");
+  REQUIRE(value.suites.at(0).templates.at(0).steps.at(0).identifier == "example.accuracy.http_accuracy.read_voltage");
+  REQUIRE(value.records.at(0).identifier == "example.accuracy.http_accuracy.accepted_reading");
 }
 
 TEST_CASE("Member Spelling Variants Produce the Same Operation Identity") {
@@ -130,8 +131,8 @@ TEST_CASE("Member Spelling Variants Produce the Same Operation Identity") {
     Template value("VoltageTestTemplate");
     value.steps.push_back(Step(name, "Unrelated Label", [](Context &) {
     }));
-    const Plugin plugin("names", "1.0.0", {{"accuracy", {value}}});
-    REQUIRE(plugin.describe().suites.at(0).templates.at(0).steps.at(0).identifier == "accuracy.voltage.read_voltage");
+    const Plugin plugin("names", "1.0.0", {{"names.accuracy", {value}}});
+    REQUIRE(plugin.describe().suites.at(0).templates.at(0).steps.at(0).identifier == "names.accuracy.voltage.read_voltage");
   }
 }
 
@@ -147,28 +148,28 @@ TEST_CASE("Structured Prompts Keep Fields Actions and Independent Template Bindi
   definition.clear_fields();
   Template local("ReadingTestTemplate");
   local.prompts.push_back(question);
-  const Plugin first("one", "1.0.0", {{"accuracy", {local}}});
-  const Plugin second("two", "1.0.0", {{"production", {local}}});
+  const Plugin first("one", "1.0.0", {{"one.accuracy", {local}}});
+  const Plugin second("two", "1.0.0", {{"two.production", {local}}});
   const auto first_prompts = first.describe().prompts;
   const auto second_prompts = second.describe().prompts;
   const auto &bound = first_prompts.at(0);
-  REQUIRE(bound.metadata().identifier() == "accuracy.reading.question");
+  REQUIRE(bound.metadata().identifier() == "one.accuracy.reading.question");
   REQUIRE(bound.fields(0).required());
   REQUIRE(bound.fields(0).metadata().identifier() == "reading");
   REQUIRE(bound.actions(0).identifier() == "save");
-  REQUIRE(second_prompts.at(0).metadata().identifier() == "production.reading.question");
+  REQUIRE(second_prompts.at(0).metadata().identifier() == "two.production.reading.question");
   REQUIRE(question.value.metadata().identifier().empty());
 }
 
 TEST_CASE("Grouped Templates Bind Independently and Explicit Identifiers Win") {
   const auto local = VoltageTestTemplate::definition();
-  const Plugin first("one", "1.0.0", {{"accuracy", {local}}});
-  const Plugin second("two", "1.0.0", {{"production", {local}}});
+  const Plugin first("one", "1.0.0", {{"one.accuracy", {local}}});
+  const Plugin second("two", "1.0.0", {{"two.production", {local}}});
   const auto first_suites = first.describe().suites;
-  REQUIRE(first_suites.at(0).templates.at(0).identifier == "accuracy.voltage");
-  REQUIRE(first_suites.at(0).templates.at(0).steps.at(0).identifier == "accuracy.voltage.take");
-  REQUIRE(first.describe().records.at(0).identifier == "accuracy.voltage.exact");
-  REQUIRE(second.describe().records.at(0).identifier == "production.voltage.exact");
+  REQUIRE(first_suites.at(0).templates.at(0).identifier == "one.accuracy.voltage");
+  REQUIRE(first_suites.at(0).templates.at(0).steps.at(0).identifier == "one.accuracy.voltage.take");
+  REQUIRE(first.describe().records.at(0).identifier == "one.accuracy.voltage.exact");
+  REQUIRE(second.describe().records.at(0).identifier == "two.production.voltage.exact");
   REQUIRE_FALSE(local.identifier.has_value());
   REQUIRE(VoltageTestTemplate::reading.identifier == "exact");
 }
@@ -177,25 +178,25 @@ TEST_CASE("Duplicate Empty and Lifecycle Declaration Collisions Are Refused") {
   Template repeated("Repeated");
   repeated.record(Record<bool>("first", {}, "same"));
   repeated.record(Record<string>("second", {}, "same"));
-  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {repeated}}}), invalid_argument);
+  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"invalid.suite", {repeated}}}), invalid_argument);
   Template empty("Empty");
   empty.record(Record<int64_t>("reading", {}, ""));
-  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {empty}}}), invalid_argument);
+  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"invalid.suite", {empty}}}), invalid_argument);
   Template cross_kind("CrossKind");
   cross_kind.record(Record<bool>("reading", {}, "measure"));
   cross_kind.steps.push_back(Step("measure", "Measure", [](Context &) {
   }));
-  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {cross_kind}}}), invalid_argument);
+  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"invalid.suite", {cross_kind}}}), invalid_argument);
   Template lifecycle("Lifecycle");
   lifecycle.record(Record<bool>("cleanup"));
-  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {lifecycle}}}), invalid_argument);
+  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"invalid.suite", {lifecycle}}}), invalid_argument);
   const auto value = VoltageTestTemplate::definition();
-  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {value, value}}}), invalid_argument);
-  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {value}, {}, ""}}), invalid_argument);
-  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {value}}, {"suite", {value}}}), invalid_argument);
+  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"invalid.suite", {value, value}}}), invalid_argument);
+  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"invalid.suite", {value}, {}, ""}}), invalid_argument);
+  REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"invalid.suite", {value}}, {"invalid.suite", {value}}}), invalid_argument);
   Plugin recoverable("valid", "1.0.0");
-  REQUIRE_THROWS_AS(recoverable.suite({"suite", {cross_kind}}), invalid_argument);
-  REQUIRE_NOTHROW(recoverable.suite({"suite", {value}}).describe());
+  REQUIRE_THROWS_AS(recoverable.suite({"valid.suite", {cross_kind}}), invalid_argument);
+  REQUIRE_NOTHROW(recoverable.suite({"valid.suite", {value}}).describe());
 }
 
 TEST_CASE("Primitive Payloads Share Record and Operation Contracts") {
@@ -213,7 +214,7 @@ TEST_CASE("Primitive Payloads Share Record and Operation Contracts") {
   REQUIRE(dokime::templates::detail::decode<google::protobuf::BoolValue>(structured.SerializeAsString()).value());
   Template value("ValuesTestTemplate");
   value.record(Record<string>("text")).record(Record<bool>("flag")).record(Record<int64_t>("count")).record(Record<double>("number"));
-  Plugin plugin("values", "1.0.0", {{"values", {value}}});
+  Plugin plugin("values", "1.0.0", {{"values.values", {value}}});
   plugin.operation(operation<string, string>("values.echo", Visibility::Public, [](dokime::operations::Context &, string request) {
     return request;
   }));
@@ -249,16 +250,16 @@ TEST_CASE("Materialized Instances Share Qualification and Refuse Undeclared Hand
     return true;
   });
   auto bindings = make_shared<dokime::templates::detail::Bindings>();
-  bindings->template_id = "accuracy.voltage";
-  bindings->identifiers.emplace(step.key, "accuracy.voltage.read_voltage");
-  bindings->identifiers.emplace(criterion.key, "accuracy.voltage.accept_voltage");
+  bindings->template_id = "one.accuracy.voltage";
+  bindings->identifiers.emplace(step.key, "one.accuracy.voltage.read_voltage");
+  bindings->identifiers.emplace(criterion.key, "one.accuracy.voltage.accept_voltage");
   Case value(bindings, {step}, {criterion});
   value.step(step, "First Read", "read_1").step(step, "Second Read", "read_2");
   value.criterion(criterion, "Accept", "accept_1");
-  REQUIRE(value.message.steps(0).metadata().identifier() == "accuracy.voltage.read_1");
-  REQUIRE(value.message.steps(1).metadata().identifier() == "accuracy.voltage.read_2");
-  REQUIRE(value.message.steps(1).operation() == "accuracy.voltage.read_voltage");
-  REQUIRE(value.message.criteria(0).metadata().identifier() == "accuracy.voltage.accept_1");
+  REQUIRE(value.message.steps(0).metadata().identifier() == "one.accuracy.voltage.read_1");
+  REQUIRE(value.message.steps(1).metadata().identifier() == "one.accuracy.voltage.read_2");
+  REQUIRE(value.message.steps(1).operation() == "one.accuracy.voltage.read_voltage");
+  REQUIRE(value.message.criteria(0).metadata().identifier() == "one.accuracy.voltage.accept_1");
   REQUIRE_THROWS_AS(value.step(step, "Repeated", "read_2"), invalid_argument);
   REQUIRE_THROWS_AS(value.step(step, "Empty", ""), invalid_argument);
   REQUIRE_THROWS_AS(value.step(Step("Other", "Other",

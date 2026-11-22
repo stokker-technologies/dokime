@@ -183,7 +183,7 @@ fn main() -> Result<()> {
         })
         .suite(
             Suite::of::<()>()
-                .identifier("execution")
+                .identifier("execution.execution")
                 .label("Execution")
                 .template(boundary)
                 .template(windows)

@@ -64,7 +64,8 @@ impl ConfirmationTestTemplate {
 /* === Public Functions === */
 
 pub fn plugin() -> Plugin {
-    Plugin::of::<ExamplePlugin>("0.1.0").suite(Suite::of::<CaptureSuite>().template(ConfirmationTestTemplate::template()))
+    Plugin::of::<ExamplePlugin>("0.1.0")
+        .suite(Suite::of::<CaptureSuite>().identifier("example.capture").template(ConfirmationTestTemplate::template()))
 }
 
 /* === Private Functions === */
@@ -90,11 +91,11 @@ mod tests {
             .ok_or_else(|| Error::Invalid("Describe Plugin: Include Its Suites".into()))?;
         let suites = dokime::Suites::decode(section.payload.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
         let suite = &suites.suites[0];
-        assert_eq!(suite.metadata.as_ref().unwrap().identifier, "capture");
+        assert_eq!(suite.metadata.as_ref().unwrap().identifier, "example.capture");
         let template = &suite.templates[0];
-        assert_eq!(template.metadata.as_ref().unwrap().identifier, "capture.confirmation");
-        assert_eq!(template.steps[0].operation, "capture.confirmation.confirm");
-        assert!(description.operations.iter().any(|operation| operation.id == "capture.confirmation.confirmed"));
+        assert_eq!(template.metadata.as_ref().unwrap().identifier, "example.capture.confirmation");
+        assert_eq!(template.steps[0].operation, "example.capture.confirmation.confirm");
+        assert!(description.operations.iter().any(|operation| operation.id == "example.capture.confirmation.confirmed"));
         Ok(())
     }
 
@@ -115,11 +116,11 @@ mod tests {
                 Criterion::new("Confirmed", async |ctx: &Context| ctx.records(&ConfirmationTestTemplate::confirmation()).last().await)
                     .identifier("confirmed"),
             );
-        let suite = Suite::of::<CaptureSuite>().template(template).identifier("renamed");
+        let suite = Suite::of::<CaptureSuite>().template(template).identifier("example.renamed");
         let plugin = Plugin::of::<ExamplePlugin>("0.1.0").state(State { value: true }).suite(suite);
-        let report = Harness::new(plugin, "renamed.confirmation").run().await?;
+        let report = Harness::new(plugin, "example.renamed.confirmation").run().await?;
         assert!(report.passed());
-        assert_eq!(report.records::<bool>("renamed.confirmation.confirmation")?, [true]);
+        assert_eq!(report.records::<bool>("example.renamed.confirmation.confirmation")?, [true]);
         Ok(())
     }
 
@@ -142,7 +143,7 @@ mod tests {
             assert!(
                 Plugin::of::<()>("0.1.0")
                     .identifier("invalid")
-                    .suite(Suite::of::<CaptureSuite>().template(template))
+                    .suite(Suite::of::<CaptureSuite>().identifier("invalid.capture").template(template))
                     .declarations()
                     .is_err()
             );
@@ -150,8 +151,8 @@ mod tests {
         assert!(
             Plugin::of::<()>("0.1.0")
                 .identifier("invalid")
-                .suite(Suite::of::<CaptureSuite>().template(ConfirmationTestTemplate::template()))
-                .suite(Suite::of::<CaptureSuite>().template(ConfirmationTestTemplate::template()))
+                .suite(Suite::of::<CaptureSuite>().identifier("invalid.capture").template(ConfirmationTestTemplate::template()))
+                .suite(Suite::of::<CaptureSuite>().identifier("invalid.capture").template(ConfirmationTestTemplate::template()))
                 .declarations()
                 .is_err()
         );
@@ -186,21 +187,23 @@ mod tests {
                 case.criteria.push(criterion);
                 Ok(case)
             });
-        let plugin = Plugin::of::<()>("0.1.0").identifier("channels").suite(Suite::of::<CaptureSuite>().template(template));
-        let report = Harness::new(plugin, "capture.channels").run().await?;
+        let plugin = Plugin::of::<()>("0.1.0")
+            .identifier("channels")
+            .suite(Suite::of::<CaptureSuite>().identifier("channels.capture").template(template));
+        let report = Harness::new(plugin, "channels.capture.channels").run().await?;
         assert!(report.passed(), "{report:?}");
         assert_eq!(
             report.criteria().iter().map(|criterion| criterion.criterion.as_str()).collect::<Vec<_>>(),
-            ["capture.channels.accept_1", "capture.channels.accept_2"]
+            ["channels.capture.channels.accept_1", "channels.capture.channels.accept_2"]
         );
-        assert_eq!(report.records::<bool>("capture.channels.confirmation")?, [true, true]);
+        assert_eq!(report.records::<bool>("channels.capture.channels.confirmation")?, [true, true]);
         Ok(())
     }
 
     #[test]
     fn reused_declarations_and_explicit_identifiers_stay_local() -> Result<()> {
         let record = Record::<bool>::new("exact", "A Different Label");
-        for suite in ["accuracy", "production"] {
+        for suite in ["names.accuracy", "names.production"] {
             let template = Template::of::<()>()
                 .identifier("voltage")
                 .label("Another Label")
@@ -221,15 +224,17 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_answers_and_empty_record_selections_fail() -> Result<()> {
-        let report = Harness::new(plugin(), "capture.confirmation").answer("capture.confirmation.question", "unknown").run().await?;
+        let report =
+            Harness::new(plugin(), "example.capture.confirmation").answer("example.capture.confirmation.question", "unknown").run().await?;
         assert!(report.failure().is_some());
-        assert!(report.records::<bool>("capture.confirmation.confirmation")?.is_empty());
+        assert!(report.records::<bool>("example.capture.confirmation.confirmation")?.is_empty());
         let template = Template::of::<ConfirmationTestTemplate>()
             .label("Capture")
             .record(ConfirmationTestTemplate::confirmation())
             .criterion(Criterion::new("Confirmed", ConfirmationTestTemplate::confirmed));
-        let plugin = Plugin::of::<()>("0.1.0").identifier("empty").suite(Suite::of::<CaptureSuite>().template(template));
-        let report = Harness::new(plugin, "capture.confirmation").run().await?;
+        let plugin =
+            Plugin::of::<()>("0.1.0").identifier("empty").suite(Suite::of::<CaptureSuite>().identifier("empty.capture").template(template));
+        let report = Harness::new(plugin, "empty.capture.confirmation").run().await?;
         assert!(report.failure().is_some());
         assert!(report.criteria().is_empty());
         Ok(())

@@ -65,7 +65,7 @@ fn process_interruption() -> Result<(), Box<dyn Error>> {
             if let Some(root) = env::var_os("DOKIME_INTERRUPTION_CHILD") {
                 let host = Host::open(Path::new(&root), super::support::settings(), super::support::service_settings()).await?;
                 let entry = host.add_remote("execution", &env::var("DOKIME_INTERRUPTION_ENDPOINT")?).await?;
-                let origin = host.materialize(&entry, "execution.capture", super::support::parameters(19.0, 0, true)).await?;
+                let origin = host.materialize(&entry, "execution.execution.capture", super::support::parameters(19.0, 0, true)).await?;
                 let cycle = host.start_cycle(vec![origin]).await?;
                 host.next_prompt(&cycle.executions[0]).await?;
                 println!("HOST_READY {}", cycle.executions[0]);

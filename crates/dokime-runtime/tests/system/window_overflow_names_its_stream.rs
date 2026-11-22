@@ -53,7 +53,7 @@ fn window_overflow_names_its_stream() -> Result<(), Box<dyn Error>> {
         let root = support::tempdir()?;
         let host = Host::open(root.path(), support::settings(), support::service_settings()).await?;
         let entry = host.add_managed("boundary", &support::boundary_fixture()?, &[]).await?;
-        let origin = host.materialize(&entry, "execution.overflow", HashMap::new()).await?;
+        let origin = host.materialize(&entry, "execution.execution.overflow", HashMap::new()).await?;
         let cycle = host.start_cycle(vec![origin]).await?.wait().await?;
         let execution = &cycle.executions[0];
 
@@ -70,7 +70,7 @@ fn window_overflow_names_its_stream() -> Result<(), Box<dyn Error>> {
             .map(|entry| String::from_utf8_lossy(&entry.payload).into_owned())
             .collect::<Vec<_>>();
         assert!(
-            failures.iter().any(|failure| failure.contains("execution.overflow.window.overflow")),
+            failures.iter().any(|failure| failure.contains("execution.execution.overflow.window.overflow")),
             "Overflow a Window: Name the Stream in Its Failure: {failures:?}; Outcome: {}",
             outcome.reason
         );

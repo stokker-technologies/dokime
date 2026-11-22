@@ -84,7 +84,7 @@ fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
 
                 // Materialize the Complete Frozen Case and Await the Door Event
                 let parameters = HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]);
-                let origin = host.materialize(&entry, "thermal.cycle", parameters).await?;
+                let origin = host.materialize(&entry, "thermal.thermal.cycle", parameters).await?;
                 let cycle = host.start_cycle(vec![origin]).await?;
                 let execution = cycle.executions[0].clone();
                 let prompt = host.next_prompt(&execution).await?;
@@ -120,12 +120,12 @@ fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
                     snapshot
                         .samples
                         .iter()
-                        .filter(|sample| sample.stream == "thermal.cycle.temperature")
+                        .filter(|sample| sample.stream == "thermal.thermal.cycle.temperature")
                         .map(|sample| sample.source_ns)
                         .collect::<Vec<_>>(),
                     vec![1_000_000_000, 2_000_000_000]
                 );
-                assert_eq!(snapshot.records("thermal.cycle.door").len(), 1);
+                assert_eq!(snapshot.records("thermal.thermal.cycle.door").len(), 1);
                 assert!(host.streams_closed(&execution)?);
                 // csharp_frozen_record_schema_decodes_door
                 super::support::thermal::frozen_record_schema_decodes_door(&snapshot);

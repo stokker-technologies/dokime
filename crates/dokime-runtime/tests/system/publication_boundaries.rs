@@ -56,7 +56,7 @@ fn publication_boundaries() -> Result<(), Box<dyn Error>> {
             let origin = host
                 .materialize(
                     &entry,
-                    "execution.boundary",
+                    "execution.execution.boundary",
                     HashMap::from([(
                         "rows".into(),
                         Value {

@@ -90,7 +90,7 @@ class Plugin:
         self.identifier = build_identifier(type(self).__name__, getattr(type(self), "identifier", None), class_name=True)
         self._label = self.label if self.label is not None else build_label(type(self).__name__)
         self._version = self.version if self.version is not None else _distribution_version(type(self))
-        self._suites = tuple(bind_suite(item) for item in tuple(self.suites))
+        self._suites = tuple(bind_suite(item, self.identifier) for item in tuple(self.suites))
         self._records = tuple((template, record) for suite in self._suites for template in suite.templates for record in template.records)
         self._operations = tuple(self.operations)
         self._secrets = tuple(self.secrets)
@@ -112,8 +112,9 @@ class Plugin:
             if not isinstance(function, FunctionType) or not hasattr(function, "__dokime_operation__"):
                 raise TypeError("Build Plugin: List Decorated Plain Functions in operations")
             definition = dokime_sdk.operations.declaration(cast(Any, function))
-            operation_identities.append(definition.identifier)
-            methods[f"external_{index}"] = dokime_sdk.operations._bind_operation(function, self)
+            identity = build_identifier(function.__name__, definition.identifier, prefix=self.identifier)
+            operation_identities.append(identity)
+            methods[f"external_{index}"] = dokime_sdk.operations._bind_operation(function, self, identity)
         if len(operation_identities) != len(set(operation_identities)):
             raise ValueError("Build Plugin: Give Every Operation a Unique Identifier")
         for index, template in enumerate(templates):
@@ -142,7 +143,7 @@ class Plugin:
         owners = [type(self), *(template.instance for template in templates)]
         requires = (
             *(host_requirement(item) for item in HostOperation),
-            *dokime_sdk.operations._requirements(handlers, owners),
+            *dokime_sdk.operations._requirements(handlers, owners, self._operations),
         )
         for index, (name, method) in enumerate(plugin_methods.items()):
             declaration = getattr(method, "__dokime_stream__", None)

@@ -184,7 +184,7 @@ fn main() -> Result<()> {
                 value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 1_000_000 })),
             }),
         })
-        .suite(Suite::of::<ThermalSuite>().template(template).template(load));
+        .suite(Suite::of::<ThermalSuite>().identifier("thermal.thermal").template(template).template(load));
     plugin.run()
 }
 

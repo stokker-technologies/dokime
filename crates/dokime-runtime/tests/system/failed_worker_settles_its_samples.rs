@@ -146,7 +146,11 @@ async fn sealed(client: &Client, execution: &str) -> Result<(Termination, u64), 
     };
     let count = client
         .evidence
-        .statistics_with("execution.boundary.boundary", "value", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() })
+        .statistics_with(
+            "execution.execution.boundary.boundary",
+            "value",
+            EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() },
+        )
         .await?
         .statistics
         .unwrap()
@@ -209,8 +213,8 @@ fn failed_worker_settles_its_samples() -> Result<(), Box<dyn Error>> {
                     SelectionPlan {
                         cycle_id: cycle.cycle_id.clone(),
                         selections: vec![RegisteredSelection {
-                            suite_id: "execution".into(),
-                            template_id: "execution.boundary".into(),
+                            suite_id: "execution.execution".into(),
+                            template_id: "execution.execution.boundary".into(),
                             ..Default::default()
                         }],
                         ..Default::default()

@@ -47,6 +47,7 @@ class LifecycleSuite : public Suite {
 public:
   static Suite definition() {
     auto value = Suite::from<LifecycleSuite>();
+    value.identifier = "lifecycle.lifecycle";
     value.template_value(Template::from<FailedTestTemplate>());
     return value;
   }

@@ -100,6 +100,9 @@ fn charger_inrush_settles_and_protection_latches() {
 fn catalog_binds_every_document_to_declared_rows() {
     // Every Suite Composes Into One Admitted Catalog
     let declarations = plugin_obc::declarations().unwrap();
+    let prefix = format!("{}.", plugin_obc::IDENTIFIER);
+    assert!(declarations.operations.iter().all(|operation| operation.id.starts_with(&prefix)));
+    assert!(declarations.streams.iter().all(|stream| stream.id.starts_with(&prefix)));
     let templates = templates(&declarations);
     let identifiers = templates.iter().map(|template| template.metadata.as_ref().unwrap().identifier.clone()).collect::<BTreeSet<_>>();
     assert_eq!(

@@ -27,7 +27,19 @@ import dokime_sdk.templates
 from dokime_sdk import Lane, Plugin, Scalar, Suite
 from dokime_sdk._generated import shared
 from dokime_sdk.operations import Operation, OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
-from dokime_sdk.templates import Document, Materialization, Section, TestTemplate, criterion, materialize, record, step
+from dokime_sdk.templates import (
+    Document,
+    Materialization,
+    Section,
+    TestTemplate,
+    criterion,
+    materialize,
+    observer,
+    prompt,
+    record,
+    step,
+    stream,
+)
 
 # Type Checking Imports
 
@@ -63,6 +75,69 @@ class ExamplePlugin(Plugin):
 
 
 class AuthoringStory(unittest.TestCase):
+    def test_plugin_root_qualifies_explicit_and_derived_members_once(self) -> None:
+        @operation("measure")
+        async def measure(ctx: dokime_sdk.operations.Context, request: int) -> int:
+            return request
+
+        @operation("example.read")
+        async def read(ctx: dokime_sdk.operations.Context, request: int) -> int:
+            return request
+
+        class TrackingTestTemplate(TestTemplate):
+            identifier = "example.layout.tracking"
+            reading = record(int, identifier="example.reading")
+            question = prompt("Continue?", identifier="example.question")
+            documents = (Document("Report").id("example.report"),)
+
+            @step("Read", identifier="example.take")
+            async def take(self, ctx: dokime_sdk.templates.Context) -> None:
+                pass
+
+            @stream("Status", row=int, identifier="example.status")
+            @observer()
+            async def status(self, ctx: dokime_sdk.templates.Context) -> int:
+                return 1
+
+            @materialize
+            def materialize(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
+                case.step("Read", self.take, identifier="example.channel")
+
+        class LayoutSuite(Suite):
+            identifier = "example.layout"
+            templates = (TrackingTestTemplate,)
+
+        class QualifiedPlugin(Plugin):
+            identifier = "example"
+            version = "1.0.0"
+            suites = (LayoutSuite,)
+            operations = (measure, read)
+
+            @stream("System", row=int, identifier="example.system")
+            @observer()
+            async def system(self, ctx: dokime_sdk.operations.Context) -> int:
+                return 1
+
+        plugin = QualifiedPlugin()
+        template = plugin._suites[0].templates[0]
+        self.assertEqual(plugin._suites[0].identifier, "example.layout")
+        self.assertEqual(template.identifier, "example.layout.tracking")
+        self.assertEqual(template.resolve(TrackingTestTemplate.reading), "example.reading")
+        self.assertEqual(template.resolve(TrackingTestTemplate.question), "example.question")
+        self.assertEqual(template.resolve(TrackingTestTemplate.take), "example.take")
+        self.assertEqual(template.resolve(TrackingTestTemplate.status), "example.status")
+        self.assertEqual(template.definition().documents[0].metadata.identifier, "example.report")
+        self.assertEqual(template.build({}).message.steps[0].metadata.identifier, "example.channel")
+        declarations = plugin.declarations()
+        self.assertEqual({item.id for item in declarations.streams}, {"example.status", "example.system"})
+        registered = {item.id for item in declarations.operations}
+        self.assertTrue({"example.measure", "example.read", "example.take", "example.layout.tracking.materialize"} <= registered)
+        self.assertTrue(all(identifier.startswith("example.") for identifier in registered))
+        required = {item.id for item in declarations.requires}
+        self.assertTrue({"measure", "example.read"}.isdisjoint(required))
+        self.assertEqual(dokime_sdk.operations.declaration(measure).identifier, "measure")
+        self.assertEqual(dokime_sdk.operations.declaration(read).identifier, "example.read")
+
     def test_setting_bounds(self) -> None:
         for minimum, default, maximum, field, expected in (
             (SettingValue(integer=0), SettingValue(integer=7), SettingValue(integer=10), "integer", (0, 7, 10)),
@@ -142,9 +217,9 @@ class AuthoringStory(unittest.TestCase):
 
         bound = ReadingsPlugin()._suites[0].templates[0]
         cards = bound.documents[0].message.sections[0].cards
-        self.assertEqual(bound.documents[0].message.sections[0].repeat.value.record.identifier, "readings.readings.reading")
-        self.assertEqual(list(cards[1].plot.marker_records), ["readings.readings.reading"])
-        self.assertEqual(cards[1].plot.x.transform.time_between, "readings.readings.reading")
+        self.assertEqual(bound.documents[0].message.sections[0].repeat.value.record.identifier, "readings.readings.readings.reading")
+        self.assertEqual(list(cards[1].plot.marker_records), ["readings.readings.readings.reading"])
+        self.assertEqual(cards[1].plot.x.transform.time_between, "readings.readings.readings.reading")
         self.assertEqual(reading.message.record.identifier, "reading")
 
     def test_lanes_preserve_declarations_and_operation_assignments(self) -> None:
@@ -163,7 +238,7 @@ class AuthoringStory(unittest.TestCase):
         self.assertEqual(len(declarations.lanes), 1)
         self.assertEqual(declarations.lanes[0].name, "instrument")
         self.assertTrue(declarations.lanes[0].serial)
-        selected = next(item for item in declarations.operations if item.id == "example.measure")
+        selected = next(item for item in declarations.operations if item.id == "lane.example.measure")
         self.assertEqual(selected.lane, "instrument")
 
         class MissingLanePlugin(Plugin):
@@ -202,9 +277,9 @@ class AuthoringStory(unittest.TestCase):
         plugin = ExamplePlugin()
         template = plugin._suites[0].templates[0]
         self.assertEqual(plugin.identifier, "example")
-        self.assertEqual(template.identifier, "capture.confirmation")
-        self.assertEqual(template.resolve(ConfirmationTestTemplate.confirmation), "capture.confirmation.confirmation")
-        self.assertEqual(template.resolve(ConfirmationTestTemplate().confirm), "capture.confirmation.confirm")
+        self.assertEqual(template.identifier, "example.capture.confirmation")
+        self.assertEqual(template.resolve(ConfirmationTestTemplate.confirmation), "example.capture.confirmation.confirmation")
+        self.assertEqual(template.resolve(ConfirmationTestTemplate().confirm), "example.capture.confirmation.confirm")
         self.assertIsNone(ConfirmationTestTemplate.identifier)
         self.assertIsNone(ConfirmationTestTemplate.confirmation.identifier)
 
@@ -215,9 +290,9 @@ class AuthoringStory(unittest.TestCase):
             suites: ClassVar[list[type[Suite]]] = [OtherSuite]
 
         other = OtherPlugin()._suites[0].templates[0]
-        self.assertEqual(other.resolve(ConfirmationTestTemplate.confirmation), "other.confirmation.confirmation")
-        self.assertEqual(template.identifier, "capture.confirmation")
-        self.assertRaises(ValueError, other.resolve, "other.confirmation.confirmation")
+        self.assertEqual(other.resolve(ConfirmationTestTemplate.confirmation), "other.other.confirmation.confirmation")
+        self.assertEqual(template.identifier, "example.capture.confirmation")
+        self.assertRaises(ValueError, other.resolve, "other.other.confirmation.confirmation")
 
     def test_acronyms_suffixes_and_local_overrides(self) -> None:
         class ReadHTTPVoltageTestTemplate(TestTemplate):
@@ -238,14 +313,14 @@ class AuthoringStory(unittest.TestCase):
         bound = plugin._suites[0]
         template = bound.templates[0]
         self.assertEqual(plugin.identifier, "http")
-        self.assertEqual(bound.identifier, "http_accuracy")
+        self.assertEqual(bound.identifier, "http.http_accuracy")
         self.assertEqual(bound.label, "HTTP Accuracy")
-        self.assertEqual(template.identifier, "http_accuracy.read_http_voltage")
-        self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.reading), "http_accuracy.read_http_voltage.rms")
-        self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.measure), "http_accuracy.read_http_voltage.take")
+        self.assertEqual(template.identifier, "http.http_accuracy.read_http_voltage")
+        self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.reading), "http.http_accuracy.read_http_voltage.rms")
+        self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.measure), "http.http_accuracy.read_http_voltage.take")
 
-    def test_duplicate_empty_qualified_and_reused_members_fail(self) -> None:
-        for identity in ("", "already.qualified", "Uppercase", "has space"):
+    def test_duplicate_empty_invalid_and_reused_members_fail(self) -> None:
+        for identity in ("", "already..qualified", "Uppercase", "has space"):
             declaration = type("InvalidSuite", (CaptureSuite,), {"identifier": identity})
             plugin = type("InvalidPlugin", (ExamplePlugin,), {"suites": [declaration]})
             self.assertRaises(ValueError, plugin)
@@ -289,11 +364,12 @@ class AuthoringStory(unittest.TestCase):
         parameters["channels"] = []
         self.assertEqual(case.parameters["channels"], [1, 2])
         self.assertEqual(
-            [item.metadata.identifier for item in case.message.steps], ["channels.channels.read_1", "channels.channels.read_2"]
+            [item.metadata.identifier for item in case.message.steps],
+            ["channels.channels.channels.read_1", "channels.channels.channels.read_2"],
         )
         self.assertEqual(
             {identifier: arguments for (_, identifier), (_, arguments) in case.bindings.items()},
-            {"channels.channels.read_1": {"channel": 1}, "channels.channels.read_2": {"channel": 2}},
+            {"channels.channels.channels.read_1": {"channel": 1}, "channels.channels.channels.read_2": {"channel": 2}},
         )
         self.assertRaises(ValueError, case.step, "Duplicate", ChannelsTestTemplate.read, identifier="read_1")
 
@@ -305,7 +381,7 @@ class AuthoringStory(unittest.TestCase):
         class TypedPlugin(ExamplePlugin):
             operations: ClassVar[list[Callable[..., object]]] = [readVoltage]
 
-        declaration = next(item for item in TypedPlugin().declarations().operations if item.id == "read_voltage")
+        declaration = next(item for item in TypedPlugin().declarations().operations if item.id == "typed.read_voltage")
         self.assertEqual(declaration.request, "google.protobuf.Int64Value")
         self.assertEqual(declaration.response, "google.protobuf.BoolValue")
         self.assertRaises(TypeError, Operation, "unsupported", bytes, bool, Visibility.PUBLIC)
@@ -379,8 +455,8 @@ class AuthoringStory(unittest.TestCase):
 
         plugin = ReportPlugin()
         first, second = [suite.templates[0] for suite in plugin._suites]
-        self.assertEqual(first.resolve(ReportTestTemplate.report), "first.report.report")
-        self.assertEqual(second.resolve(ReportTestTemplate.report), "second.report.report")
+        self.assertEqual(first.resolve(ReportTestTemplate.report), "report.first.report.report")
+        self.assertEqual(second.resolve(ReportTestTemplate.report), "report.second.report.report")
         first_section = first.documents[0].message.sections[0]
         declared_section = ReportTestTemplate.report.message.sections[0]
         first_section.metadata.identifier = "changed"

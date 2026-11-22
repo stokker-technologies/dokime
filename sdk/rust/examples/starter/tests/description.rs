@@ -50,6 +50,6 @@ fn plugin_describes_its_confirmation_suite() -> Result<()> {
     let section = declarations.sections.iter().find(|section| section.r#type.ends_with(".Suites")).expect("Declared Suites");
     let suites = Suites::decode(section.payload.as_slice()).map_err(|error| dokime::Error::Invalid(error.to_string()))?;
     assert_eq!(suites.suites.len(), 1);
-    assert_eq!(suites.suites[0].templates[0].metadata.as_ref().unwrap().identifier, "capture.confirmation");
+    assert_eq!(suites.suites[0].templates[0].metadata.as_ref().unwrap().identifier, "example.capture.confirmation");
     Ok(())
 }

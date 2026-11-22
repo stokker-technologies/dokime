@@ -94,7 +94,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                 .entry
                 .unwrap();
             super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
-            let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
+            let cases = super::support::materialize(&client, "thermal.thermal", "thermal.thermal.cycle", HashMap::new()).await?;
             let mut repeated_origin = cases[0].origin.clone().unwrap();
             if let Some(origin::Kind::PluginRun(run)) = repeated_origin.kind.as_mut() {
                 run.test_case.as_mut().unwrap().steps[1].repeatable = true;
@@ -259,7 +259,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                         ExecutionCommandAction::try_from(ExecutionCommandAction::RunStep as i32)?,
                         ExecutionsCommandsCreateOptions {
                             request_id: Some(command.into()),
-                            step_id: Some("thermal.cycle.hold".into()),
+                            step_id: Some("thermal.thermal.cycle.hold".into()),
                             ..Default::default()
                         },
                     )

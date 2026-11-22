@@ -7,7 +7,6 @@ let progress: Awaited<ReturnType<typeof import("@host/client").executionsProgres
 try {
   const api = await harness.loadHost("client.js");
   const types = await harness.loadHost("model.js");
-  const execution = await harness.loadHost("model.js");
   const scenario = process.argv[2];
   const session = { generation: process.env.DOKIME_TEST_GENERATION!, isCurrent: () => true };
   // Materialize the SDK Fixture's Frozen Origin
@@ -54,7 +53,7 @@ try {
   assert.ok(detail.seal.length);
   if (scenario === "cancel") {
     assert.equal(detail.outcome!.attribution.case, "notEvaluated");
-    assert.equal((detail.outcome!.attribution.value as { termination: number }).termination, execution.Termination.CANCELLED);
+    assert.equal((detail.outcome!.attribution.value as { termination: number }).termination, types.Termination.CANCELLED);
   } else {
     assert.equal(detail.outcome!.attribution.case, "evaluated", JSON.stringify(detail.outcome));
     assert.equal(
@@ -64,7 +63,7 @@ try {
     const samples = await api.evidenceSamplesList(session, { scope: { executionId } });
     assert.ok(samples.samples.length);
     const records = await api.evidenceRecordsList(session, { selection: { scope: { executionId } } });
-    const door = records.records.find((record) => record.recordType === "thermal.cycle.door");
+    const door = records.records.find((record) => record.recordType === "thermal.thermal.cycle.door");
     assert.ok(door);
     assert.deepEqual([...door.payload], scenario === "complete" ? [8, 1] : []);
   }

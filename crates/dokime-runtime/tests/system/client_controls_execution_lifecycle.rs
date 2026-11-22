@@ -130,8 +130,8 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 SelectionPlan {
                     cycle_id: cycle.cycle_id.clone(),
                     selections: vec![RegisteredSelection {
-                        suite_id: "thermal".into(),
-                        template_id: "thermal.cycle".into(),
+                        suite_id: "thermal.thermal".into(),
+                        template_id: "thermal.thermal.cycle".into(),
                         ..Default::default()
                     }; 2],
                     ..Default::default()
@@ -170,8 +170,8 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         let replayed = client.cases.create_with(SelectionPlan {
             cycle_id: cycle.cycle_id.clone(),
             selections: vec![RegisteredSelection {
-                suite_id: "thermal".into(),
-                template_id: "thermal.cycle".into(),
+                suite_id: "thermal.thermal".into(),
+                template_id: "thermal.thermal.cycle".into(),
                 ..Default::default()
             }; 2],
             ..Default::default()
@@ -366,7 +366,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                     ExecutionCommandAction::try_from(ExecutionCommandAction::RunStep as i32)?,
                     ExecutionsCommandsCreateOptions {
                         request_id: Some(identifier.clone()),
-                        step_id: Some("thermal.cycle.ramp".into()),
+                        step_id: Some("thermal.thermal.cycle.ramp".into()),
                         ..Default::default()
                     }
                 )
@@ -484,7 +484,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .clone()
             .steps(identifier.clone())
             .await?;
-        assert_eq!(steps.steps.iter().map(|step| step.step_id.as_str()).collect::<Vec<_>>(), vec!["thermal.cycle.ramp", "thermal.cycle.hold"]);
+        assert_eq!(steps.steps.iter().map(|step| step.step_id.as_str()).collect::<Vec<_>>(), vec!["thermal.thermal.cycle.ramp", "thermal.thermal.cycle.hold"]);
         assert_eq!(
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                 .executions
@@ -658,7 +658,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
             super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
 
             // Admit an Interactive Execution
-            let cases = super::support::materialize(&client, "thermal", "thermal.cycle", Default::default()).await?;
+            let cases = super::support::materialize(&client, "thermal.thermal", "thermal.thermal.cycle", Default::default()).await?;
             let cycle = client
                 .cycles
                 .create_with(
@@ -693,7 +693,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                     "interrupted-command",
                     ExecutionCommandAction::RunStep,
                     ExecutionsCommandsCreateOptions {
-                        step_id: Some("thermal.cycle.hold".into()),
+                        step_id: Some("thermal.thermal.cycle.hold".into()),
                         ..Default::default()
                     },
                 )
@@ -748,7 +748,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                     ExecutionCommandAction::RunStep,
                     ExecutionsCommandsCreateOptions {
                         request_id: Some(running.request_id),
-                        step_id: Some("thermal.cycle.hold".into()),
+                        step_id: Some("thermal.thermal.cycle.hold".into()),
                         ..Default::default()
                     },
                 )

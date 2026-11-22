@@ -70,10 +70,10 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
     if (section.type() == RecordContracts::descriptor()->full_name())
       check(contracts.ParseFromString(section.payload()), "Records Did Not Decode");
   }
-  check(contracts.records(0).metadata().identifier() == "capture.confirmation.confirmation", "Record Was Not Qualified");
+  check(contracts.records(0).metadata().identifier() == "example.capture.confirmation.confirmation", "Record Was Not Qualified");
   check(contracts.records(0).message() == BoolValue::descriptor()->full_name(), "Plain Record Contract Was Lost");
   const auto &binding = suites.suites(0).templates(0);
-  check(binding.metadata().identifier() == "capture.confirmation", "Explicit Template Identifier Changed");
+  check(binding.metadata().identifier() == "example.capture.confirmation", "Explicit Template Identifier Changed");
 
   // Materialize Without an Execution Scope.
   TestCasesMaterializeRequest materialize;
@@ -81,8 +81,8 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
   (*materialize.mutable_parameters())["limit"].set_unsigned_integer(UINT64_MAX);
   const auto test_case = host.invoke<TestCasesMaterializeResponse>(binding.materialize(), materialize).test_case();
   check(test_case.parameters().at("limit").unsigned_integer() == UINT64_MAX, "Parameter Precision Was Lost");
-  check(test_case.steps(0).metadata().identifier() == "capture.confirmation.confirm", "Step Identifier Changed");
-  check(test_case.criteria(0).metadata().identifier() == "capture.confirmation.confirmed", "Criterion Identifier Changed");
+  check(test_case.steps(0).metadata().identifier() == "example.capture.confirmation.confirm", "Step Identifier Changed");
+  check(test_case.criteria(0).metadata().identifier() == "example.capture.confirmation.confirmed", "Criterion Identifier Changed");
 
   // Answer Host Calls Deterministically and Preserve Record Bytes.
   string answer = "0";
@@ -93,8 +93,8 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
     if (operation == "dokime.host.v1.Prompts/Create") {
       const auto request = harmos::plugin::decode<dokime::host::v1::PromptsCreateRequest>(bytes);
       check(request.definition().actions_size() == 2, "Prompt Lost Its Actions");
-      check(request.prompt() == "capture.confirmation.question" &&
-                request.definition().metadata().identifier() == "capture.confirmation.question",
+      check(request.prompt() == "example.capture.confirmation.question" &&
+                request.definition().metadata().identifier() == "example.capture.confirmation.question",
             "Short Prompt Was Not Qualified by Its Template");
       dokime::host::v1::PromptsCreateResponse response;
       response.set_accepted(accepted);
@@ -108,7 +108,7 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
     }
     if (operation == "dokime.host.v1.evidence.Records/Append") {
       const auto request = harmos::plugin::decode<dokime::host::v1::evidence::RecordsAppendRequest>(bytes);
-      check(request.kind() == "capture.confirmation.confirmation" && request.execution() == "execution",
+      check(request.kind() == "example.capture.confirmation.confirmation" && request.execution() == "execution",
             "Record Declaration Was Not Resolved");
       saved = request.payload();
       has_record = true;
@@ -116,7 +116,8 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
     }
     if (operation == "dokime.host.v1.evidence.Records/List") {
       const auto request = harmos::plugin::decode<dokime::host::v1::evidence::RecordsListRequest>(bytes);
-      check(request.record_type() == "capture.confirmation.confirmation" && request.step() == "capture.confirmation.confirm",
+      check(request.record_type() == "example.capture.confirmation.confirmation" &&
+                request.step() == "example.capture.confirmation.confirm",
             "Query Declaration Was Not Resolved");
       dokime::host::v1::evidence::RecordsListResponse response;
       if (has_record)
@@ -130,17 +131,17 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
   Origin origin;
   *origin.mutable_plugin_run()->mutable_test_case() = test_case;
   origin.mutable_plugin_run()->set_plugin("example");
-  origin.mutable_plugin_run()->set_template_("capture.confirmation");
+  origin.mutable_plugin_run()->set_template_("example.capture.confirmation");
   origin.mutable_plugin_run()->set_digest(description.declarations().digest());
   *origin.mutable_plugin_run()->mutable_started_at() = description.started_at();
   StepsExecuteRequest step;
   step.set_execution("execution");
-  step.set_step("capture.confirmation.confirm");
+  step.set_step("example.capture.confirmation.confirm");
   *step.mutable_test_case() = test_case;
   *step.mutable_origin() = origin;
   CriteriaEvaluateRequest criterion;
   criterion.set_execution("execution");
-  criterion.set_criterion("capture.confirmation.confirmed");
+  criterion.set_criterion("example.capture.confirmation.confirmed");
   *criterion.mutable_test_case() = test_case;
   *criterion.mutable_origin() = origin;
   for (const bool yes : {true, false}) {

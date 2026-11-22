@@ -523,8 +523,8 @@ mod tests {
 
     #[test]
     fn native_collections_register_grouped_members_without_product_producers() -> Result<()> {
-        let first = ::harmos::plugin::Stream::<CollectionReading>::new("first");
-        let second = ::harmos::plugin::Stream::<CollectionLink>::new("second");
+        let first = ::harmos::plugin::Stream::<CollectionReading>::new("native.first");
+        let second = ::harmos::plugin::Stream::<CollectionLink>::new("native.second");
         let collection = ::harmos::plugin::Collection::operation(async |_, _| Ok(()))
             .stream(first)
             .stream(second)
@@ -550,7 +550,7 @@ mod tests {
 
         let missing = Lane::serial("missing");
         let operation = Operation::new("example.measure", Visibility::Public, async |_: &Context, value: f64| Ok(value)).lane(&missing);
-        assert!(Plugin::of::<()>("1.0.0").operation(operation).declarations().is_err());
+        assert!(Plugin::of::<()>("1.0.0").identifier("example").operation(operation).declarations().is_err());
         Ok(())
     }
 

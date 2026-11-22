@@ -85,7 +85,7 @@ fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
         let entry = super::support::plugin_state(&plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
         let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
         let parameters = super::support::parameters(19.0, 0, true).into_iter().map(|(key, value)| (key, vec![value])).collect();
-        let planned = super::support::materialize(&client, "execution", "execution.capture", parameters).await?;
+        let planned = super::support::materialize(&client, "execution.execution", "execution.execution.capture", parameters).await?;
         let cycle = super::support::admit(&client, planned).await?;
         let identifier = cycle[0].clone();
         let mut progress =

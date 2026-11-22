@@ -24,6 +24,7 @@ using dokime::Suite;
 namespace starter_project {
 Suite CaptureSuite::definition() {
   auto suite = Suite::from<CaptureSuite>();
+  suite.identifier = "example.capture";
   suite.template_value(ConfirmationTestTemplate::definition());
   return suite;
 }

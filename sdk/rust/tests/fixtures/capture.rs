@@ -89,7 +89,7 @@ fn main() -> Result<()> {
         .step(Step::new("Hold", hold).identifier("hold"));
     Plugin::of::<()>("1.0.0")
         .identifier("capture")
-        .suite(Suite::of::<()>().identifier("capture").label("Capture").template(copy).template(window).template(cancelled))
+        .suite(Suite::of::<()>().identifier("capture.capture").label("Capture").template(copy).template(window).template(cancelled))
         .run()
 }
 

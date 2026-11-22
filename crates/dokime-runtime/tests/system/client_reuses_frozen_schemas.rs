@@ -92,7 +92,7 @@ fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
             let entry = super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
 
             // Run Two Executions with the Same Frozen Descriptors.
-            let cases = super::support::materialize(&client, "thermal", "thermal.cycle", Default::default()).await?;
+            let cases = super::support::materialize(&client, "thermal.thermal", "thermal.thermal.cycle", Default::default()).await?;
             let mut executions = Vec::new();
             for case in [cases[0].clone(), cases[0].clone()] {
                 let cycle = super::support::admit(&client, vec![case]).await?;

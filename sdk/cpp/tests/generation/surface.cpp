@@ -38,8 +38,8 @@ void bound_surface(dokime::Client &client, dokime::Execution &execution) {
   const auto operation = dokime::operations::operation<std::string, std::string>("example.echo", dokime::operations::Visibility::Public);
   auto echo = client.operation(operation);
   const auto response = echo("request");
-  const auto records = execution.records<bool>("capture.confirmation.confirmation").read();
-  const auto samples = execution.samples<bool>("capture.confirmation.samples").collect();
+  const auto records = execution.records<bool>("example.capture.confirmation.confirmation").read();
+  const auto samples = execution.samples<bool>("example.capture.confirmation.samples").collect();
   (void)response;
   (void)records;
   (void)samples;

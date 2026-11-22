@@ -122,7 +122,7 @@ int main() {
   int result = 0;
   try {
     auto value = ThermalTestTemplate::definition();
-    Plugin plugin("thermal", "1.0.0", {{"thermal", {move(value)}, "Thermal"}});
+    Plugin plugin("thermal", "1.0.0", {{"thermal.thermal", {move(value)}, "Thermal"}});
     plugin.serve();
   } catch (const exception &error) {
     cerr << error.what() << '\n';

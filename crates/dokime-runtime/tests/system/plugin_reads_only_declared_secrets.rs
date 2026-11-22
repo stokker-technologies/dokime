@@ -78,7 +78,7 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
             kind: Some(value::Kind::Text(identifier.into())),
         }],
     )]);
-    let cases = super::support::materialize(client, plugin, format!("{plugin}.read"), parameters).await?;
+    let cases = super::support::materialize(client, format!("{plugin}.secrets"), format!("{plugin}.secrets.read"), parameters).await?;
     let cycle = super::support::admit(client, cases).await?;
     let mut progress = client.executions.progress.watch(cycle[0].clone()).await?;
     while let Some(frame) = progress.next().await? {

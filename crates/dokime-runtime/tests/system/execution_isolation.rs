@@ -143,7 +143,7 @@ impl Instance for ScopeProbe {
                             parameters: request.parameters,
                             steps: vec![Step {
                                 metadata: Some(Metadata {
-                                    identifier: "probe".into(),
+                                    identifier: "scope_fixture.probe".into(),
                                     ..Default::default()
                                 }),
                                 operation: "scope_fixture.capture".into(),
@@ -158,11 +158,11 @@ impl Instance for ScopeProbe {
                 assert_eq!(request.scope, step.execution);
 
                 // Seed Exact Evidence for This Execution Before Testing Reads
-                probe.store.open_stream(&step.execution, "probe.samples")?;
+                probe.store.open_stream(&step.execution, "scope_fixture.probe.samples")?;
                 probe.store.sample(
                     &step.execution,
                     Sample {
-                        stream: "probe.samples".into(),
+                        stream: "scope_fixture.probe.samples".into(),
                         source_ns: 0,
                         sequence: 1,
                         row: Position { history: None, sequence: u64::MAX }.encode_to_vec(),
@@ -191,7 +191,7 @@ impl Instance for ScopeProbe {
                     });
                     let statistics = EvidenceStatisticsRequest {
                         scope: scope.clone(),
-                        stream: "probe.samples".into(),
+                        stream: "scope_fixture.probe.samples".into(),
                         field: "sequence".into(),
                         ..Default::default()
                     };
@@ -424,7 +424,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             let suites = Suites {
                 suites: vec![Suite {
                     metadata: Some(Metadata {
-                        identifier: "scope_fixture".into(),
+                        identifier: "scope_fixture.suite".into(),
                         ..Default::default()
                     }),
                     templates: vec![TestCaseTemplate {
@@ -478,7 +478,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 requires,
                 types: Some(types),
                 streams: vec![StreamDeclaration {
-                    id: "probe.samples".into(),
+                    id: "scope_fixture.probe.samples".into(),
                     row: "harmos.model.v1.Position".into(),
                     ..Default::default()
                 }],
@@ -530,7 +530,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 )
                 .await?;
             support::plugin_state(&client.plugins, created.entry.unwrap(), PluginState::Ready).await?;
-            let cases = support::materialize(&client, "scope_fixture", "scope_fixture.capture", Default::default()).await?;
+            let cases = support::materialize(&client, "scope_fixture.suite", "scope_fixture.capture", Default::default()).await?;
             let origins = cases.into_iter().map(|case| case.origin.unwrap()).collect();
             let cycle = client
                 .cycles
@@ -583,9 +583,9 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
             let root = support::tempdir()?;
             let host = Host::open(root.path(), support::settings(), support::service_settings()).await?;
             let entry = host.add_managed("execution", &support::execution_fixture()?, &[]).await?;
-            let first = host.materialize(&entry, "execution.capture", support::parameters(11.0, 0, true)).await?;
-            let second = host.materialize(&entry, "execution.capture", support::parameters(22.0, 0, true)).await?;
-            let third = host.materialize(&entry, "execution.capture", support::parameters(33.0, 0, true)).await?;
+            let first = host.materialize(&entry, "execution.execution.capture", support::parameters(11.0, 0, true)).await?;
+            let second = host.materialize(&entry, "execution.execution.capture", support::parameters(22.0, 0, true)).await?;
+            let third = host.materialize(&entry, "execution.execution.capture", support::parameters(33.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![first, second]).await?;
             let other = host.start_cycle(vec![third]).await?;
             let executions = [&cycle.executions[0], &cycle.executions[1], &other.executions[0]];
@@ -623,7 +623,7 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
                 for sample in &snapshot.samples {
                     assert_eq!(support::Reading::decode(sample.row.as_slice())?.value, value);
                 }
-                let records = snapshot.records("execution.capture.attempt");
+                let records = snapshot.records("execution.execution.capture.attempt");
                 assert_eq!(records.len(), 1);
                 let record = RecordsAppendRequest::decode(records[0].payload.as_slice())?;
                 let attempt = support::Attempt::decode(record.payload.as_slice())?;
@@ -645,8 +645,8 @@ fn concurrent_execution_clocks_advance_independently() -> Result<(), Box<dyn Err
             let root = support::tempdir()?;
             let host = Host::open(root.path(), support::settings(), support::service_settings()).await?;
             let entry = host.add_managed("execution", &support::execution_fixture()?, &[]).await?;
-            let first = host.materialize(&entry, "execution.capture", support::parameters(11.0, 0, true)).await?;
-            let second = host.materialize(&entry, "execution.capture", support::parameters(22.0, 0, true)).await?;
+            let first = host.materialize(&entry, "execution.execution.capture", support::parameters(11.0, 0, true)).await?;
+            let second = host.materialize(&entry, "execution.execution.capture", support::parameters(22.0, 0, true)).await?;
             let left = host.start_cycle(vec![first]).await?;
             let right = host.start_cycle(vec![second]).await?;
             let left_id = left.executions[0].clone();

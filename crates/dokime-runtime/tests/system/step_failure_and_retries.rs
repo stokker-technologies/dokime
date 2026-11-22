@@ -58,7 +58,8 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
             for failures in [1, 2] {
-                let origin = host.materialize(&entry, "execution.capture", super::support::parameters(17.0, failures, true)).await?;
+                let origin =
+                    host.materialize(&entry, "execution.execution.capture", super::support::parameters(17.0, failures, true)).await?;
                 let cycle = host.start_cycle(vec![origin]).await?;
                 let execution = &cycle.executions[0];
                 let prompt = host.next_prompt(execution).await?;
@@ -84,7 +85,7 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                 assert_eq!(snapshot.logs()?.len(), 2);
                 assert!(host.streams_closed(&snapshot.execution.identifier)?);
                 let attempts = snapshot
-                    .records("execution.capture.attempt")
+                    .records("execution.execution.capture.attempt")
                     .into_iter()
                     .map(|evidence| {
                         let record = RecordsAppendRequest::decode(evidence.payload.as_slice())?;
@@ -95,7 +96,7 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                 let evidence = snapshot
                     .evidence
                     .iter()
-                    .filter(|evidence| evidence.step == "execution.capture.measure" && evidence.kind.starts_with("attempt:"))
+                    .filter(|evidence| evidence.step == "execution.execution.capture.measure" && evidence.kind.starts_with("attempt:"))
                     .collect::<Vec<_>>();
                 assert_eq!(
                     evidence
@@ -127,11 +128,11 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                     assert!(latest_cut.positions[0].sequence > first_cut.positions[0].sequence);
                     latest.response.as_mut().unwrap().resolved_at = Some(first_cut.clone());
                     assert_eq!(latest.response, read.response);
-                    assert_eq!(read.request.as_ref().unwrap().step, "execution.capture.measure");
+                    assert_eq!(read.request.as_ref().unwrap().step, "execution.execution.capture.measure");
                     let positions = snapshot
                         .samples
                         .iter()
-                        .filter(|sample| snapshot.step_contains("execution.capture.measure", sample.position))
+                        .filter(|sample| snapshot.step_contains("execution.execution.capture.measure", sample.position))
                         .map(|sample| sample.position)
                         .collect::<Vec<_>>();
                     assert_eq!(read.positions, positions);
@@ -140,7 +141,7 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                     let boundary = snapshot
                         .evidence
                         .iter()
-                        .find(|evidence| evidence.kind == "step:start" && evidence.step == "execution.capture.measure")
+                        .find(|evidence| evidence.kind == "step:start" && evidence.step == "execution.execution.capture.measure")
                         .unwrap();
                     assert!(
                         snapshot.samples.iter().any(|sample| sample.source_ns == boundary.source_ns && sample.position < boundary.position),

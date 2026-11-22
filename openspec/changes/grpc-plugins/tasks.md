@@ -430,3 +430,30 @@
   - [x] Pass the Single Rust Lint Invocation, Format, Repository, Supply, Unused-Dependency and Strict OpenSpec Checks.
   - [x] Build and Package the Pure Python SDK in the Release Context and Pass the Binding Gate After Preparing Its Existing Example Distributions.
   - [ ] Resolve the Required Whole-Package Host Test Versus the No-Native-CPU-Load Rule: `collectors::cpu::workers::tests::active_workers_count_whole_batches` Starts Real Load; Keep This Proof Open Until the Owner Chooses Its Test Scope.
+
+## Plugin-Qualified Registration Identifiers
+
+- [x] Record the Owner's Rule That Plugin Registrations Belong Below Their Plugin Identifier and Qualified Peer References Stay Unchanged.
+- [x] Bind Derived and Explicit Python Local Identifiers Through One Plugin Root, Preserve Already Qualified Identifiers and Migrate Tests and Examples Without Compatibility Paths.
+- [x] Qualify Rust, C# and C++ Example and Fixture Registrations and Their Runtime/SDK References; Verify OBC's Existing Qualified Catalog.
+- [x] Pass Installed Python Unit and Integration Tests and Release-Context Python Build and Package.
+- [x] Pass Focused Rust Tests and Workspace and SDK Consumer Test-Target Compilation With Desktop Testing.
+- [x] Pass Native SDK Compilation and Focused Tests, Formatting, Repository Checks and Strict OpenSpec Validation.
+- [x] Remove the Native C++ Test Freshness Dry Run and Keep Protocol Dependency Handling in CMake; Prove the Native Debug Build and Focused CTest Through the SDK Tasks.
+- [x] Migrate CLI First-Hour and Evidence Export, Desktop Execution-Matrix and Native E2E, and Python Thermal Readback References; Prove Focused CLI, Desktop Acceptance and Runtime Stories.
+
+## Strict Registration Library Adoption
+
+- [x] Pin Cargo and the Python SDK to Library Dev `d9af0b8e1464881a445b4e507076ccd8b1fa1d4a`; Regenerate Protocol Projections and Refresh Every Tracked Lock Through Generation.
+- [x] Repair Every Registration Refused by Plugin-Qualified Identifier Validation, Preserving Local Lane and Setting Keys; Qualify Registered Operations, Streams and Records While Allowing Shared Row Types Such as `google.protobuf` Wrappers.
+- [ ] Prove Focused Runtime Streams and Peer Capture, Python Units and Integration, Host and OBC Plugins, and Four-Language SDK Conformance.
+  - [x] Pass Runtime Stream Units and Peer Stream Capture, Host Plugin Integration, OBC Plugin Tests and C++ Debug SDK Tests.
+  - [x] Pass Installed Python Units and the Two Host-Backed Materialization Cases.
+  - [x] Pass Rust SDK Units and Integration and C# Debug SDK Stories, Builders and Managed/Remote Library Conformance.
+  - [x] Pass All Installed Python Units and Integration Tests, Including Live Subscriptions With Shared Wrapper Row Schemas.
+  - [ ] Prove Peer Collection Burst Ingest From `test(runtime): cover peer ingest of collection bursts`; the Requested Commit Is Absent From This Branch and `origin/dev`.
+- [x] Pass Workspace Test Compilation With Desktop Testing, Generation Drift, Formatting, Repository, Supply, Binding, Unused-Dependency and Strict OpenSpec Gates.
+  - [x] Compile Every Workspace Test Target With Desktop Testing Through `mise run test -- --changed Cargo.toml --no-run`.
+  - [x] Pass Workspace Compiler Checking With Desktop Testing, Generation Drift, Formatting, Repository, Release-Context Binding, Unused-Dependency and Strict OpenSpec Checks.
+  - [x] Repair the Real Supply Failure by Refreshing Both Cargo Locks to `url 2.5.9` and Pass the Supply Gate Without New Exceptions.
+- [x] Reuse the Desktop Execution Matrix's Single Model Module and Prove Its Focused Story in a Separate Commit.

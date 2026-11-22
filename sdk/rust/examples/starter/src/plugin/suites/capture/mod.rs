@@ -44,7 +44,7 @@ pub struct CaptureSuite;
 /* === Public Functions === */
 
 pub fn suite() -> Result<Suite> {
-    Ok(Suite::of::<CaptureSuite>().template(ConfirmationTestTemplate::template()))
+    Ok(Suite::of::<CaptureSuite>().identifier("example.capture").template(ConfirmationTestTemplate::template()))
 }
 
 /* === Private Functions === */

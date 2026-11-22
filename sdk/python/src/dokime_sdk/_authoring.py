@@ -129,6 +129,7 @@ class _Template:
     _identifiers: dict[int, str] = field(default_factory=dict, init=False, repr=False)
     _lifecycle: dict[str, str] = field(default_factory=dict, init=False, repr=False)
     _prompts: dict[int, shared.Prompt] = field(default_factory=dict, init=False, repr=False)
+    _root: str = field(default="", init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._methods = {}
@@ -155,10 +156,10 @@ class _Template:
         self.records = tuple(member for member in self._methods.values() if isinstance(member, Record))
         self.prompts = tuple(member for member in self._methods.values() if isinstance(member, PromptDeclaration))
 
-    def bind(self, prefix: str) -> "_Template":
-        local = build_identifier(self.instance.__name__, self.identifier, class_name=True)
+    def bind(self, prefix: str, root: str) -> "_Template":
         bound = copy(self)
-        bound.identifier = build_identifier(local, prefix=prefix)
+        bound._root = root
+        bound.identifier = build_identifier(self.instance.__name__, self.identifier, prefix=prefix, root=root, class_name=True)
         bound._identifiers = {}
         bound._lifecycle = {name: build_identifier(name, prefix=bound.identifier) for name in ("materialize", "initialize", "cleanup")}
         bound._prompts = {}
@@ -175,9 +176,9 @@ class _Template:
             stream = getattr(member, "__dokime_stream__", None)
             if isinstance(stream, Stream):
                 declarations.append((member, name, stream.identifier))
-                bound._identifiers[id(stream)] = build_identifier(name, stream.identifier, prefix=bound.identifier)
+                bound._identifiers[id(stream)] = build_identifier(name, stream.identifier, prefix=bound.identifier, root=root)
         for member, name, explicit in declarations:
-            qualified = build_identifier(name, explicit, prefix=bound.identifier)
+            qualified = build_identifier(name, explicit, prefix=bound.identifier, root=root)
             names.append(qualified)
             bound._identifiers[id(member)] = qualified
         if len(names) != len(set(names)) or len(declarations) != len({id(member) for member, _, _ in declarations}):
@@ -190,7 +191,7 @@ class _Template:
             local = document.message.metadata.identifier
             if not local:
                 raise ValueError("Bind Document: Declare a Nonempty Local Identifier")
-            qualified = build_identifier(local, prefix=bound.identifier)
+            qualified = build_identifier(local, local, prefix=bound.identifier, root=root)
             if qualified in document_ids or id(declaration) in bound._identifiers:
                 raise ValueError("Bind Document: Give Every Document a Unique Declaration and Identifier")
             document_ids.add(qualified)
@@ -342,7 +343,7 @@ class Materialization:
         identity = (
             self.template.resolve(handler)
             if identifier is None
-            else build_identifier(getattr(handler, "__name__", ""), identifier, prefix=self.template.identifier)
+            else build_identifier(getattr(handler, "__name__", ""), identifier, prefix=self.template.identifier, root=self.template._root)
         )
         if not identity or (kind, identity) in self.bindings:
             raise ValueError(f"Materialize {kind.title()}: Supply a Unique, Nonempty Local Identifier: {identity}")
@@ -358,7 +359,9 @@ class Materialization:
 # === Public Functions === #
 
 
-def build_identifier(name: str, explicit: str | None = None, *, prefix: str | None = None, class_name: bool = False) -> str:
+def build_identifier(
+    name: str, explicit: str | None = None, *, prefix: str | None = None, root: str | None = None, class_name: bool = False
+) -> str:
     if explicit is not None:
         local = explicit
     else:
@@ -367,8 +370,10 @@ def build_identifier(name: str, explicit: str | None = None, *, prefix: str | No
         name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
         name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
         local = name.lower()
-    if not re.fullmatch(r"[a-z0-9_]+", local):
-        raise ValueError("Build Plugin: Supply a Nonempty Lowercase Local Declaration Identifier")
+    if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)*", local):
+        raise ValueError("Build Plugin: Supply Nonempty Lowercase Declaration Identifier Segments")
+    if explicit is not None and (root or prefix) and local.startswith(f"{root or prefix}."):
+        return local
     return f"{prefix}.{local}" if prefix else local
 
 
@@ -495,10 +500,10 @@ def build_label(name: str) -> str:
 # === Private Functions === #
 
 
-def bind_suite(declaration: type[Suite]) -> _Suite:
+def bind_suite(declaration: type[Suite], prefix: str) -> _Suite:
     if not isinstance(declaration, type) or not issubclass(declaration, Suite):
         raise TypeError("Build Plugin: List Suite Classes in suites")
-    identity = build_identifier(declaration.__name__, declaration.identifier, class_name=True)
+    identity = build_identifier(declaration.__name__, declaration.identifier, prefix=prefix, class_name=True)
     templates = []
     for item in tuple(declaration.templates):
         if not isinstance(item, type) or not issubclass(item, TestTemplate):
@@ -511,7 +516,7 @@ def bind_suite(declaration: type[Suite]) -> _Suite:
             files=tuple(deepcopy(item.files)),
             documents=tuple(item.documents),
             uses_streams=tuple(item.uses_streams),
-        ).bind(identity)
+        ).bind(identity, prefix)
         templates.append(template)
     return _Suite(identity, tuple(templates), declaration.label or build_label(declaration.__name__))
 

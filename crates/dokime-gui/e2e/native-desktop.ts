@@ -278,7 +278,7 @@ async function reportsAndHistory() {
 }
 
 async function cancellation() {
-  const suite = await call(desktop, "Suites", "Get", { name: "thermal" }).then((reply) => reply.value);
+  const suite = await call(desktop, "Suites", "Get", { name: "thermal.thermal" }).then((reply) => reply.value);
   const plan = await call(desktop, "Cases", "Create", {
     requestId: crypto.randomUUID(),
     plan: { selections: [{ suiteId: suite.metadata.identifier, templateId: suite.templates[0].metadata.identifier }] },
@@ -306,7 +306,7 @@ async function cancellation() {
 
 async function cycleSeal() {
   // Create a Cycle Whose Executions Have Never Started.
-  const suite = await call(desktop, "Suites", "Get", { name: "thermal" }).then((reply) => reply.value);
+  const suite = await call(desktop, "Suites", "Get", { name: "thermal.thermal" }).then((reply) => reply.value);
   const planned = await call(desktop, "Cases", "Create", {
     requestId: crypto.randomUUID(),
     plan: { selections: [{ suiteId: suite.metadata.identifier, templateId: suite.templates[0].metadata.identifier }] },

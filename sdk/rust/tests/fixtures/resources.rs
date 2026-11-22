@@ -96,7 +96,7 @@ fn main() -> Result<()> {
         });
     Plugin::of::<()>("1.0.0")
         .identifier("resources")
-        .suite(Suite::of::<()>().identifier("resources").label("Resources").template(template))
+        .suite(Suite::of::<()>().identifier("resources.resources").label("Resources").template(template))
         .operation(ready)
         .operation(release)
         .run()

@@ -252,7 +252,7 @@ def declaration[Q: Payload, R: Payload](handler: Callable[[Context, Q], Awaitabl
     return cast(Operation[Q, R], definition)
 
 
-def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable[..., Awaitable[Message]]:
+def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier: str) -> Callable[..., Awaitable[Message]]:
     definition = declaration(cast(Callable[[Context, Any], Awaitable[Any]], handler))
     transport = definition._definition()
 
@@ -267,7 +267,7 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable
             raise harmos.FailureError(_errors.wire_failure(error.failure)) from error
 
     return plugin.operation(
-        transport.id,
+        identifier,
         request=transport.request,
         response=transport.response,
         visibility=transport.visibility,
@@ -281,7 +281,9 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable
 # === Private Functions === #
 
 
-def _requirements(handlers: Sequence[object], owners: Sequence[type]) -> tuple[plugin.Operation[Message, Message], ...]:
+def _requirements(
+    handlers: Sequence[object], owners: Sequence[type], registered: Sequence[Callable[..., object]]
+) -> tuple[plugin.Operation[Message, Message], ...]:
     """Freeze Typed References Reachable From Author Handlers Before Activation."""
     pending = [(item, frozenset[str]()) for item in handlers]
     visited: set[tuple[int, frozenset[str]]] = set()
@@ -318,7 +320,7 @@ def _requirements(handlers: Sequence[object], owners: Sequence[type]) -> tuple[p
         if not isinstance(value, FunctionType):
             continue
         declaration = vars(value).get("__dokime_operation__")
-        if declaration is not None:
+        if declaration is not None and value not in registered:
             pending.append((declaration, frozenset()))
         if value.__module__.startswith(("dokime_sdk.", "harmos.")):
             continue

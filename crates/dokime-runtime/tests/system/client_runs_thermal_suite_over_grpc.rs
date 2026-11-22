@@ -200,11 +200,11 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let suites = client.suites.list(String::new()).await?;
             let suite_id = suites.values[0].metadata.as_ref().unwrap().identifier.clone();
             let suite = client.suites.get(suite_id.clone(), String::new(), 0).await?.value.unwrap();
-            assert_eq!(suite.templates[0].metadata.as_ref().unwrap().identifier, "thermal.cycle");
+            assert_eq!(suite.templates[0].metadata.as_ref().unwrap().identifier, "thermal.thermal.cycle");
             let cases = super::support::materialize(
                 &client,
                 suite_id,
-                "thermal.cycle",
+                "thermal.thermal.cycle",
                 HashMap::from([("limit".into(), vec![Value { kind: Some(value::Kind::Number(85.0)) }])]),
             )
             .await?;
@@ -249,11 +249,11 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 let hold = client
                     .evidence
                     .statistics_with(
-                        "thermal.cycle.temperature",
+                        "thermal.thermal.cycle.temperature",
                         "celsius",
                         EvidenceStatisticsOptions {
                             scope: Some(scope.clone()),
-                            step: Some("thermal.cycle.hold".into()),
+                            step: Some("thermal.thermal.cycle.hold".into()),
                             ..Default::default()
                         },
                     )
@@ -261,7 +261,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 let execution = client
                     .evidence
                     .statistics_with(
-                        "thermal.cycle.temperature",
+                        "thermal.thermal.cycle.temperature",
                         "celsius",
                         EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() },
                     )
@@ -270,12 +270,12 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                     .evidence
                     .records
                     .list_with(
-                        "thermal.cycle.door",
+                        "thermal.thermal.cycle.door",
                         EvidenceRecordsListOptions {
                             scope: Some(RecordScope {
                                 kind: Some(record_scope::Kind::Execution(execution_id.clone())),
                             }),
-                            step: Some("thermal.cycle.hold".into()),
+                            step: Some("thermal.thermal.cycle.hold".into()),
                             ..Default::default()
                         },
                     )
@@ -320,7 +320,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                         execution_id: Some(execution_id.clone()),
                         ..Default::default()
                     },
-                    vec!["thermal.cycle.temperature".into()],
+                    vec!["thermal.thermal.cycle.temperature".into()],
                     EvidenceSamplesListOptions {
                         versions: Some(Vec::new()),
                         fields: Some(Vec::new()),
@@ -350,7 +350,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                         execution_id: Some(execution_id.clone()),
                         ..Default::default()
                     },
-                    vec!["thermal.cycle.temperature".into()],
+                    vec!["thermal.thermal.cycle.temperature".into()],
                     EvidenceSamplesListOptions {
                         between: Some(Window {
                             start: Some(Timestamp { seconds: 1, nanos: 0 }),
@@ -379,7 +379,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let statistics = client
                 .evidence
                 .statistics_with(
-                    "thermal.cycle.temperature",
+                    "thermal.thermal.cycle.temperature",
                     "celsius",
                     EvidenceStatisticsOptions {
                         scope: Some(sealed),
@@ -535,7 +535,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                             execution_id: Some(execution_id),
                             ..Default::default()
                         },
-                        vec!["thermal.cycle.temperature".into()],
+                        vec!["thermal.thermal.cycle.temperature".into()],
                         EvidenceSamplesListOptions {
                             versions: Some(Vec::new()),
                             fields: Some(Vec::new()),

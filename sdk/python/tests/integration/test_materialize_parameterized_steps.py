@@ -94,19 +94,19 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         author = ChannelsPlugin()
         template = author._suites[0].templates[0]
         case = template.build({"channels": [2, 4]}).message
-        self.assertEqual([item.operation for item in case.steps], ["channels.channels.measure"] * 2)
+        self.assertEqual([item.operation for item in case.steps], ["channels.channels.channels.measure"] * 2)
         handlers = {definition.id: (definition, handler) for definition, handler in author._plugin._registrations()[0]}
         for execution in ("first", "second"):
             origin = {"plugin_run": {"plugin": author.identifier, "template": template.identifier, "test_case": case}}
             transport = plugin.Context(Request(scope=execution, attempt=1), author.identifier, {})
             for name, arguments in (
                 ("initialize", {}),
-                ("measure", {"step": "channels.channels.channel_2"}),
-                ("measure", {"step": "channels.channels.channel_4"}),
-                ("all_channels", {"criterion": "channels.channels.all_channels"}),
+                ("measure", {"step": "channels.channels.channels.channel_2"}),
+                ("measure", {"step": "channels.channels.channels.channel_4"}),
+                ("all_channels", {"criterion": "channels.channels.channels.all_channels"}),
                 ("cleanup", {"termination": Termination.COMPLETED.value}),
             ):
-                definition, handler = handlers[f"channels.channels.{name}"]
+                definition, handler = handlers[f"channels.channels.channels.{name}"]
                 request = cast(Any, definition.request)(execution=execution, test_case=case, origin=origin, **arguments)
                 result = await handler(transport, request)
                 if name == "all_channels":
@@ -179,7 +179,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             origin = {"plugin_run": {"plugin": author.identifier, "template": template.identifier, "test_case": case}}
             transport = plugin.Context(Request(scope="execution", attempt=1), author.identifier, {})
             handlers = {definition.id: (definition, handler) for definition, handler in author._plugin._registrations()[0]}
-            definition, handler = handlers["partial.partial.initialize"]
+            definition, handler = handlers["partial.partial.partial.initialize"]
             request = cast(Any, definition.request)(execution="execution", test_case=case, origin=origin)
             try:
                 await handler(transport, request)
@@ -187,7 +187,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 pass
             else:
                 self.fail("Setup Must Preserve Its Failure")
-            definition, handler = handlers["partial.partial.cleanup"]
+            definition, handler = handlers["partial.partial.partial.cleanup"]
             request = cast(Any, definition.request)(
                 execution="execution", test_case=case, origin=origin, termination=Termination.FAILED.value
             )

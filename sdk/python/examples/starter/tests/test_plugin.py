@@ -43,10 +43,10 @@ class PluginDescription(unittest.TestCase):
                 "example.echo",
                 "example.initialize",
                 "example.finalize",
-                "capture.confirmation.materialize",
-                "capture.confirmation.cleanup",
-                "capture.confirmation.confirm",
-                "capture.confirmation.confirmed",
+                "example.capture.confirmation.materialize",
+                "example.capture.confirmation.cleanup",
+                "example.capture.confirmation.confirm",
+                "example.capture.confirmation.confirmed",
             },
             operations,
         )
@@ -59,10 +59,12 @@ class PluginDescription(unittest.TestCase):
             value = GetMessageClass(descriptor).FromString(section.payload)
             if "suites" in descriptor.fields_by_name:
                 suites.extend(MessageToDict(value)["suites"])
-        self.assertIn("capture", [suite["metadata"]["identifier"] for suite in suites])
-        self.assertIn("capture.confirmation", [template["metadata"]["identifier"] for suite in suites for template in suite["templates"]])
+        self.assertIn("example.capture", [suite["metadata"]["identifier"] for suite in suites])
         self.assertIn(
-            ("capture.confirmation.confirm", "capture.confirmation.confirm"),
+            "example.capture.confirmation", [template["metadata"]["identifier"] for suite in suites for template in suite["templates"]]
+        )
+        self.assertIn(
+            ("example.capture.confirmation.confirm", "example.capture.confirmation.confirm"),
             [
                 (step["metadata"]["identifier"], step["operation"])
                 for suite in suites
@@ -70,7 +72,7 @@ class PluginDescription(unittest.TestCase):
                 for step in template["steps"]
             ],
         )
-        self.assertIn("capture.confirmation.temperature", [item.id for item in description.streams])
+        self.assertIn("example.capture.confirmation.temperature", [item.id for item in description.streams])
 
 
 # === Public Functions === #

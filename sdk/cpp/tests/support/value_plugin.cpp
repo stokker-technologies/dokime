@@ -34,7 +34,7 @@ using std::string;
 /* === Templates === */
 
 template <class T> void echo(Plugin &plugin, string name) {
-  const auto local = operation<T, T>("local." + name, Visibility::Private, [](Context &, T request) {
+  const auto local = operation<T, T>("values.local." + name, Visibility::Private, [](Context &, T request) {
     return request;
   });
   plugin.operation(local);

@@ -105,10 +105,10 @@ impl Instance for Fixture {
                         streams: vec!["peer_fixture.system".into()],
                         steps: vec![dokime::Step {
                             metadata: Some(dokime::Metadata {
-                                identifier: "capture.wait".into(),
+                                identifier: "capture_fixture.capture.wait".into(),
                                 ..Default::default()
                             }),
-                            operation: "capture.check.wait".into(),
+                            operation: "capture_fixture.capture.check.wait".into(),
                             ..Default::default()
                         }],
                         ..Default::default()
@@ -116,7 +116,7 @@ impl Instance for Fixture {
                 }
                 .encode_to_vec()
             } else {
-                if request.operation == "capture.check.wait" {
+                if request.operation == "capture_fixture.capture.check.wait" {
                     fixture.entered.notify_one();
                     tokio::select! {
                         _ = fixture.proceed.notified() => {},
@@ -192,7 +192,7 @@ fn peer_stream_rows_decode_after_seal_and_bindings_release_after_cancellation() 
             Template::of::<()>().identifier("check").label("Check").uses_stream("peer_fixture.system").step(Step::new("Wait", wait));
         let caller = Plugin::of::<()>("1.0.0")
             .identifier("capture_fixture")
-            .suite(Suite::of::<()>().identifier("capture").label("Capture").template(template))
+            .suite(Suite::of::<()>().identifier("capture_fixture.capture").label("Capture").template(template))
             .declarations()?;
         let peer = Plugin::of::<()>("1.0.0")
             .identifier("peer_fixture")
@@ -241,7 +241,7 @@ fn peer_stream_rows_decode_after_seal_and_bindings_release_after_cancellation() 
 
         // Complete and Cancel Runs; Every Peer Demand Must End Before the Run Seals.
         for cancelled in [false, true] {
-            let origin = host.materialize(&entries[0], "capture.check", Default::default()).await?;
+            let origin = host.materialize(&entries[0], "capture_fixture.capture.check", Default::default()).await?;
             let cycle = host.start_cycle(vec![origin]).await?;
             sampled.notified().await;
             entered.notified().await;
@@ -264,7 +264,7 @@ fn peer_stream_rows_decode_after_seal_and_bindings_release_after_cancellation() 
         }
 
         // Refuse an Unowned Stream Before Creating Execution Evidence.
-        let mut origin = host.materialize(&entries[0], "capture.check", Default::default()).await?;
+        let mut origin = host.materialize(&entries[0], "capture_fixture.capture.check", Default::default()).await?;
         let Some(origin::Kind::PluginRun(run)) = origin.kind.as_mut() else { unreachable!() };
         run.test_case.as_mut().unwrap().streams = vec!["missing_fixture.system".into()];
         let refusal = match host.start_cycle(vec![origin]).await {

@@ -435,7 +435,7 @@ fn real_clock_executions_end_passed() -> Result<(), Box<dyn Error>> {
 
             // Every Run Seals Passed; Counts and Durations Belong to the Controlled-Clock Stories
             let limit = HashMap::from([("limit".into(), vec![Value { kind: Some(value::Kind::Number(85.0)) }])]);
-            run(&client, "thermal", "thermal.cycle", limit, Some(("0", MapValue::default()))).await?;
+            run(&client, "thermal.thermal", "thermal.thermal.cycle", limit, Some(("0", MapValue::default()))).await?;
             run(&client, "obc.transient", "obc.transient.startup", HashMap::new(), Some(("submit", inspection()))).await?;
             run(&client, "obc.benchmark", "obc.benchmark.exact_values", HashMap::new(), Some(("yes", MapValue::default()))).await?;
             let parameters = HashMap::from([
