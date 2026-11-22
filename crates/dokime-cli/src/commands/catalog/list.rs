@@ -56,7 +56,14 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
             },
         )
         .await?;
-    crate::output::print(&value, args.json)
+    if args.json {
+        return crate::output::print(&value, true);
+    }
+    for suite in value.values {
+        let metadata = suite.metadata.ok_or("List Suites: Read a Suite With Metadata")?;
+        println!("{}\t{}\t{} Templates", metadata.identifier, metadata.label, suite.templates.len());
+    }
+    Ok(())
 }
 
 /* === Private Functions === */

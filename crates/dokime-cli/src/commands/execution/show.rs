@@ -119,7 +119,12 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
                 schemas.insert(identities.digest.clone(), types);
             }
             let types = schemas.get(&identities.digest).ok_or("Read Schemas: Missing Assembled Descriptor Set")?;
-            crate::output::print(types, args.json)?;
+            if args.json {
+                crate::output::print(types, true)?;
+            } else {
+                let files = types.get_field_by_name("file").ok_or("Read Schemas: Include Descriptor Files")?;
+                println!("{name}\t{} Schema Files", files.as_list().map_or(0, |files| files.len()));
+            }
         }
     }
     Ok(())
