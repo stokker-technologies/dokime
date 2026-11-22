@@ -10,15 +10,13 @@
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
+import { SvelteMount } from "@/components/SvelteMount";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
 import { checkpointStepStatus } from "@/lib/api/native-checkpoints";
 import { DownloadReportAction } from "@/features/cycle/DownloadReportAction";
@@ -28,9 +26,10 @@ import { timestampIso } from "@/lib/api/native-values";
 import type { ExecutionBrowseEntry } from "@/lib/types/browse";
 import { usePageChrome } from "@/shell/page-chrome";
 import { CheckpointEvidence } from "./CheckpointEvidence";
-import { type ExploreEntry, type ExploreTarget, exploreEntryKey, unrunCaption } from "./explore-contracts";
+import { type ExploreEntry, type ExploreTarget, exploreEntryKey, isDeletableExecution, unrunCaption } from "./explore-contracts";
 import { fetchCheckpoint } from "./explore-data-source";
 import { exploreQueryKeys, useExploreHistoryQuery } from "./explore-queries";
+import HistoryExecutionsTable from "./HistoryExecutionsTable.svelte";
 
 type DeleteRetryRequests = Record<string, string>;
 
@@ -47,7 +46,7 @@ export function HistoryDetailSurface(props: HistoryDetailProps) {
 }
 
 function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
-  const query = useExploreHistoryQuery("", "All");
+  const query = useExploreHistoryQuery("All");
   const session = useNativeSession();
   const queryClient = useQueryClient();
   const entry = query.data?.find((cycle) => exploreEntryKey(cycle.target) === exploreEntryKey(target));
@@ -149,49 +148,20 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
             ) : null}
           </section>
         ) : null}
-        <DataTable
-          aria-label="History Executions"
-          title="Executions"
-          description={emptyCycle ? "This sealed cycle contains no executions." : "Executions retained in this history entry."}
-          loading={query.isPending}
-          failure={query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
-          data={entry?.executions ?? []}
-          getRowId={(execution) => execution.metadata.execution_id}
-          emptyText="No Executions in the Loaded History"
-          columns={dataTableColumns<ExecutionBrowseEntry>().columns([
-            dataTableColumns<ExecutionBrowseEntry>().accessor((execution) => execution.metadata.title, {
-              id: "title",
-              header: "Execution",
-              meta: { filter: "text" },
-              cell: ({ getValue, row }) => <span data-execution-id={row.original.metadata.execution_id}>{getValue()}</span>,
-            }),
-            dataTableColumns<ExecutionBrowseEntry>().accessor(
-              (execution) => (execution.availability === "interrupted" ? "Interrupted" : execution.metadata.status),
-              { id: "status", header: "Status", meta: { filter: "facet", width: "w-36" } },
-            ),
-            dataTableColumns<ExecutionBrowseEntry>().display({
-              id: "actions",
-              header: "Actions",
-              cell: ({ row }) => (
-                <DataTableRowActions
-                  label={row.original.metadata.title}
-                  primary={{ label: "Inspect", icon: Eye, disabled: !row.original.checkpoint, onSelect: () => setSelected(row.original) }}
-                >
-                  <DropdownMenuItem
-                    variant="destructive"
-                    disabled={!isDeletableExecution(row.original)}
-                    onSelect={() => {
-                      setDeleteError(null);
-                      setDeleteNotice(null);
-                      setDeleteTarget(row.original);
-                    }}
-                  >
-                    Delete
-                  </DropdownMenuItem>
-                </DataTableRowActions>
-              ),
-            }),
-          ])}
+        <SvelteMount
+          component={HistoryExecutionsTable}
+          props={{
+            rows: entry?.executions ?? [],
+            emptyCycle,
+            loading: query.isPending,
+            failure: query.isError ? failureOf(query.error, "Data Unavailable") : undefined,
+            onInspect: setSelected,
+            onDelete: (execution) => {
+              setDeleteError(null);
+              setDeleteNotice(null);
+              setDeleteTarget(execution);
+            },
+          }}
         />
         {/* The cases with nothing behind them are one line, not rows: the
             count stays visible without pretending each is inspectable. */}
@@ -199,11 +169,6 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
           <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
             {unrunCaption(entry.unrun_count)}
           </p>
-        ) : null}
-        {query.hasNextPage ? (
-          <Button variant="outline" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
-            {query.isFetchingNextPage ? "Loading…" : "Load More History"}
-          </Button>
         ) : null}
         {selected?.checkpoint ? <CheckpointInspection key={checkpointKey(selected.checkpoint)} entry={selected} /> : null}
       </div>
@@ -261,10 +226,6 @@ function findUnrunExecution(entries: ExploreEntry[] | undefined, executionId: st
     if (found) return found;
   }
   return null;
-}
-
-function isDeletableExecution(execution: ExecutionBrowseEntry): boolean {
-  return !!execution.checkpoint && execution.availability === "stored";
 }
 
 function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {

@@ -152,7 +152,7 @@ vi.mock("@/features/settings/use-settings-sections", () => ({ useSettingsSection
 vi.mock("@/features/settings/SettingsSurface", () => ({ SettingsAdvancedSwitch: () => null }));
 vi.mock("@/features/settings/PluginSettingsCards", () => ({ PluginSettingsCards: () => null }));
 vi.mock("@/shell/page-chrome", () => ({ usePageChrome: vi.fn() }));
-vi.mock("@/lib/brand", () => ({ useBrand: () => ({ label: "Fixture" }) }));
+vi.mock("@/lib/brand-context", () => ({ useBrand: () => ({ label: "Fixture" }) }));
 vi.mock("@/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 
 beforeEach(() => {

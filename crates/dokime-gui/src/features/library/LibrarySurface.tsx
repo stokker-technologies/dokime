@@ -18,21 +18,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SvelteMount } from "@/components/SvelteMount";
 import { useNativeSession } from "@/app/native-session/context";
-import { DataTable } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
-import { SuiteTags } from "@/components/suite-picker/SuiteTags";
+import { selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import NewCycleDialog from "@/features/cycles-home/NewCycleDialog.svelte";
-import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { useBrand } from "@/lib/brand-context";
-import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import { PageShell } from "@/shell/PageShell";
+import TemplateCatalog, { type OpenTemplate } from "./TemplateCatalog.svelte";
 
 /* === Constants === */
 
@@ -41,11 +36,6 @@ import { PageShell } from "@/shell/PageShell";
 type LibrarySurfaceProps = {
   /** A cycle to make active on arrival, as Add Cases names it; a closed one is ignored. */
   appendTo?: string;
-};
-
-type OpenTemplate = {
-  suite: TestSuiteEntry;
-  template: SuiteTemplateEntry;
 };
 
 /* === Components === */
@@ -75,14 +65,8 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     applied.current = appendTo;
     choose(appendTo);
   }, [appendTo, choose, openCycles]);
-  const suites = suitesQuery.data ?? null;
   const pluginsQuery = useInstalledPluginsQuery();
-  const waitingPlugins = (pluginsQuery.data ?? []).filter((plugin) => ["failed", "connecting", "unavailable"].includes(plugin.status));
-  const suiteFailure = suitesQuery.isError ? failureOf(suitesQuery.error, "Could Not Load Suites") : null;
-  const waitingForSource = Boolean(suiteFailure?.plugin && waitingPlugins.some((plugin) => plugin.plugin_id === suiteFailure.plugin));
-  const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
 
-  const [suiteSearch, setSuiteSearch] = useState("");
   const [openTemplate, setOpenTemplate] = useState<OpenTemplate | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -105,105 +89,22 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     [destinationId, navigate],
   );
 
-  const suiteRows = useMemo(
-    () => filterTestSuites(suites ?? [], suiteSearch, (suite) => pluginSearchText(plugins.get(suite.source), brand.label)),
-    [brand.label, plugins, suiteSearch, suites],
-  );
-  const column = dataTableColumns<OpenTemplate>();
-  const columns = column.columns([
-    column.accessor((row) => row.template.name, {
-      id: "template",
-      header: "Template",
-      meta: { primary: true, filter: "text" },
-      cell: ({ row }) => (
-        <span className="block truncate font-medium" title={row.original.template.name}>
-          {row.original.template.name}
-        </span>
-      ),
-    }),
-    // The identifier the CLI and Python client accept, whole: it wraps at its dots.
-    column.accessor((row) => row.template.identifier ?? "", {
-      id: "id",
-      header: "ID",
-      meta: { filter: "text", label: "ID", width: "w-80" },
-      cell: ({ row }) =>
-        row.original.template.identifier ? <CatalogIdentifier subject="template" value={row.original.template.identifier} /> : null,
-    }),
-    column.accessor((row) => row.suite.name, { id: "suite", header: "Suite", meta: { filter: "facet", width: "w-48" } }),
-    column.accessor((row) => row.template.tags.join(", "), {
-      id: "tags",
-      header: "Tags",
-      meta: { filter: "text", width: "w-40" },
-      cell: ({ row }) => <SuiteTags tags={row.original.template.tags} />,
-    }),
-    column.accessor((row) => row.suite.source, {
-      id: "source",
-      header: "Source",
-      meta: { filter: "facet", width: "w-64" },
-      cell: ({ row }) => <SuiteProvenance plugin={plugins.get(row.original.suite.source)} source={row.original.suite.source} />,
-    }),
-  ]);
-
-  const catalogFeedback =
-    waitingPlugins.length || (suiteFailure && !waitingForSource) ? (
-      <div className="grid gap-3">
-        {waitingPlugins.map((plugin) => (
-          <p key={plugin.plugin_id} role="status" className="text-sm text-muted-foreground">
-            Waiting for Plugin {plugin.label}
-          </p>
-        ))}
-        {suiteFailure && !waitingForSource ? <ErrorCard failure={suiteFailure} onRetry={() => void suitesQuery.refetch()} /> : null}
-      </div>
-    ) : undefined;
-
   return (
     <PageShell actions={actions} trail={["Library"]}>
       {active.failed ? <ErrorCard failure={failureOf(active.error, "Open Cycles Unavailable")} /> : null}
 
-      <Input
-        aria-label="Filter Templates"
-        placeholder="Filter Templates"
-        value={suiteSearch}
-        onChange={(event) => setSuiteSearch(event.target.value)}
+      <SvelteMount
+        component={TemplateCatalog}
+        props={{
+          brandLabel: brand.label,
+          suites: suitesQuery.data ?? [],
+          plugins: pluginsQuery.data ?? [],
+          failure: suitesQuery.isError ? failureOf(suitesQuery.error, "Could Not Load Suites") : undefined,
+          loading: suitesQuery.isPending,
+          onRetry: () => void suitesQuery.refetch(),
+          onOpen: setOpenTemplate,
+        }}
       />
-      <section className="grid gap-3" aria-label="Library">
-        {suiteRows.map(({ suite, members }, index) => (
-          <details
-            key={suite.suite_id}
-            className="rounded-lg border bg-card p-4"
-            open={Boolean(suiteSearch) || (index === 0 && Boolean(catalogFeedback)) || undefined}
-          >
-            <summary className="cursor-pointer text-sm font-semibold">
-              {suite.name} <span className="ml-2 font-normal text-muted-foreground">{members.length} Templates</span>
-            </summary>
-            <div className="mt-3 grid gap-3">
-              <DataTable
-                aria-label={suite.name}
-                columns={columns}
-                data={members.map((template) => ({ suite, template }))}
-                title={suite.name}
-                description={suite.description || "Templates available in this suite."}
-                emptyText="No Templates Match"
-                failure={index === 0 ? catalogFeedback : undefined}
-                getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
-                onRowClick={setOpenTemplate}
-              />
-            </div>
-          </details>
-        ))}
-        {!suiteRows.length ? (
-          <DataTable
-            title="Templates"
-            description="Templates available in the connected host's suites."
-            columns={columns}
-            data={[]}
-            getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
-            emptyText="No Templates Match"
-            loading={suitesQuery.isPending}
-            failure={catalogFeedback}
-          />
-        ) : null}
-      </section>
 
       {openTemplate ? (
         <TemplateDialog

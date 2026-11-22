@@ -19,22 +19,20 @@ import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
+import { SvelteMount, useSvelteSlots } from "@/components/SvelteMount";
 // Third Party Imports
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { SecretTransfer } from "@/features/settings/sections/SecretTransfer";
+import SecretsTable from "./SecretsTable.svelte";
 import { putSecret, readSecrets, removeSecret, type SecretSnapshot, type SecretEntry } from "@/lib/api/native-secrets";
 
 /* === Re-Exports === */
@@ -103,62 +101,29 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
     }
   }
 
-  const column = dataTableColumns<SecretEntry>();
-  const columns = column.columns([
-    column.accessor((entry) => entry.metadata.identifier, {
-      id: "identifier",
-      header: "Identifier",
-      cell: ({ row }) => <span className="font-mono text-xs">{row.original.metadata.identifier}</span>,
-    }),
-    column.accessor((entry) => entry.metadata.label, {
-      id: "label",
-      header: "Label",
-      cell: ({ row }) => (
-        <div className="grid gap-1">
-          <strong>{row.original.metadata.label}</strong>
-          <p className="text-xs text-muted-foreground">{row.original.metadata.description}</p>
-        </div>
-      ),
-    }),
-    column.display({
-      id: "value",
-      header: "Value",
-      cell: () => (
-        <span>
-          <span aria-hidden="true">••••••••</span>
-          <span className="sr-only">Masked Value</span>
-        </span>
-      ),
-    }),
-    column.display({
-      id: "references",
-      header: "References",
-      cell: ({ row }) => <span className="text-xs">{row.original.knownUses.join(", ") || "—"}</span>,
-    }),
-    column.display({
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <DataTableRowActions
-          label={row.original.metadata.identifier}
-          primary={{
-            label: "Edit",
-            icon: Pencil,
-            disabled: busy || !snapshot,
-            onSelect: () => snapshot && setEditor({ kind: "edit", entry: row.original, generation: snapshot.generation }),
-          }}
-        >
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={busy || !snapshot}
-            onSelect={() => snapshot && setDeleting({ identifier: row.original.metadata.identifier, generation: snapshot.generation })}
-          >
-            Delete
-          </DropdownMenuItem>
-        </DataTableRowActions>
-      ),
-    }),
-  ]);
+  const { rendered, portals } = useSvelteSlots({
+    actions: (
+      <>
+        <Button disabled={!snapshot || busy} onClick={() => snapshot && setEditor({ kind: "new", generation: snapshot.generation })}>
+          Add Secret
+        </Button>
+        <Button disabled={busy || query.isFetching} variant="outline" onClick={() => void query.refetch()}>
+          Refresh
+        </Button>
+        {snapshot && (
+          <SecretTransfer
+            session={session.identity}
+            catalog={snapshot}
+            onImported={(next) => {
+              if (session.identity.isCurrent()) {
+                client.setQueryData(queryKey, next);
+              }
+            }}
+          />
+        )}
+      </>
+    ),
+  });
 
   return (
     <SettingsCard title="Secret Storage">
@@ -171,42 +136,20 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
             The change is active, but an obsolete keyring slot could not be removed.
           </p>
         )}
-        <DataTable
-          aria-label="Secrets"
-          actions={
-            <>
-              <Button disabled={!snapshot || busy} onClick={() => snapshot && setEditor({ kind: "new", generation: snapshot.generation })}>
-                Add Secret
-              </Button>
-              <Button disabled={busy || query.isFetching} variant="outline" onClick={() => void query.refetch()}>
-                Refresh
-              </Button>
-              {snapshot && (
-                <SecretTransfer
-                  session={session.identity}
-                  catalog={snapshot}
-                  onImported={(next) => {
-                    if (session.identity.isCurrent()) client.setQueryData(queryKey, next);
-                  }}
-                />
-              )}
-            </>
-          }
-          columns={columns}
-          data={snapshot?.entries ?? []}
-          description="All plugins on this host can look up these identifiers. Values stay in its OS keyring."
-          emptyText="No Shared Secrets"
-          failure={
-            error ? (
-              <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} />
-            ) : query.error ? (
-              <ErrorCard failure={failureOf(query.error, "Secrets Unavailable")} onRetry={() => void query.refetch()} />
-            ) : undefined
-          }
-          getRowId={(entry) => entry.metadata.identifier}
-          loading={query.isPending}
-          title="Shared Secrets"
+        <SvelteMount
+          component={SecretsTable}
+          props={{
+            actions: rendered.actions,
+            busy: busy || !snapshot,
+            entries: snapshot?.entries ?? [],
+            failure: error ? failureOf(error, "Operation Failed") : query.error ? failureOf(query.error, "Secrets Unavailable") : undefined,
+            loading: query.isPending,
+            onDelete: (entry) => snapshot && setDeleting({ identifier: entry.metadata.identifier, generation: snapshot.generation }),
+            onEdit: (entry) => snapshot && setEditor({ kind: "edit", entry, generation: snapshot.generation }),
+            onRetry: !error && query.error ? () => void query.refetch() : undefined,
+          }}
         />
+        {portals}
         {deleting && (
           <fieldset className="flex flex-wrap items-center gap-3 rounded-lg border p-3" aria-label="Confirm Secret Deletion">
             <p className="text-sm">Delete {deleting.identifier}?</p>
