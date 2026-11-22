@@ -1,9 +1,0 @@
-- [ ] 1.1 Measure the current windowed-live and zoom workload on native Windows and Linux using the restored plot benchmarks; report query, frame bytes, decode, delta application and browser redraw separately. Preserve any comparable historical baseline without inventing one.
-- [x] 1.2 Inventory current storage telemetry/previews/plot windows, host plot operations, GUI frame/window consumers, protocol bindings and focused benchmark/guidance owners; retire the old domain/server/runtime-storage paths.
-- [x] 2.1 Extend the stored previews to time buckets that answer a window, with first, last, minimum, maximum and running moments.
-- [x] 2.2 Accept the visible range and panel width in a plot request and bucket by time to that width.
-- [x] 2.4 Remove the nightly-only tsdownsample dependency and retain product FFT/plot presentation; generic statistics/downsampling adoption is owned by operation-boundary.
-- [x] 3.1 Send one columnar frame with a shared time column and delete the duplicate point-series representation.
-- [x] 3.2 Send the viewport and width from the interface, request detail on zoom and apply bucket deltas to the retained frame.
-- [ ] 4.1 Run focused plot query, watch and interface tests, and repeat the baseline of task 1.1 with measurements in benchmark artifacts.
-- [ ] 4.2 Complete native Linux plot/query/watch/interface proof and the comparable before/after measurement; source presence and Windows results do not establish it.

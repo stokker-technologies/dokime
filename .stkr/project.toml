@@ -26,4 +26,4 @@ exclude = [
 ]
 
 [markdown]
-include = ["**/README.md", "CHANGELOG.md", "docs/CONTRIBUTING.md", "docs/SECURITY.md", "LICENSE.md", ".github/**", "openspec/**", "docs/**/*.md"]
+include = ["**/README.md", "CHANGELOG.md", "docs/CONTRIBUTING.md", "docs/SECURITY.md", "LICENSE.md", ".github/**", "docs/**/*.md"]
