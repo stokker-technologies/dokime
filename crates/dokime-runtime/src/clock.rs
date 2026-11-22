@@ -130,11 +130,7 @@ impl Source for SchedulerSource {
         let now_ns = self.source.now_ns();
         Reading {
             instant: self.origin + Duration::from_nanos(now_ns.saturating_sub(self.origin_ns).max(0) as u64),
-            date: if now_ns < 0 {
-                SystemTime::UNIX_EPOCH - Duration::from_nanos(now_ns.unsigned_abs())
-            } else {
-                SystemTime::UNIX_EPOCH + Duration::from_nanos(now_ns as u64)
-            },
+            date: date(now_ns),
         }
     }
     fn sleep_until(&self, deadline: Instant) -> Sleep {
@@ -161,9 +157,29 @@ pub(crate) fn date(at_ns: i64) -> SystemTime {
 
 #[cfg(test)]
 mod tests {
-    use super::{ControlledClock, SchedulerClock};
+    use super::{ControlledClock, SchedulerClock, SchedulerSource};
+    use harmos_runtime::clock::Source;
     use std::future::{Future, poll_fn};
+    use std::sync::Arc;
     use std::task::Poll;
+    use std::time::{Duration, SystemTime};
+
+    #[tokio::test]
+    async fn scheduler_source_converts_dates_and_waits_from_its_origin() {
+        let scheduler = Arc::new(ControlledClock::manual(-10));
+        let source = SchedulerSource::new(scheduler.clone());
+        let start = source.read();
+        assert_eq!(start.date, SystemTime::UNIX_EPOCH - Duration::from_nanos(10));
+        let mut waiting = source.sleep_until(start.instant + Duration::from_nanos(20));
+        assert!(poll_fn(|context| Poll::Ready(waiting.as_mut().poll(context).is_pending())).await);
+        scheduler.wait_until(9).await.unwrap();
+        assert!(poll_fn(|context| Poll::Ready(waiting.as_mut().poll(context).is_pending())).await);
+        scheduler.wait_until(10).await.unwrap();
+        waiting.await;
+        let end = source.read();
+        assert_eq!(end.date, SystemTime::UNIX_EPOCH + Duration::from_nanos(10));
+        assert_eq!(end.instant - start.instant, Duration::from_nanos(20));
+    }
 
     #[tokio::test]
     async fn controlled_clock_waits_for_ticks_and_never_moves_backwards() {

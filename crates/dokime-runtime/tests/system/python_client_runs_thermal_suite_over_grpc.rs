@@ -22,15 +22,15 @@ use std::{
     path::PathBuf,
     process::Stdio,
     sync::Arc,
-    time::{Duration, SystemTime},
 };
 
 // Third Party Imports
-use harmos_runtime::clock::{self, Controller, Reading, Sleep, Source};
+use async_trait::async_trait;
+use harmos_runtime::clock::{self, Controller};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
-    time::{self, Instant},
+    time,
 };
 use tonic::transport::Endpoint;
 
@@ -53,18 +53,13 @@ struct PromptClock {
     execution: clock::Clock,
 }
 
-struct PromptTime {
-    scheduler: Arc<ControlledClock>,
-    origin: Instant,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-#[async_trait::async_trait]
+#[async_trait]
 impl SchedulerClock for PromptClock {
     fn now_ns(&self) -> i64 {
         self.scheduler.now_ns()
@@ -84,22 +79,6 @@ impl SchedulerClock for PromptClock {
     }
 }
 
-impl Source for PromptTime {
-    fn read(&self) -> Reading {
-        let elapsed = Duration::from_nanos(self.scheduler.now_ns() as u64);
-        Reading {
-            instant: self.origin + elapsed,
-            date: SystemTime::UNIX_EPOCH + elapsed,
-        }
-    }
-
-    fn sleep_until(&self, deadline: Instant) -> Sleep {
-        let scheduler = self.scheduler.clone();
-        let at_ns = deadline.duration_since(self.origin).as_nanos() as i64;
-        Box::pin(async move { scheduler.reached(at_ns).await })
-    }
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
@@ -112,12 +91,9 @@ fn unanswered_python_starter_prompt_survives_operation_deadlines() -> Result<(),
         time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Start a Host With an Explicitly Advanced Execution Clock.
             let root = support::tempdir()?;
-            let scheduler = Arc::new(ControlledClock::new(0));
+            let scheduler = Arc::new(ControlledClock::manual(0));
             let host_clock = Arc::new(ControlledClock::new(0));
-            let execution = clock::Clock::with_clock(PromptTime {
-                scheduler: scheduler.clone(),
-                origin: Instant::now(),
-            });
+            let (execution, _) = scheduler.execution_clock();
             let mut settings = support::settings();
             settings.clock = Arc::new(PromptClock { scheduler: host_clock.clone(), execution });
             let server = services::serve("127.0.0.1:0".parse()?, &root.path().join("store"), settings, support::service_settings()).await?;
