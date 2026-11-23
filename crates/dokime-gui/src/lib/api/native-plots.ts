@@ -44,8 +44,11 @@ export type NativePlotPendingMessage = {
 /** One Plot Within An Ordered Watch Revision. */
 export type NativePlotStreamUpdate = PlotPayloadStreamMessage | NativePlotPendingMessage;
 
-/** One Complete Dirty Set, Or Payload-Free Keepalive Notices. */
-export type NativePlotStreamMessage = { updates: NativePlotStreamUpdate[] };
+/**
+ * One Complete Dirty Set, Or Payload-Free Keepalive Notices. A resync is the
+ * host's last frame of a watch that asks the client to reopen it at once.
+ */
+export type NativePlotStreamMessage = { updates: NativePlotStreamUpdate[]; resync?: true };
 
 export interface NativePlotStream extends AsyncIterable<NativePlotStreamMessage> {
   cancel(): Promise<void>;
@@ -191,7 +194,7 @@ export async function openNativePlotStream(
  */
 export function mapNativePlotWatchPage(frame: PlotWatchPage, plotTypes?: PlotTypes): NativePlotStreamMessage {
   if (frame.resyncRequired) {
-    throw new Error("Watch Plot Snapshots: Resynchronization Required");
+    return { updates: [], resync: true };
   }
   if (frame.updates.length === 0) {
     throw new Error("Native plot revision has no updates.");

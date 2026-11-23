@@ -460,14 +460,18 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
         }
         reopenTimer = window.setTimeout(() => {
           reopenTimer = null;
-          // The reopened watch resends snapshots from its own revision origin.
-          commit((current) => ({
-            ...current,
-            ...Object.fromEntries(activePlots.map((plot) => [plot.plot_id, { ...current[plot.plot_id], revision: 0 }])),
-          }));
-          void consumeStream();
+          reopen();
         }, reopenDelayMs);
         reopenDelayMs = Math.min(reopenDelayMs * 2, RECONNECT_MAX_MS);
+      };
+
+      const reopen = () => {
+        // The reopened watch resends snapshots from its own revision origin.
+        commit((current) => ({
+          ...current,
+          ...Object.fromEntries(activePlots.map((plot) => [plot.plot_id, { ...current[plot.plot_id], revision: 0 }])),
+        }));
+        void consumeStream();
       };
 
       const consumeStream = async () => {
@@ -481,12 +485,17 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
           streams.add(stream);
           const release = nativeSession.own(() => void stream.cancel().catch(() => undefined));
           releases.add(release);
+          let resync = false;
           try {
             if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) {
               return;
             }
             for await (const message of stream) {
               if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) {
+                break;
+              }
+              if (message.resync) {
+                resync = true;
                 break;
               }
               // Decode The Whole Revision Before Scheduling Its One Shared Commit.
@@ -508,6 +517,12 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
             if (streams.delete(stream)) {
               await stream.cancel();
             }
+          }
+          // A Resync Is the Host's Request to Reopen at Once: Not a Failure, No Back-Off.
+          if (resync && active && nativeSession.identity.isCurrent()) {
+            reopenDelayMs = RECONNECT_INITIAL_MS;
+            reopen();
+            return;
           }
           markStreamEnded();
         } catch (exc: unknown) {

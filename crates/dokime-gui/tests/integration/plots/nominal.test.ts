@@ -215,6 +215,10 @@ function plotStream() {
       messages.push({ updates });
       wake?.();
     },
+    resync() {
+      messages.push({ updates: [], resync: true });
+      wake?.();
+    },
     cancel: vi.fn(async () => {
       ended = true;
       wake?.();
@@ -559,6 +563,24 @@ test("Live Frames Coalesce and Resume", async () => {
   assert.equal(view.states().current.revision, 130);
   await view.advance(984);
   assert.equal(view.states().current.revision, 131);
+});
+
+test("A Watch Resync Reopens at Once Without a Failure Notice", async () => {
+  const view = await mountPlotView();
+  const initial = snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }));
+  await updatePlots(async () => view.streams[0].push(...initial));
+  await view.advance();
+  const shown = view.states().pulse.payload;
+  await updatePlots(async () => view.streams[0].resync());
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(refreshFixture.watch.mock.calls.length, 2, "the snapshot is re-read without a back-off");
+  assert.equal(view.streams[0].cancel.mock.calls.length, 1);
+  assert.equal(refreshFixture.notify.mock.calls.length, 0);
+  assert.ok(Object.values(view.states()).every((state) => state.status === "live" && state.revision === 0));
+  assert.equal(view.states().pulse.payload, shown);
+  await updatePlots(async () => view.streams[1].push(...initial));
+  await view.advance();
+  assert.ok(Object.values(view.states()).every((state) => state.status === "live" && state.revision === 1));
 });
 
 test("A Large Document Uses Independent Bounded Watches", async () => {

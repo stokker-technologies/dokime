@@ -135,6 +135,10 @@ test("The Native Decoder Preserves an Ordered Revision and Payload-Free Keepaliv
     }),
   );
   assert.deepEqual(pending, { updates: [{ kind: "pending", plot_id: "healthy" }] });
+  assert.deepEqual(mapNativePlotWatchPage(create(WatchFrameSchema, { resyncRequired: { code: "resync_required" } })), {
+    updates: [],
+    resync: true,
+  });
   assert.throws(() => mapNativePlotWatchPage(create(WatchFrameSchema)));
   assert.throws(() => mapNativePlotWatchPage(create(WatchFrameSchema, { updates: [{}] })));
 });
