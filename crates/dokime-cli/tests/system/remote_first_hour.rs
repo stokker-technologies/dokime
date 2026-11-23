@@ -275,7 +275,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     super::run(&["--endpoint", &endpoint, "execution", "wait", stopped]).await?;
                     let stopped_detail: Value =
                         serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", stopped, "--json"]).await?)?;
-                    assert_eq!(stopped_detail["execution"]["outcome"]["not_evaluated"]["termination"], "TERMINATION_CANCELLED");
+                    assert_eq!(stopped_detail["execution"]["outcome"]["not_evaluated"]["termination"], "TERMINATION_STOPPED");
 
                     // Read a Rendered Report Through the Served Data Operation
                     let report = directory.path().join("completed.html");
