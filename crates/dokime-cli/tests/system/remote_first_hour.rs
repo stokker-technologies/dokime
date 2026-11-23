@@ -160,14 +160,14 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         assert!(!report.exists());
                         failures.push(error.to_string());
                     } else {
-                        // Read the Retained Report and Compare Its Verified Transfer Bytes
+                        // Read the Sealed Execution's Frozen Report and Compare Its Verified Transfer Bytes
                         let prepared = sdk
                             .reports
                             .get(
                                 ReportSubject {
                                     kind: Some(report_subject::Kind::Execution(execution.into())),
                                 },
-                                "prepared-report/first-hour-report",
+                                "",
                             )
                             .await?;
                         let file = prepared.file.ok_or("Read Report: Missing File Reference")?;

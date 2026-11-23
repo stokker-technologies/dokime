@@ -34,7 +34,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 
 // Third Party Imports
-use dokime_protocol::host::{PluginEntry, PluginState};
+use dokime_protocol::host::{PluginEntry, PluginState, ReportState};
 use harmos_protocol::model::StorageTransferSettings;
 use harmos_runtime::plugin::grpc::Launches;
 use sha2::{Digest, Sha256};
@@ -132,6 +132,20 @@ pub async fn plugin_state(plugins: &Plugins, mut entry: PluginEntry, expected: P
         watching.next().await?.ok_or("Await Plugin State: Watch Closed Before the Requested Condition")?;
         entry = plugins.get(entry.name).await?.entry.ok_or("Await Plugin State: Entry Removed")?;
     }
+}
+
+/// Await the Report a Seal Freezes in the Background.
+pub async fn report_frozen(client: &Client, execution: &str) -> Result<(), Box<dyn Error>> {
+    let mut watching = client.executions.watch("", Default::default(), Default::default(), Default::default()).await?;
+    while let Some(frame) = watching.next().await? {
+        if frame.executions.iter().any(|detail| {
+            detail.summary.as_ref().is_some_and(|summary| summary.execution_id == execution)
+                && detail.report.as_ref().is_some_and(|report| report.state == ReportState::Ready as i32)
+        }) {
+            return Ok(());
+        }
+    }
+    Err("Await Frozen Report: Watch Closed Before the Report Was Ready".into())
 }
 
 pub async fn materialize(
