@@ -35,6 +35,13 @@ use crate::model::{
 
 /* === Enums === */
 
+/// One Source an Expression Reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ExpressionSource<'a> {
+    Stream(&'a str),
+    Record(&'a str),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -107,6 +114,39 @@ impl DataExpression {
             },
             data_expression::Kind::Aggregate(aggregate) => aggregate.input.as_deref()?.at_record(),
             _ => None,
+        }
+    }
+
+    /// Every Stream and Record Type the Expression Reads, Including Records That Sample or Time It.
+    pub fn sources(&self) -> Vec<ExpressionSource<'_>> {
+        let mut sources = Vec::new();
+        self.collect_sources(&mut sources);
+        sources
+    }
+
+    fn collect_sources<'a>(&'a self, sources: &mut Vec<ExpressionSource<'a>>) {
+        let input = match self.kind.as_ref() {
+            Some(data_expression::Kind::Stream(reference)) => {
+                sources.push(ExpressionSource::Stream(&reference.identifier));
+                None
+            }
+            Some(data_expression::Kind::Record(reference)) => {
+                sources.push(ExpressionSource::Record(&reference.identifier));
+                None
+            }
+            Some(data_expression::Kind::Aggregate(aggregate)) => aggregate.input.as_deref(),
+            Some(data_expression::Kind::Transform(transform)) => {
+                match transform.kind.as_ref() {
+                    Some(transform_expression::Kind::At(at)) => sources.push(ExpressionSource::Record(&at.record_type)),
+                    Some(transform_expression::Kind::TimeBetween(previous)) => sources.push(ExpressionSource::Record(previous)),
+                    _ => (),
+                }
+                transform.input.as_deref()
+            }
+            _ => None,
+        };
+        if let Some(input) = input {
+            input.collect_sources(sources);
         }
     }
 

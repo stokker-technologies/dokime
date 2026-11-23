@@ -16,12 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Bound;
 use std::time::Duration;
 
 // Third Party Imports
 use harmos_protocol::model::Failure;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio::time;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
@@ -30,7 +31,7 @@ use tonic::Status;
 use super::list;
 use crate::{
     Result,
-    host::{self, Context, Output},
+    host::{self, Context, Output, evidence::selection},
 };
 use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::host::plots::PlotStreamKind;
@@ -38,6 +39,7 @@ use dokime_protocol::host::plots::PlotStreamUpdate;
 use dokime_protocol::host::plots::SnapshotsListRequest;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_protocol::host::plots::SnapshotsWatchResponse;
+use dokime_protocol::model::ExpressionSource;
 use dokime_storage::ExecutionState;
 
 /* === Constants === */
@@ -51,17 +53,27 @@ pub const ID: &str = "dokime.host.v1.plots.Snapshots/Watch";
 /* === Structs === */
 
 /// Live Page Pacing: a Refresh Starts Once the Interval Since the Previous Page Started Has Passed, So Pages Keep a
-/// Steady Cadence; a Page Slower Than the Interval Is Followed at Once, Without a Backlog.
+/// Steady Cadence; a Page Slower Than the Interval Is Followed at Once, Without a Backlog. An Evaluation That Finds No
+/// Plot Behind Starts the Interval Again.
 struct Pacer {
     interval: Duration,
     started: time::Instant,
+}
+
+/// One Watched Plot and the Sources It Reads, Keyed as Storage Publishes Them: Streams by Identifier, Records by
+/// Their Evidence Kind.
+struct Plot {
+    request: PlotRequest,
+    sources: BTreeSet<String>,
 }
 
 /* === Enums === */
 
 #[derive(Debug, PartialEq, Eq)]
 enum WatchProgress {
-    Refresh,
+    /// The Plots, by Request Index, Whose Own Sources Published Past Their Last Frame.
+    Refresh(Vec<usize>),
+
     Waiting,
     Complete,
 }
@@ -75,8 +87,49 @@ impl Pacer {
         Self { interval, started: time::Instant::now() }
     }
 
+    fn due(&self) -> bool {
+        time::Instant::now() >= self.started + self.interval
+    }
+
     async fn wait(&self) {
         time::sleep_until(self.started + self.interval).await;
+    }
+}
+
+impl Plot {
+    fn new(request: PlotRequest) -> Self {
+        let sources = request
+            .sources()
+            .into_iter()
+            .map(|source| match source {
+                ExpressionSource::Stream(stream) => stream.to_owned(),
+                ExpressionSource::Record(record) => format!("record:{record}"),
+            })
+            .collect();
+        Self { request, sources }
+    }
+
+    fn id(&self) -> &str {
+        self.request.plot_id.as_deref().unwrap_or(&self.request.stream)
+    }
+
+    /// The Last Position Any Source of This Plot Published, Including Records Its Markers Match; a Plot Naming No
+    /// Source Follows Every Source.
+    fn latest(&self, published: &BTreeMap<String, u64>) -> u64 {
+        if self.sources.is_empty() {
+            return published.values().copied().max().unwrap_or(0);
+        }
+        let marked = published
+            .range::<str, _>((Bound::Included("record:"), Bound::Unbounded))
+            .map_while(|(kind, position)| Some((kind.strip_prefix("record:")?, position)))
+            .filter(|(record, _)| self.request.marker_record_types.iter().any(|pattern| selection::matches(pattern, record)));
+        self.sources
+            .iter()
+            .filter_map(|source| published.get(source))
+            .chain(marked.map(|(_, position)| position))
+            .copied()
+            .max()
+            .unwrap_or(0)
     }
 }
 
@@ -84,10 +137,10 @@ impl Pacer {
 
 pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result<Output<SnapshotsWatchResponse>> {
     host::complete(ID, context.settings.watch_timeout, async {
-        let mut storage = context.host.store().subscribe();
-        let mut runtime = context.host.changes();
+        let mut changes = [context.host.store().subscribe(), context.host.changes()];
+        let plots = request.requests.into_iter().map(Plot::new).collect::<Vec<_>>();
         let mut selection = SnapshotsListRequest {
-            requests: request.requests,
+            requests: plots.iter().map(|plot| plot.request.clone()).collect(),
             at: request.at,
             page: request.page,
         };
@@ -127,34 +180,31 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                         selection.at = cut;
                         selection.page.get_or_insert_default().page_token = token;
                     } else {
-                        loop {
+                        let evaluate = || {
                             if context.host.shutting_down() {
-                                return;
+                                return WatchProgress::Complete;
                             }
-                            let progress = progress(&selection.requests, &observed, |execution, live| {
-                                let store = context.host.store();
-                                let cut = store.metadata(execution).ok()?;
-                                let frontier = if live { store.accepted_frontier(execution).ok()? } else { cut.frontier };
-                                Some((cut.state, frontier))
-                            });
-                            match progress {
-                                WatchProgress::Complete => return,
-                                WatchProgress::Refresh => break,
-                                WatchProgress::Waiting => {}
-                            }
-                            tokio::select! {
-                                _ = sender.closed() => return,
-                                changed = storage.changed() => if changed.is_err() { return; },
-                                changed = runtime.changed() => if changed.is_err() { return; },
-                            }
-                        }
-                        // Changes While the Interval Runs Coalesce Into This Refresh.
-                        tokio::select! {
+                            let store = context.host.store();
+                            progress(
+                                &plots,
+                                &observed,
+                                |execution, plot| store.published(execution, |published| plot.latest(published)).ok().flatten(),
+                                |execution, live| {
+                                    let cut = store.metadata(execution).ok()?;
+                                    let frontier = if live { store.accepted_frontier(execution).ok()? } else { cut.frontier };
+                                    Some((cut.state, frontier))
+                                },
+                            )
+                        };
+                        let refresh = tokio::select! {
                             _ = sender.closed() => return,
-                            () = pacer.wait() => {},
-                        }
+                            refresh = behind(&mut pacer, &mut changes, evaluate) => refresh,
+                        };
+                        let Some(refresh) = refresh else { return };
                         pacer = Pacer::start(pacer.interval);
                         opening = false;
+                        // Only Plots Behind Their Own Sources Are Queried and Sent; the Rest Keep Their Frames.
+                        selection.requests = refresh.into_iter().map(|index| plots[index].request.clone()).collect();
                         selection.at = None;
                         selection.page.get_or_insert_default().page_token.clear();
                     }
@@ -187,25 +237,86 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
 
 /* === Private Functions === */
 
-fn progress(
-    requests: &[PlotRequest], observed: &BTreeMap<String, u64>, mut metadata: impl FnMut(&str, bool) -> Option<(ExecutionState, u64)>,
-) -> WatchProgress {
-    let mut complete = true;
-    for request in requests {
-        let Some(execution) = request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) else {
-            return WatchProgress::Refresh;
-        };
-        let live = request.window_s.is_some() && request.at.is_none();
-        let Some((state, frontier)) = metadata(execution, live) else {
-            return WatchProgress::Refresh;
-        };
-        let through = request.at.as_ref().and_then(|at| at.positions.first()).map_or(frontier, |position| position.sequence);
-        if observed.get(request.plot_id.as_deref().unwrap_or(&request.stream)) != Some(&through) {
-            return WatchProgress::Refresh;
+/// Wait Until Some Plot Is Behind Its Own Sources and the Pacer Allows a Page; Changes Meanwhile Join That Refresh.
+/// None Once Every Plot Is Final or the Changes End.
+async fn behind(
+    pacer: &mut Pacer, changes: &mut [watch::Receiver<u64>; 2], mut evaluate: impl FnMut() -> WatchProgress,
+) -> Option<Vec<usize>> {
+    loop {
+        let due = pacer.due();
+        match evaluate() {
+            WatchProgress::Complete => return None,
+            WatchProgress::Refresh(plots) if due => return Some(plots),
+            WatchProgress::Refresh(_) => (),
+            WatchProgress::Waiting => {
+                // Changes No Watched Plot Reads Cost at Most One Evaluation per Interval.
+                if due {
+                    *pacer = Pacer::start(pacer.interval);
+                }
+                let [storage, runtime] = changes;
+                let changed = tokio::select! {
+                    changed = storage.changed() => changed,
+                    changed = runtime.changed() => changed,
+                };
+                if changed.is_err() {
+                    return None;
+                }
+            }
         }
-        complete &= state != ExecutionState::Open;
+        pacer.wait().await;
     }
-    if complete { WatchProgress::Complete } else { WatchProgress::Waiting }
+}
+
+/// Which Plots Show Less Than Their Own Sources Published.
+///
+/// `published` reads, without a query, the last position a plot's sources published while its execution takes data,
+/// and None once it closed. Only a closed execution, or a plot of saved rows found behind, makes `metadata` read the
+/// execution's state and the frontier the plot reads through.
+fn progress(
+    plots: &[Plot], observed: &BTreeMap<String, u64>, mut published: impl FnMut(&str, &Plot) -> Option<u64>,
+    mut metadata: impl FnMut(&str, bool) -> Option<(ExecutionState, u64)>,
+) -> WatchProgress {
+    let mut refresh = Vec::new();
+    let mut complete = true;
+    for (index, plot) in plots.iter().enumerate() {
+        let Some(execution) = plot.request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) else {
+            refresh.push(index);
+            continue;
+        };
+        let shown = observed.get(plot.id()).copied();
+        let latest = published(execution, plot);
+        let at = plot.request.at.as_ref().and_then(|at| at.positions.first()).map(|position| position.sequence);
+        let live = plot.request.window_s.is_some() && at.is_none();
+        let cut = at.is_some();
+        let current = shown.zip(latest).is_some_and(|(shown, latest)| latest <= shown);
+        // While the Execution Takes Data, a Live Plot Reads Every Published Position and Another Plot at Most Its Cut.
+        if let Some(latest) = latest
+            && (live || cut || current)
+        {
+            if shown.is_none_or(|shown| at.map_or(latest, |at| latest.min(at)) > shown) {
+                refresh.push(index);
+            }
+            complete = false;
+            continue;
+        }
+        let Some((state, frontier)) = metadata(execution, live) else {
+            refresh.push(index);
+            continue;
+        };
+        // A Plot Reads Through Its Cut, Its Live Frontier or the Saved Frontier, Whichever Its Request Selects.
+        let through = at.unwrap_or(frontier);
+        if shown.is_none_or(|shown| latest.map_or(through, |latest| latest.min(through)) > shown) {
+            refresh.push(index);
+        }
+        complete &= latest.is_none() && state != ExecutionState::Open;
+    }
+    if !refresh.is_empty() {
+        WatchProgress::Refresh(refresh)
+    } else if complete {
+        WatchProgress::Complete
+    } else {
+        WatchProgress::Waiting
+    }
 }
 
 /* === Tests === */
@@ -213,60 +324,163 @@ fn progress(
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::sync::Arc;
     use std::time::Duration;
 
     use tokio::sync::watch;
     use tokio::time::{self, Instant};
 
-    use super::{Pacer, WatchProgress, progress};
+    use super::{Pacer, Plot, WatchProgress, behind, progress};
     use dokime_protocol::host::plots::PlotRequest;
-    use dokime_protocol::model::EvidenceScope;
+    use dokime_protocol::model::{EvidenceScope, FieldReference};
     use dokime_storage::ExecutionState;
 
-    #[test]
-    fn sealed_watch_refreshes_until_every_plot_reaches_its_final_frontier() {
-        let requests = ["first", "last"].map(|plot| PlotRequest {
-            plot_id: Some(plot.into()),
+    /// A Live Plot of the Execution Under Test.
+    fn plot(id: &str, request: PlotRequest) -> Plot {
+        Plot::new(PlotRequest {
+            plot_id: Some(id.into()),
             scope: Some(EvidenceScope {
                 execution_id: Some("execution".into()),
                 ..Default::default()
             }),
-            ..Default::default()
-        });
+            window_s: Some(300.0),
+            ..request
+        })
+    }
+
+    /// Refreshing Plots Show Every Position Published So Far.
+    fn shown(plots: &[Plot], refresh: &[usize], observed: &mut BTreeMap<String, u64>, published: &BTreeMap<String, u64>) {
+        for index in refresh {
+            observed.insert(plots[*index].id().into(), published.values().copied().max().unwrap_or(0));
+        }
+    }
+
+    #[test]
+    fn sealed_watch_refreshes_until_every_plot_reaches_its_final_frontier() {
+        let plots = ["first", "last"].map(|id| plot(id, PlotRequest::default()));
         let mut observed = BTreeMap::from([("first".into(), 3), ("last".into(), 3)]);
-        assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Open, 3))), WatchProgress::Waiting);
+        let closed = |_: &str, _: &Plot| None;
+        assert_eq!(progress(&plots, &observed, closed, |_, _| Some((ExecutionState::Open, 3))), WatchProgress::Waiting);
 
         // Seal After Delivering a Pre-Seal Page, Then Drain Every Final Page.
-        assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh);
+        assert_eq!(progress(&plots, &observed, closed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh(vec![0, 1]));
         observed.insert("first".into(), 5);
-        assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh);
+        assert_eq!(progress(&plots, &observed, closed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh(vec![1]));
         observed.insert("last".into(), 5);
-        assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Complete);
+        assert_eq!(progress(&plots, &observed, closed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Complete);
+    }
+
+    #[test]
+    fn only_plots_reading_a_published_stream_or_record_refresh() {
+        let a = FieldReference::new("a");
+        let b = FieldReference::new("b");
+        let plots = [
+            plot("a", PlotRequest { stream: "a".into(), ..Default::default() }),
+            plot("b", PlotRequest { stream: "b".into(), ..Default::default() }),
+            plot(
+                "xy",
+                PlotRequest {
+                    x_expression: Some(a.field("x")),
+                    y_expressions: vec![b.field("y")],
+                    ..Default::default()
+                },
+            ),
+            plot(
+                "sampled",
+                PlotRequest {
+                    y_expressions: vec![FieldReference::new("c").field("value").at("event")],
+                    ..Default::default()
+                },
+            ),
+            plot(
+                "marked",
+                PlotRequest {
+                    stream: "d".into(),
+                    marker_record_types: vec!["phase.*".into()],
+                    ..Default::default()
+                },
+            ),
+        ];
+        let mut observed = plots.iter().map(|plot| (plot.id().to_owned(), 0)).collect();
+        let mut published = BTreeMap::new();
+        for (source, refreshed) in [
+            ("a", vec![0, 2]),
+            ("b", vec![1, 2]),
+            ("record:event", vec![3]),
+            ("c", vec![3]),
+            ("record:phase.started", vec![4]),
+            ("record:unrelated", vec![]),
+        ] {
+            published.insert(source.to_owned(), published.len() as u64 + 1);
+            let progress = progress(&plots, &observed, |_, plot| Some(plot.latest(&published)), |_, _| panic!("Read No Execution"));
+            if refreshed.is_empty() {
+                assert_eq!(progress, WatchProgress::Waiting, "{source}");
+            } else {
+                assert_eq!(progress, WatchProgress::Refresh(refreshed.clone()), "{source}");
+            }
+            shown(&plots, &refreshed, &mut observed, &published);
+        }
     }
 
     #[tokio::test(start_paused = true)]
     async fn refreshes_keep_their_interval_coalesce_changes_and_follow_slow_pages_at_once() {
-        // Change Every 10 ms, Far More Often Than Pages
-        let (changes, mut changed) = watch::channel(0u64);
-        tokio::spawn(async move {
-            loop {
-                time::sleep(Duration::from_millis(10)).await;
-                changes.send_modify(|revision| *revision += 1);
-            }
+        let plots = ["a", "b"].map(|stream| {
+            plot(
+                stream,
+                PlotRequest {
+                    stream: stream.into(),
+                    ..Default::default()
+                },
+            )
         });
         let interval = Duration::from_millis(200);
         for (page, expected) in [(50, [0, 200, 400, 600]), (300, [0, 300, 600, 900])] {
+            let (publish, published) = watch::channel(BTreeMap::new());
+            let publish = Arc::new(publish);
+            let (_runtime, runtime) = watch::channel(0);
+            let mut changes = [published.clone(), runtime];
+            let mut observed = BTreeMap::from([("a".to_owned(), 0), ("b".to_owned(), 0)]);
+            let evaluate = |observed: &BTreeMap<String, u64>| {
+                progress(&plots, observed, |_, plot| Some(plot.latest(&published.borrow())), |_, _| panic!("Read No Execution"))
+            };
+            let source = |source: &'static str| {
+                let publish = publish.clone();
+                move || publish.send_modify(|published| *published.entry(source.to_owned()).or_insert(0) += 1)
+            };
+            // Stream A Publishes Every 10 ms Between Pages, Far More Often Than Pages; B Never Does Meanwhile.
+            let a = source("a");
+            let publisher = tokio::spawn(async move {
+                let mut ticks = time::interval_at(Instant::now() + Duration::from_millis(5), Duration::from_millis(10));
+                loop {
+                    ticks.tick().await;
+                    a();
+                }
+            });
             let origin = Instant::now();
             let mut starts = Vec::new();
             let mut pacer = Pacer::start(interval);
             for _ in 0..4 {
                 starts.push((Instant::now() - origin).as_millis());
                 time::sleep(Duration::from_millis(page)).await;
-                changed.changed().await.unwrap();
-                pacer.wait().await;
+                let refresh = behind(&mut pacer, &mut changes, || evaluate(&observed)).await.unwrap();
                 pacer = Pacer::start(pacer.interval);
+                assert_eq!(refresh, [0]);
+                shown(&plots, &refresh, &mut observed, &published.borrow());
             }
+            publisher.abort();
             assert_eq!(starts, expected);
+
+            // An Unrelated Source Costs One Evaluation, Which Spends the Interval; B Then Refreshes Alone After It.
+            let (unrelated, b) = (source("c"), source("b"));
+            let quiet = Instant::now();
+            tokio::spawn(async move {
+                time::sleep(Duration::from_millis(100)).await;
+                unrelated();
+                time::sleep(Duration::from_millis(150)).await;
+                b();
+            });
+            assert_eq!(behind(&mut pacer, &mut changes, || evaluate(&observed)).await.unwrap(), [1]);
+            assert_eq!(quiet.elapsed(), Duration::from_millis(400));
         }
     }
 }

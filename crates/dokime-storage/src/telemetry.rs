@@ -80,6 +80,10 @@ pub(crate) struct Intake {
     /// The Last Position Each Execution Allocated to a Sample or Evidence.
     accepted: BTreeMap<String, u64>,
 
+    /// The Last Position Each Source of an Execution Published in This Process, Streams by Identifier and Evidence
+    /// by Kind, Until the Execution Closes.
+    published: BTreeMap<String, BTreeMap<String, u64>>,
+
     running: bool,
     closed: bool,
     workers: Vec<JoinHandle<()>>,
@@ -126,6 +130,7 @@ impl Intake {
             pending: BTreeMap::new(),
             streams: BTreeMap::new(),
             accepted: BTreeMap::new(),
+            published: BTreeMap::new(),
             running: false,
             closed: false,
             workers: Vec::new(),
