@@ -24,7 +24,7 @@ import XyPlot from "@/plots/catalog/XyPlot.svelte";
 import TimeSeriesPlot from "@/plots/catalog/TimeSeriesPlot.svelte";
 import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
-import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
+import type { DocumentViewPlot, PlotCartesianFrame, PlotPayload } from "@/lib/types";
 import { failureOf } from "@/lib/notification-details";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { emptyLivePlotState } from "@/plots/live-frames";
@@ -46,18 +46,20 @@ const descriptor = {
   y: ["y"],
 } as DocumentViewPlot;
 
+const cartesian: PlotCartesianFrame = {
+  mode: "faceted",
+  series: [{ x: [1000, 1000.25, 1000.5], y: [1000, 1000.25, 1000.5] }],
+  point_count: 3,
+  signature: "position",
+};
+
 const payload: PlotPayload = {
   stream: "readings",
   x_key: "x",
   max_points: 100,
   generated_at: "2026-01-01T00:00:00Z",
   series: [{ key: "position", label: "Position", raw_points: 3, downsampled: false, points: [] }],
-  cartesian: {
-    mode: "faceted",
-    series: [{ x: [1000, 1000.25, 1000.5], y: [1000, 1000.25, 1000.5] }],
-    point_count: 3,
-    signature: "position",
-  },
+  cartesian,
 };
 
 /* === Types === */
@@ -250,13 +252,13 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
     payload: {
       ...payload,
       series,
-      cartesian: { ...payload.cartesian!, point_count: 36, series: series.map(() => payload.cartesian!.series[0]) },
+      cartesian: { ...cartesian, point_count: 36, series: series.map(() => cartesian.series[0]) },
       summaries: series.map((trace) => ({ series_id: trace.key, count: 3, min: 1000, max: 1000.5, mean: 1000.25 })),
     },
   });
   for (const viewportMode of ["live", "fit"] as const) {
     const { container: host } = render(TimeSeriesPlot, { plot, viewportMode, actions: settingsAction });
-    const card = host.querySelector("article.plot-card")!;
+    const card = host.querySelector("article.plot-card") as HTMLElement;
     assert.equal(host.querySelectorAll("article").length, 1);
     assert.ok(card.classList.contains("border"));
     const [header, chart, description, statistics] = Array.from(card.children);
@@ -265,11 +267,11 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
     assert.ok(chart.querySelector(".min-h-60"));
     assert.equal(description.tagName, "P");
     assert.equal(description.textContent, plot.description);
-    const table = statistics.querySelector('table[aria-label="Trace Statistics"]')!;
+    const table = statistics.querySelector('table[aria-label="Trace Statistics"]') as HTMLTableElement;
     assert.equal(table.querySelectorAll("tbody tr").length, 12);
     assert.equal(card.querySelectorAll('[data-slot="data-table"], input, select, tfoot').length, 0);
     assert.equal(statistics.querySelectorAll("h1, h2, h3, h4, h5, h6, .border").length, 0);
-    const toggle = table.querySelector("tbody button")!;
+    const toggle = table.querySelector("tbody button") as HTMLButtonElement;
     await fireEvent.click(toggle);
     assert.equal(toggle.getAttribute("aria-pressed"), "false");
     assert.ok(toggle.querySelector('[data-trace-hidden="true"]'));
@@ -351,9 +353,9 @@ test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside 
         liveStates: { [plot.plot_id]: state },
         viewportMode,
       });
-      const card = host.querySelector("article.plot-card")!;
+      const card = host.querySelector("article.plot-card") as HTMLElement;
       assert.ok(card.classList.contains("border"));
-      const table = card.querySelector('table[aria-label="Histogram Statistics"]')!;
+      const table = card.querySelector('table[aria-label="Histogram Statistics"]') as HTMLTableElement;
       assert.equal(host.querySelectorAll("article").length, 1);
       assert.equal(host.querySelectorAll("table").length, 1);
       assert.equal(table.querySelectorAll("tbody tr").length, count);
