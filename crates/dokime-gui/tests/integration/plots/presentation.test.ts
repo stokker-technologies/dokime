@@ -22,7 +22,7 @@ import { onTestFinished, test, vi } from "vitest";
 // Local Imports
 import XyPlot from "@/plots/catalog/XyPlot.svelte";
 import { xyTimeline } from "@/plots/catalog/xy-playback";
-import { PLAYBACK_FRAME_MS } from "@/plots/playback.svelte";
+import { PLAYBACK_TICK_MS } from "@/plots/playback.svelte";
 import TimeSeriesPlot from "@/plots/catalog/TimeSeriesPlot.svelte";
 import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
@@ -222,12 +222,12 @@ test("XY Playback Draws the Path up to the Selected Instant and Latest Follows L
       },
     });
   };
-  const { container: host, getByRole, rerender } = render(XyPlot, { plot: revision(3) });
+  const { container: host, getAllByRole, getByRole, rerender } = render(XyPlot, { plot: revision(3) });
   await act(() => vi.dynamicImportSettled());
   const selected = () => host.querySelector("[data-playback-instant]")?.getAttribute("data-playback-instant");
   const drawn = () => (charts.data.at(-1) as unknown as [null, [number[], number[]]])[1][0];
-  const step = async () => {
-    await vi.advanceTimersByTimeAsync(PLAYBACK_FRAME_MS);
+  const wait = async (milliseconds: number) => {
+    await vi.advanceTimersByTimeAsync(milliseconds);
     await tick();
   };
 
@@ -266,16 +266,33 @@ test("XY Playback Draws the Path up to the Selected Instant and Latest Follows L
     [[3, 30]],
   );
 
-  // Play Advances One Instant per Step and Stops at the Held Frame's End; Replay Restarts From the First.
+  // At the Default 1× Play Moves One Second of Samples per Second and Stops at the Held Frame's End.
   await fireEvent.click(getByRole("button", { name: "Play" }));
-  await step();
+  await wait(1_000 - PLAYBACK_TICK_MS);
+  assert.equal(selected(), instant(3));
+  await wait(PLAYBACK_TICK_MS);
   assert.equal(selected(), instant(4));
+  assert.equal((getByRole("button", { name: "Pause" }) as HTMLButtonElement).disabled, true);
+
+  // At 10× Replay Restarts From the First Instant and Moves One Second of Samples per Tick.
+  const speed = getByRole("combobox", { name: "XY Position Playback Speed" });
+  assert.equal(speed.textContent?.trim(), "1×");
+  await fireEvent.keyDown(speed, { key: "ArrowDown" });
+  await tick();
+  assert.deepEqual(
+    getAllByRole("option").map((option) => option.textContent?.trim()),
+    ["1×", "2×", "5×", "10×", "60×", "600×"],
+  );
+  await fireEvent.pointerUp(getByRole("option", { name: "10×" }));
+  assert.equal(speed.textContent?.trim(), "10×");
   await fireEvent.click(getByRole("button", { name: "Replay" }));
   assert.equal(selected(), instant(1));
   assert.deepEqual(drawn(), [1]);
-  await step();
+  await wait(PLAYBACK_TICK_MS);
   assert.equal(selected(), instant(2));
   assert.deepEqual(drawn(), [1, 2]);
+  await wait(PLAYBACK_TICK_MS);
+  assert.equal(selected(), instant(3));
 
   await fireEvent.click(getByRole("button", { name: "Latest" }));
   assert.equal(selected(), instant(5));
