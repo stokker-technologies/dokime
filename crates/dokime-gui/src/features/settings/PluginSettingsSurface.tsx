@@ -29,7 +29,8 @@ import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 
-import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
+import { SvelteMount } from "@/components/SvelteMount";
+import InstalledPluginDetail from "@/features/settings/installed-plugins/InstalledPluginDetail.svelte";
 import {
   useInstalledPluginDetailQuery,
   useInstalledPluginSettingsMutation,
@@ -42,6 +43,7 @@ import { SettingsRow } from "@/features/settings/SettingsRow";
 import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { usePageChrome } from "@/shell/page-chrome";
+import { useBrand } from "@/lib/brand-context";
 
 /* === Types === */
 
@@ -148,6 +150,8 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
 
 /** The artifact's settings and read-only secret requirements. */
 function PluginDetailCard({ pluginId }: { pluginId: string }) {
+  const session = useNativeSessionOptional();
+  const { label } = useBrand();
   const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
   const settingsMutation = useInstalledPluginSettingsMutation();
   if (detailQuery.isPending) {
@@ -172,7 +176,7 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
   /* The frame and the artifact store answer separately, so a plugin replaced
      between the two reads would otherwise offer the previous installation's
      fields under the new one's name. */
-  if (!detailQuery.data || detailQuery.data.plugin_id !== pluginId) {
+  if (!session || !detailQuery.data || detailQuery.data.plugin_id !== pluginId) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
@@ -183,10 +187,15 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
   }
 
   return (
-    <InstalledPluginDetail
-      detail={detailQuery.data}
-      onSaveSettings={async (id, values) => {
-        await settingsMutation.mutateAsync({ pluginId: id, values });
+    <SvelteMount
+      component={InstalledPluginDetail}
+      props={{
+        detail: detailQuery.data,
+        session,
+        brandLabel: label,
+        onSaveSettings: async (id, values) => {
+          await settingsMutation.mutateAsync({ pluginId: id, values });
+        },
       }}
     />
   );

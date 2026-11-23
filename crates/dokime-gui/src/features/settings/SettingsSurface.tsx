@@ -1,13 +1,12 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useNativeSession, useNativeSessionController } from "@/app/native-session/context";
 import { SvelteMount, useSvelteSlots } from "@/components/SvelteMount";
 import { useBrand } from "@/lib/brand-context";
 import { useNavigationMode } from "@/shell/use-navigation-mode";
 import DisconnectedSettingsView from "./DisconnectedSettings.svelte";
 import { PluginsSection } from "./sections/PluginsSection";
-import { SecretsSection } from "./sections/SecretsSection";
 import AdvancedSwitch from "./SettingsAdvancedSwitch.svelte";
 import type { SettingsSectionId } from "./settings-sections";
 import SettingsView from "./SettingsSurface.svelte";
@@ -16,11 +15,12 @@ import { useSettingsSections } from "./use-settings-sections";
 export function SettingsSurface({ section }: { section?: SettingsSectionId }) {
   const mode = useNavigationMode();
   const navigate = useNavigate();
+  const hash = useLocation({ select: (location) => location.hash });
   const settings = useSettingsSections();
   const owner = useNativeSessionController();
   const session = useNativeSession();
   const { label } = useBrand();
-  const legacySection = section === "plugins" ? <PluginsSection /> : section === "secrets" ? <SecretsSection /> : null;
+  const legacySection = section === "plugins" ? <PluginsSection /> : null;
   const { rendered, portals } = useSvelteSlots({ legacySection });
   return (
     <>
@@ -32,6 +32,8 @@ export function SettingsSurface({ section }: { section?: SettingsSectionId }) {
           mode,
           selected: section,
           label,
+          hash,
+          clearHash: () => void navigate({ hash: "", replace: true }),
           ...settings,
           ...rendered,
           choose: (section) => void navigate({ to: "/settings/$section", params: { section } }),

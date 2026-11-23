@@ -15,6 +15,7 @@
   import DiagnosticsSettings from "./sections/DiagnosticsSettings.svelte";
   import EngineSection from "./sections/EngineSection.svelte";
   import RemoteSection from "./sections/RemoteSection.svelte";
+  import SecretsSection from "./sections/SecretsSection.svelte";
   import SettingsAdvancedSwitch from "./SettingsAdvancedSwitch.svelte";
   import SettingsCard from "./SettingsCard.svelte";
   import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "./settings-sections";
@@ -29,6 +30,8 @@
     failure,
     loading,
     retry,
+    hash,
+    clearHash,
     legacySection,
     choose,
   }: {
@@ -41,6 +44,8 @@
     failure?: unknown;
     loading: boolean;
     retry: () => void;
+    hash: string;
+    clearHash: () => void;
     legacySection?: Snippet;
     choose: (section: SettingsSectionId) => void;
   } = $props();
@@ -86,6 +91,10 @@
           <ApplicationPreferences queryClient={session.queryClient} {session} advanced={advanced()} />
         {:else if section === "remote"}
           <RemoteSection queryClient={session.queryClient} {session} advanced={advanced()} {label} />
+        {:else if section === "secrets"}
+          {#key session.identity.generation}
+            <SecretsSection {session} {hash} {clearHash} />
+          {/key}
         {:else if legacySection}
           {@render legacySection()}
         {:else}
