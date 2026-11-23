@@ -105,6 +105,24 @@ export async function updatePlotSettings(session: SessionIdentity, update: PlotS
   if (!session.isCurrent()) throw new Error("The backend connection was replaced.");
 }
 
+/** The display points the operator saved for each plot, `null` where none is saved. */
+export async function savedPlotPoints(
+  session: SessionIdentity,
+  scope: { cycleId: string; executionId: string; documentId: string },
+  plotIds: readonly string[],
+): Promise<Record<string, number | null>> {
+  const saved = await Promise.all(
+    plotIds.map((plotId) =>
+      plotsSettingsGet(session, {
+        scope: { cycleId: scope.cycleId, executionId: scope.executionId },
+        documentId: scope.documentId,
+        plotId,
+      }),
+    ),
+  );
+  return Object.fromEntries(plotIds.map((plotId, index) => [plotId, saved[index].value?.displayPoints ?? null]));
+}
+
 /** Read bounded document pages at one cut and assemble their frames. */
 export async function fetchNativeDocument(
   session: NativeDocumentSession,

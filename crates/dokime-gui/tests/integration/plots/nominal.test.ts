@@ -94,7 +94,7 @@ import LivePlotProbe from "./LivePlotProbe.svelte";
 import PlaybackFixture from "./PlaybackFixture.svelte";
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
-import { m4Indices, windowIndices } from "@/plots/reduce";
+import { DEFAULT_PLOT_MAX_POINTS, m4Indices, windowIndices } from "@/plots/reduce";
 import { materializeThemeFamilyVariables } from "@/lib/theme-family";
 import { desktopPlotPalette } from "@/plots/desktop-plot-palette";
 import { heldViewport } from "@/plots/viewport";
@@ -251,7 +251,7 @@ function plotStream() {
   };
 }
 
-async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
+async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids, displayPoints: number | null = 100) {
   vi.useFakeTimers({ now: Date.parse("2026-11-01T12:00:00Z") });
   const animationFrame = vi
     .spyOn(globalThis.window, "requestAnimationFrame")
@@ -280,7 +280,7 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
       fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
       x: "timestamp",
       y: [id],
-      display_points: 100,
+      display_points: displayPoints,
     }),
   );
   const scope = { cycleId: "cycle" };
@@ -428,6 +428,29 @@ test("One Plot's Revision Reaches Only That Plot", async () => {
   await view.advance();
   assert.equal(view.states().pulse.revision, 2);
   assert.deepEqual(view.reads, ["pulse"]);
+});
+
+test("A Width-Sized Plot Re-Requests Only When Its Quantized Budget Changes", async () => {
+  vi.stubGlobal("devicePixelRatio", 2);
+  const view = await mountPlotView(["pulse"], ["pulse"], null);
+  const requests = () => refreshFixture.watch.mock.calls.map((call) => call[1][0] as { maxPoints: bigint; panelWidth?: number });
+  assert.equal(requests()[0].maxPoints, BigInt(DEFAULT_PLOT_MAX_POINTS), "the default stands in until the width is measured");
+  await updatePlots(async () =>
+    view.streams[0].push(...snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }))),
+  );
+  await view.advance();
+  const retained = view.states().pulse.payload;
+  assert.ok(retained);
+  await updatePlots(async () => summaryWindowStore.getState().setPanelWidth("pulse", 900));
+  assert.equal(requests().length, 2);
+  assert.equal(requests()[1].maxPoints, BigInt(4 * 1856));
+  assert.equal(requests()[1].panelWidth, undefined);
+  assert.equal(view.states().pulse.payload, retained, "the drawn frame stays while the resized watch opens");
+  await updatePlots(async () => summaryWindowStore.getState().setPanelWidth("pulse", 920));
+  assert.equal(requests().length, 2, "a sub-quantum change keeps the watch");
+  await updatePlots(async () => summaryWindowStore.getState().setPanelWidth("pulse", 1000));
+  assert.equal(requests().length, 3);
+  assert.equal(requests()[2].maxPoints, BigInt(4 * 2048));
 });
 
 test("Manual All Refresh", async () => {
