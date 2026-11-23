@@ -80,9 +80,7 @@ use harmos_protocol::host::OperationsGetResponse;
 use harmos_protocol::host::OperationsListRequest;
 use harmos_protocol::host::OperationsListResponse;
 use harmos_protocol::host::TimeGetRequest;
-use harmos_protocol::host::TimeGetResponse;
 use harmos_protocol::host::TimeSleepRequest;
-use harmos_protocol::host::TimeSleepResponse;
 use harmos_protocol::host::plugins::SettingsListRequest;
 use harmos_protocol::host::plugins::SettingsListResponse;
 use harmos_protocol::host::plugins::StateGetRequest;
@@ -99,7 +97,6 @@ use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
 use harmos_protocol::model::Upload;
 use harmos_protocol::plugin::SubscriptionsSubscribeRequest;
-use prost_types::Duration;
 use prost_types::Timestamp;
 use std::num::NonZeroUsize;
 pub enum HostOperation {
@@ -243,7 +240,6 @@ pub struct HostRoot {
     pub plugins: HostPluginsResource,
     pub prompts: HostPromptsResource,
     pub secrets: HostSecretsResource,
-    pub time: HostTimeResource,
 }
 impl HostRoot {
     fn new(context: Context) -> Self {
@@ -259,7 +255,6 @@ impl HostRoot {
             plugins: HostPluginsResource::new(context.clone()),
             prompts: HostPromptsResource::new(context.clone()),
             secrets: HostSecretsResource::new(context.clone()),
-            time: HostTimeResource::new(context.clone()),
         }
     }
 }
@@ -464,14 +459,6 @@ pub struct HostPluginsStateGetOptions {
 }
 #[derive(Default)]
 pub struct HostPluginsStatePutOptions {
-    pub policy: Option<OperationPolicy>,
-}
-#[derive(Default)]
-pub struct HostTimeGetOptions {
-    pub policy: Option<OperationPolicy>,
-}
-#[derive(Default)]
-pub struct HostTimeSleepOptions {
     pub policy: Option<OperationPolicy>,
 }
 #[derive(Clone)]
@@ -1119,31 +1106,6 @@ impl HostSecretsResource {
     pub async fn get_with(&self, name: String, options: HostSecretsGetOptions) -> Result<SecretsGetResponse> {
         let request = SecretsGetRequest { name, at: options.at };
         let response: SecretsGetResponse = self.context.operation_with(request, options.policy).await?;
-        Ok(response)
-    }
-}
-#[derive(Clone)]
-pub struct HostTimeResource {
-    context: Context,
-}
-impl HostTimeResource {
-    fn new(context: Context) -> Self {
-        Self { context }
-    }
-    pub async fn get(&self) -> Result<Timestamp> {
-        self.get_with(HostTimeGetOptions::default()).await
-    }
-    pub async fn get_with(&self, options: HostTimeGetOptions) -> Result<Timestamp> {
-        let request = TimeGetRequest {};
-        let response: TimeGetResponse = self.context.operation_with(request, options.policy).await?;
-        response.now.ok_or_else(|| Error::Invalid("Read TimeGet: Missing Payload".into()))
-    }
-    pub async fn sleep(&self, duration: Duration) -> Result<TimeSleepResponse> {
-        self.sleep_with(duration, HostTimeSleepOptions::default()).await
-    }
-    pub async fn sleep_with(&self, duration: Duration, options: HostTimeSleepOptions) -> Result<TimeSleepResponse> {
-        let request = TimeSleepRequest { duration: Some(duration) };
-        let response: TimeSleepResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }

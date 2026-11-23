@@ -30,6 +30,7 @@ use std::{
 
 // Third Party Imports
 use ::harmos::{OperationInput, plugin};
+use harmos_protocol::host::{TimeGetRequest, TimeSleepRequest};
 use prost_reflect::ReflectMessage;
 use prost_types::Timestamp;
 
@@ -398,11 +399,24 @@ impl Context {
     }
 
     pub async fn sleep(&self, duration: Duration) -> Result<()> {
-        self.host().time.sleep(duration.try_into().map_err(|error| Error::Invalid(format!("Sleep: Invalid Duration: {error}")))?).await?;
-        Ok(())
+        match &self.transport {
+            Transport::Harmos(transport) => transport.sleep(duration).await,
+            Transport::Local(_) => {
+                let duration = duration.try_into().map_err(|error| Error::Invalid(format!("Sleep: Invalid Duration: {error}")))?;
+                self.operation_with(TimeSleepRequest { duration: Some(duration) }, None).await?;
+                Ok(())
+            }
+        }
     }
     pub async fn now(&self) -> Result<Timestamp> {
-        self.host().time.get().await
+        match &self.transport {
+            Transport::Harmos(transport) => transport.now().await,
+            Transport::Local(_) => self
+                .operation_with(TimeGetRequest {}, None)
+                .await?
+                .now
+                .ok_or_else(|| Error::Invalid("Get Host Time: Supply the Current Time".into())),
+        }
     }
     pub async fn cancelled(&self) -> String {
         match &self.transport {

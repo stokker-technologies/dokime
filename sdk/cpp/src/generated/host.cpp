@@ -80,7 +80,6 @@ using ::dokime::host::v1::files::UploadsResumeRequest;
 using ::dokime::host::v1::files::UploadsResumeResponse;
 using ::dokime::model::Window;
 using ::dokime::plugin::CaptureMode;
-using ::google::protobuf::Duration;
 using ::google::protobuf::Timestamp;
 using ::harmos::DiscoveredOperation;
 using ::harmos::FileMetadata;
@@ -122,22 +121,6 @@ namespace dokime::templates {
 using ::harmos::VISIBILITY_PUBLIC;
 using ::harmos::plugin::Operation;
 using ::harmos::plugin::Watching;
-Timestamp HostTimeResource::get(HostTimeGetOptions options) {
-  TimeGetRequest request;
-  auto operation = Operation<TimeGetRequest, TimeGetResponse>("harmos.plugin.v1.Time/Get", VISIBILITY_PUBLIC);
-  auto response = context.operation(operation, request, options.policy).get();
-  if (!response.has_now()) {
-    throw runtime_error("Read TimeGet: Missing Payload");
-  }
-  return std::move(*response.mutable_now());
-}
-TimeSleepResponse HostTimeResource::sleep(const Duration &duration, HostTimeSleepOptions options) {
-  TimeSleepRequest request;
-  *request.mutable_duration() = duration;
-  auto operation = Operation<TimeSleepRequest, TimeSleepResponse>("harmos.plugin.v1.Time/Sleep", VISIBILITY_PUBLIC);
-  auto response = context.operation(operation, request, options.policy).get();
-  return response;
-}
 ::dokime::SecretsGetResponse HostSecretsResource::get(const string &name, HostSecretsGetOptions options) {
   SecretsGetRequest request;
   request.set_name(name);
@@ -572,7 +555,7 @@ Receipt HostDocumentsResource::append_parts(const string &execution, const strin
 } // namespace dokime::templates
 namespace dokime::templates {
 HostRoot Context::host() {
-  return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}};
+  return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}};
 }
 } // namespace dokime::templates
 namespace dokime {

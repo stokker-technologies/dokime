@@ -21,12 +21,14 @@ import sys
 import tempfile
 import tomllib
 import urllib.request
+from dataclasses import replace
 from pathlib import Path
 
 # isort: split
 
 # Third Party Imports
-from harmos_tools.build.resources import sdk
+from google.protobuf.descriptor_pb2 import FileDescriptorSet
+from harmos_tools.build.resources import cpp, csharp, descriptor, rust, sdk
 from harmos_tools.build.resources.configuration import Configuration
 
 # isort: split
@@ -177,6 +179,42 @@ def configuration(root: Path) -> Configuration:
     )
 
 
+def host_resources(root: Path, descriptors: Path, configuration: Configuration, *, exclude: set[str]) -> None:
+    """Keep Dependencies While Omitting Resources Already Owned by the Library."""
+    library = FileDescriptorSet.FromString(descriptors.read_bytes())
+    configuration = replace(configuration, library=library)
+    methods = [method for method in descriptor.table(library) if method["face"] == "context"]
+    methods = [
+        {**method, "surface": False, "fields": [], "payload_field": None}
+        if f"{method['package']}.{method['service']}" in exclude
+        else method
+        for method in methods
+    ]
+    rust.host(root, methods, configuration=configuration)
+    csharp.host(
+        root,
+        methods,
+        configuration=configuration,
+        namespace="Dokime.Plugins",
+        target=root / "sdk/csharp/src/Dokime/Generated/Host.g.cs",
+    )
+    names = cpp.exports(root, library, configuration=configuration)
+    cpp.host(root, methods, names, configuration=configuration)
+    subprocess.run(
+        [
+            "rustfmt",
+            "--edition",
+            "2024",
+            "--config-path",
+            str(configuration.rustfmt or root / "rustfmt.toml"),
+            str(root / "sdk/rust/src/plugin/host.rs"),
+            str(root / "sdk/rust/src/plugin/host_exports.rs"),
+        ],
+        check=True,
+        creationflags=spawn_flags(),
+    )
+
+
 def generate(*, check: bool = False, root: Path, descriptors: Path, configuration: Configuration, language: str | None = None) -> None:
     """Publish Shared Projections Except the SDK-Owned Python Barrels."""
     output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
@@ -187,9 +225,10 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
             "import sys\n"
             "from pathlib import Path\n"
             "from harmos_tools.build.resources import sdk\n"
-            "from dokime_tools.build.protocol import configuration\n"
+            "from dokime_tools.build.protocol import configuration, host_resources\n"
             "root, output, descriptors = map(Path, sys.argv[1:])\n"
             "sdk.generate(root=output, descriptors=descriptors, configuration=configuration(root))\n"
+            "host_resources(output, descriptors, configuration(root), exclude={'harmos.plugin.v1.Time'})\n"
             "runpy.run_path(str(root / 'sdk/cpp/tools/generate.py'))['project'](output)\n"
         )
         subprocess.run(

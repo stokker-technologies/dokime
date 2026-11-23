@@ -27,7 +27,7 @@ from harmos_tools.build.resources import sdk
 # isort: split
 
 # Local Imports
-from dokime_tools.build.protocol import configuration
+from dokime_tools.build.protocol import configuration, host_resources
 from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
@@ -106,6 +106,7 @@ def main() -> None:
     output = Path(tempfile.mkdtemp(prefix="dokime-cpp-generation-"))
     try:
         sdk.generate(root=output, descriptors=root / "crates/dokime-protocol/src/descriptors.bin", configuration=settings)
+        host_resources(output, root / "crates/dokime-protocol/src/descriptors.bin", settings, exclude={"harmos.plugin.v1.Time"})
         project(output)
         expected = {path for path in sdk.inventory(output, settings) if path.parts[:2] == ("sdk", "cpp")}
         existing = {path for path in sdk.inventory(root, settings) if path.parts[:2] == ("sdk", "cpp")}

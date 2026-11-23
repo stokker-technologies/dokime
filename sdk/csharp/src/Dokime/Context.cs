@@ -42,7 +42,7 @@ public sealed partial class Context : Dokime.Operations.Context
   {
     var identity = Resolve(record);
     var payload = Payload<T>.Pack(value).ToByteString();
-    var at = sourceAt is null ? await Host.Time.Get(policy?.ToWire(), cancellationToken) : Timestamp.FromDateTimeOffset(sourceAt.Value);
+    var at = sourceAt is null ? await new Harmos.Plugins.HostRoot(Transport).Time.Get(policy?.ToWire(), cancellationToken) : Timestamp.FromDateTimeOffset(sourceAt.Value);
     var reply = await Host.Evidence.Records.Append(Execution, identity, payload, at, Client.Identity(requestId), policy?.ToWire(), cancellationToken);
     return reply.Ordinal;
   }
@@ -88,7 +88,7 @@ public sealed partial class Context : Dokime.Operations.Context
   public async Task LogAsync(string message, Severity severity = Severity.Info, string? requestId = null,
       Dokime.Operations.OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
-    var at = At ?? await Host.Time.Get(policy?.ToWire(), cancellationToken);
+    var at = At ?? await new Harmos.Plugins.HostRoot(Transport).Time.Get(policy?.ToWire(), cancellationToken);
     await Host.Evidence.Logs.Append(Execution, severity, message, at, Client.Identity(requestId), policy?.ToWire(), cancellationToken);
   }
 }

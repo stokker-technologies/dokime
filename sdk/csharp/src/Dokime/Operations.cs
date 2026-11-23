@@ -49,10 +49,10 @@ public class Context
   public CancellationToken CancellationToken => Transport.CancellationToken;
   public Task<string> CancelledAsync(CancellationToken cancellationToken = default) => Transport.CancelledAsync().WaitAsync(cancellationToken);
   public async Task<DateTimeOffset> NowAsync(CancellationToken cancellationToken = default) =>
-    (await Host.Time.Get(cancellationToken: cancellationToken)).ToDateTimeOffset();
+    (await new Harmos.Plugins.HostRoot(Transport).Time.Get(cancellationToken: cancellationToken)).ToDateTimeOffset();
   public async Task SleepAsync(TimeSpan duration, CancellationToken cancellationToken = default)
   {
-    await Host.Time.Sleep(Duration.FromTimeSpan(duration), cancellationToken: cancellationToken);
+    await new Harmos.Plugins.HostRoot(Transport).Time.Sleep(Duration.FromTimeSpan(duration), cancellationToken: cancellationToken);
   }
   public async Task<byte[]> SecretAsync(string identifier, CancellationToken cancellationToken = default)
   {

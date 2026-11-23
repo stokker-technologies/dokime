@@ -145,7 +145,6 @@ internal sealed class HostRoot(Context context)
   public HostPluginsResource Plugins { get; } = new(context);
   public HostPromptsResource Prompts { get; } = new(context);
   public HostSecretsResource Secrets { get; } = new(context);
-  public HostTimeResource Time { get; } = new(context);
 }
 internal sealed class HostBackendResource(Context context)
 {
@@ -634,16 +633,5 @@ internal sealed class HostSecretsResource(Context context)
     }
     var response = await context.Operation(HostContracts.SecretsGet, request, policy, cancellationToken);
     return response;
-  }
-}
-internal sealed class HostTimeResource(Context context)
-{
-  public async Task<global::Google.Protobuf.WellKnownTypes.Timestamp> Get(OperationPolicy? policy = null, CancellationToken cancellationToken = default)
-  {
-    return await context.Transport.Host.Time.Get(policy, cancellationToken);
-  }
-  public async Task<global::Harmos.Clients.TimeSleepResponse> Sleep(global::Google.Protobuf.WellKnownTypes.Duration duration, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
-  {
-    return await context.Transport.Host.Time.Sleep(duration, policy, cancellationToken);
   }
 }
