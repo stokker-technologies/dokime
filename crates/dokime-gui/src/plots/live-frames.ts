@@ -47,6 +47,9 @@ export type LivePlotState = {
 
 export type LivePlotStateMap = Record<string, LivePlotState>;
 
+/** Plot States Keyed By Plot: A Reader Of One Plot Follows Only That Plot. */
+export type LivePlotStates = ReadonlyMap<string, LivePlotState>;
+
 /* === Public Functions === */
 
 export function emptyLivePlotState(): LivePlotState {

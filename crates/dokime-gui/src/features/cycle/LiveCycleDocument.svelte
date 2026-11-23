@@ -13,12 +13,30 @@
 
 <script lang="ts">
   import LiveDocumentWorkspace from "../../components/document/LiveDocumentWorkspace.svelte";
-  import { documentWorkspace, type DocumentViewProps } from "./document-workspace";
+  import { documentSectionWindow, type DocumentViewProps } from "./document-workspace";
 
-  let { context, surface, plotWindow, cardFilter, cardChrome, onRetry }: DocumentViewProps & { context: LiveCycleContext } = $props();
-  const workspace = $derived(documentWorkspace({ surface, plotWindow, cardFilter, cardChrome }));
+  let {
+    context,
+    surface,
+    windowControl = false,
+    cardFilter,
+    cardChrome,
+    onRetry,
+  }: DocumentViewProps & { context: LiveCycleContext; windowControl?: boolean } = $props();
+  const { options, shared, view } = $derived(surface);
+  const plotWindow = $derived(options.plotWindow);
+  const sectionWindow = $derived(windowControl && plotWindow ? documentSectionWindow(view.sections, plotWindow) : undefined);
 </script>
 
-{#if workspace.renderMode === "live"}
-  <LiveDocumentWorkspace {...workspace} {...context} {onRetry} />
-{/if}
+<!-- Each Field Of The Surface Reaches Only Its Own Readers. -->
+<LiveDocumentWorkspace
+  {...shared}
+  {...context}
+  {cardChrome}
+  {cardFilter}
+  {onRetry}
+  plotContextTelemetry={view.plotContextTelemetry}
+  {plotWindow}
+  scope={options.scope}
+  {sectionWindow}
+/>

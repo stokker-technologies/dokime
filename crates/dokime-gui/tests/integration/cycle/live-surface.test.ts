@@ -1,0 +1,244 @@
+// @vitest-environment happy-dom
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/**
+ * Live Updates Reach Only What They Change
+ */
+
+/* === Imports === */
+
+// Standard Library Imports
+import assert from "node:assert/strict";
+
+// Third Party Imports
+import { notifyManager, QueriesObserver, QueryClient, QueryObserver } from "@tanstack/svelte-query";
+import { render } from "@testing-library/svelte";
+import { tick } from "svelte";
+import { onTestFinished, test, vi } from "vitest";
+
+// Local Imports
+import type { ConnectedSession } from "@/app/native-session/session";
+import { createPlotWindow } from "@/features/cycle/plot-window-state";
+import type { NativePlotStreamMessage } from "@/lib/api/native-plots";
+import { documentCard, documentView } from "@/lib/document-presentation";
+import type { DocumentViewCard, DocumentViewPayload, DocumentViewPlot, HubLiveState, PlotPayload } from "@/lib/types";
+import { documentPlotSpec } from "@/plots/grouping";
+import { BUILT_IN_REPORT_DEFAULTS } from "@/plots/plot-settings";
+import LiveSurfaceProbe from "./LiveSurfaceProbe.svelte";
+
+/* === Constants === */
+
+const backend = vi.hoisted(() => ({ fetch: vi.fn(), watch: vi.fn() }));
+vi.mock("@/lib/api/native-document-session", () => ({ fetchNativeDocument: (...args: unknown[]) => backend.fetch(...args) }));
+vi.mock("@/lib/api/native-documents", () => ({
+  mapNativeDocument: (capture: { view: DocumentViewPayload }) => capture.view,
+  mapNativeDocumentCard: () => undefined,
+  nativeDocumentCardKey: (_capture: unknown, id: string) => id,
+}));
+vi.mock("@/lib/api/native-annotations", () => ({ fetchNativeNotes: async () => [], fetchNativeHealth: async () => [] }));
+vi.mock("@/lib/api/native-content", () => ({ fetchNativeExecutionFiles: async () => [] }));
+vi.mock("@/lib/api/native-observation", () => ({ fetchNativeTraceability: async () => null }));
+vi.mock("@/lib/api/native-plots", async (original) => ({
+  ...(await original<typeof import("@/lib/api/native-plots")>()),
+  openNativePlotStream: (...args: unknown[]) => backend.watch(...args),
+}));
+vi.mock("@/plots/grouping", async (original) => {
+  const actual = await original<typeof import("@/plots/grouping")>();
+  return { ...actual, documentPlotSpec: vi.fn(actual.documentPlotSpec) };
+});
+
+/* === Private Functions === */
+
+function connect() {
+  notifyManager.setScheduler(queueMicrotask);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const session = {
+    identity: { generation: "1", isCurrent: () => true },
+    own: () => () => {},
+    snapshot: { connection: { backend: { epoch: "epoch" } } },
+    queryClient,
+  } as unknown as ConnectedSession;
+  return { queryClient, session };
+}
+
+/** Each Read Of The Structure Returns Equal Content In New Objects. */
+function serve(cards: DocumentViewCard[]) {
+  const view = documentView("default", { identifier: "default", label: "Fixture" }, cards, {
+    nodes: cards.map((card) => ({ type: "card" as const, card_id: card.card_id, layout: card.layout })),
+  });
+  backend.fetch.mockImplementation(async (_session, _request, _signal, _previous, publish) => {
+    const capture = { view: structuredClone(view), bindings: new Map() };
+    publish?.(capture);
+    return capture;
+  });
+}
+
+function plotStream() {
+  const messages: NativePlotStreamMessage[] = [];
+  let wake: (() => void) | undefined;
+  let ended = false;
+  return {
+    push(message: NativePlotStreamMessage) {
+      messages.push(message);
+      wake?.();
+    },
+    cancel: async () => {
+      ended = true;
+      wake?.();
+    },
+    async *[Symbol.asyncIterator]() {
+      while (!ended) {
+        const message = messages.shift();
+        if (message) {
+          yield message;
+        } else {
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+          });
+        }
+      }
+    },
+  };
+}
+
+function frame(plot_id: string, revision: number, kind: "snapshot" | "replace") {
+  const payload = {
+    stream: "pulse",
+    x_key: "timestamp",
+    generated_at: "2026-11-01T00:00:00Z",
+    max_points: 100,
+    window_s: 300,
+    series: [{ key: "trace-0", label: "Trace", points: [], raw_points: 2, downsampled: false }],
+    cartesian: { mode: "aligned", series: [{ x: [0, 1], y: [revision, revision] }], point_count: 2, signature: `${plot_id}-${revision}` },
+  } as unknown as PlotPayload;
+  return {
+    kind,
+    revision,
+    plot_id,
+    epoch: "epoch",
+    selection: plot_id,
+    payload,
+    warnings: [],
+  } as NativePlotStreamMessage["updates"][number];
+}
+
+/* === Entry Point === */
+
+// A Refresh Status, A Live Snapshot, An Equal Scope Or An Unchanged Structure Never Re-Runs A Query's Options.
+test("Live Updates Keep Every Query's Options", async () => {
+  const { queryClient, session } = connect();
+  serve(
+    ["notes", "health", "traceability", "artifacts", "records"].map((kind) =>
+      documentCard({ identifier: kind, label: kind }, kind as "notes", {}),
+    ),
+  );
+  const setOptions = vi.spyOn(QueryObserver.prototype, "setOptions");
+  const setQueries = vi.spyOn(QueriesObserver.prototype, "setQueries");
+  onTestFinished(() => {
+    vi.restoreAllMocks();
+  });
+  const plotWindow = createPlotWindow();
+  const probe = render(LiveSurfaceProbe, { session, plotWindow });
+  await vi.waitFor(() =>
+    assert.ok(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .every((query) => query.state.status === "success"),
+    ),
+  );
+  await tick();
+  const queries = queryClient.getQueryCache().getAll().length;
+  assert.equal(queries, 6, "the document and its five evidence queries");
+  setOptions.mockClear();
+  setQueries.mockClear();
+  const stream = { name: "pulse" } as unknown as HubLiveState["telemetry"][string];
+  const sections = probe.component.sections();
+  const changes = {
+    refresh: async () => plotWindow.getState().refresh.onChange({ refreshing: false, updatedAt: 1 }),
+    snapshot: async () => probe.component.setSnapshot({ telemetry: { pulse: stream } } as unknown as HubLiveState),
+    scope: async () => probe.component.setScope({ cycleId: "cycle", executionId: "execution" }),
+    structure: () => queryClient.refetchQueries({ queryKey: ["workflow", "documents"] }),
+  };
+  for (const [name, change] of Object.entries(changes)) {
+    await change();
+    await tick();
+    assert.deepEqual(
+      setOptions.mock.calls.map(([options]) => options.queryKey),
+      [],
+      `${name} keeps every query's options`,
+    );
+    assert.equal(setQueries.mock.calls.length, 0, `${name} keeps the card queries`);
+  }
+  assert.deepEqual(probe.component.streams(), [stream]);
+  assert.equal(probe.component.sections(), sections, "an unchanged structure keeps its sections");
+  assert.ok(backend.fetch.mock.calls.length > 1);
+  assert.equal(queryClient.getQueryCache().getAll().length, queries);
+  probe.unmount();
+});
+
+// The Desktop Document Rebuilds A Plot Only When Its Own Inputs Change.
+test("A Live Revision Rebuilds Only Its Own Plot", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("IntersectionObserver", undefined);
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
+  onTestFinished(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const { session } = connect();
+  const plots = ["alpha", "beta"].map(
+    (plot_id): DocumentViewPlot => ({
+      plot_id,
+      title: plot_id,
+      stream: "pulse",
+      plot_type: "time_series",
+      style: "line",
+      x_scale: "linear",
+      y_scale: "linear",
+      x: "timestamp",
+      y: ["trace-0"],
+      fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    }),
+  );
+  serve([documentCard({ identifier: "plots", label: "Plots" }, "plots", { plots })]);
+  const streams: ReturnType<typeof plotStream>[] = [];
+  backend.watch.mockImplementation(async () => {
+    const stream = plotStream();
+    streams.push(stream);
+    return stream;
+  });
+  const plotWindow = createPlotWindow();
+  const desktop = { session, plotPalette: ["#123456"], reportDefaults: BUILT_IN_REPORT_DEFAULTS };
+  const probe = render(LiveSurfaceProbe, { session, plotWindow, desktop });
+  await vi.waitFor(() => assert.equal(streams.length, 1));
+  streams[0].push({ updates: plots.map((plot) => frame(plot.plot_id, 1, "snapshot")) });
+  await vi.advanceTimersByTimeAsync(20);
+  await tick();
+  assert.equal(probe.container.querySelectorAll("[data-live-mounted]").length, 2, "both plots draw");
+
+  const spec = vi.mocked(documentPlotSpec);
+  spec.mockClear();
+  plotWindow.getState().refresh.onChange({ refreshing: false, updatedAt: 9 });
+  probe.component.setSnapshot({ telemetry: { other: { stream: "other" } } } as unknown as HubLiveState);
+  await tick();
+  assert.equal(spec.mock.calls.length, 0, "a refresh status and an unplotted stream rebuild no plot");
+
+  streams[0].push({ updates: [frame("alpha", 2, "replace")] });
+  await vi.advanceTimersByTimeAsync(20);
+  await tick();
+  assert.deepEqual(
+    spec.mock.calls.map(([input]) => input.plot.plot_id),
+    ["alpha"],
+  );
+  probe.unmount();
+});

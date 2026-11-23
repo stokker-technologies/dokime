@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { create, fromBinary, toBinary, toJson } from "@bufbuild/protobuf";
 import { render } from "@testing-library/svelte";
 import { FieldDescriptorProto_Type, FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import {
@@ -25,6 +25,7 @@ import {
   LiveExecutionState,
   PromptFieldKind,
   PromptKind,
+  ReadCutSchema,
   ResultStatus,
   Severity,
   StreamMatchOperator,
@@ -34,6 +35,11 @@ import { createRawSnippet } from "svelte";
 import { beforeEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
+import type { ConnectedSession } from "@/app/native-session/session";
+import { observeRuntime } from "@/app/live/runtime-stream";
+import { toast } from "@/lib/notifications";
+import { normalizeRpcError } from "@/lib/rpc/errors";
+import { hubStore } from "@/stores/hub-store";
 import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
 import { openNativeExecutionProgressStream, openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { previewNativeTestCycle } from "@/lib/api/native-planning";
@@ -474,6 +480,70 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
   assert.equal(canceled.mock.calls.length, 1);
 });
 
+test("A Client Cancellation Ends the Runtime Watch Without a Failure Notice", async () => {
+  const notify = vi.spyOn(toast, "error").mockImplementation(() => undefined as never);
+  onTestFinished(() => notify.mockRestore());
+  const connected = { identity: session, own: () => () => {}, queryClient: new QueryClient() } as unknown as ConnectedSession;
+  const endings = [
+    [normalizeRpcError({ kind: "cancelled" }), 0],
+    [normalizeRpcError({ kind: "grpc", detail: { code: 1, message: "Cancelled by the host.", details: [] } }), 1],
+  ] as const;
+  for (const [ending, notices] of endings) {
+    notify.mockClear();
+    hubStore.getState().setHubState({ connection: "connecting" });
+    fixture.stream.mockImplementation(async () => ({
+      cancel: async () => {},
+      // biome-ignore lint/correctness/useYield: the watch ends before its first frame
+      async *[Symbol.asyncIterator]() {
+        throw ending;
+      },
+    }));
+    const dispose = observeRuntime(connected);
+    await vi.waitFor(() => assert.equal(hubStore.getState().connection, "reconnecting"));
+    dispose();
+    assert.equal(notify.mock.calls.length, notices);
+  }
+});
+
+test("A Host Deadline Reopens the Runtime Watch at Once, Silently", async () => {
+  vi.useFakeTimers();
+  const notify = vi.spyOn(toast, "error").mockImplementation(() => undefined as never);
+  onTestFinished(() => {
+    notify.mockRestore();
+    vi.useRealTimers();
+  });
+  const connected = { identity: session, own: () => () => {}, queryClient: new QueryClient() } as unknown as ConnectedSession;
+  const deadline = (message: string) => normalizeRpcError({ kind: "grpc", detail: { code: 4, message, details: [] } });
+  const endings = [
+    [deadline("Backend Overview Watch: Reopen After Its Deadline"), 2, 0, "connected"],
+    [deadline("The call ran out of time."), 1, 1, "reconnecting"],
+  ] as const;
+  for (const [ending, opens, notices, connection] of endings) {
+    notify.mockClear();
+    hubStore.getState().setHubState({ connection: "connecting" });
+    let opened = 0;
+    fixture.stream.mockImplementation(async () => ({
+      cancel: async () => {},
+      async *[Symbol.asyncIterator]() {
+        opened += 1;
+        if (opened === 1) {
+          throw ending;
+        }
+        await new Promise<void>(() => {});
+      },
+    }));
+    const dispose = observeRuntime(connected);
+    // No Timer Is Advanced: A Reopen Happens Without A Reconnect Delay.
+    for (let turn = 0; turn < 100; turn++) {
+      await Promise.resolve();
+    }
+    dispose();
+    assert.equal(opened, opens);
+    assert.equal(notify.mock.calls.length, notices);
+    assert.equal(hubStore.getState().connection, connection);
+  }
+});
+
 test("Imported and Unevaluated Outcomes Never Gain Run Capabilities", () => {
   assert.equal(
     projectExecutionStatus(ExecutionState.CLOSED, {
@@ -631,6 +701,42 @@ test("History Projects Declared Outcomes Without Inventing Criterion Counts", as
   const page = await fetchNativeExecutionPage(session, null);
   assert.equal(page.entries[0].metadata.status, "passed");
   assert.equal(page.entries[0].metadata.result, null);
+});
+
+test("Checkpoint View Reads Continue With the Cut the Host Returned", async () => {
+  const { fetchNativeCheckpointEvidence } = await import("@/lib/api/native-checkpoints");
+  const history = { store: "host", epoch: "sealed" };
+  const checkpoint = {
+    executionIdentifier: "run",
+    version: new Uint8Array([1]),
+    position: { history, sequence: 9n },
+    evidenceThrough: { history, sequence: 7n },
+  };
+  const view = { positions: [{ history, sequence: 9n }], revisions: [{ name: "host/files", revision: new Uint8Array([2]) }] };
+  const cuts: Record<string, unknown[]> = {};
+  fixture.extra.mockImplementation(async (path, request) => {
+    if (path === "/dokime.host.v1.Executions/Get") {
+      return { execution: { seal: checkpoint.version, summary: { executionId: "run" } } };
+    }
+    cuts[path] = [...(cuts[path] ?? []), request.at];
+    if (path === "/dokime.host.v1.content.ExecutionFiles/List") {
+      return {
+        files: [{ relativePath: request.page.pageToken ? "b.txt" : "a.txt" }],
+        resolvedAt: view,
+        nextPageToken: request.page.pageToken ? "" : "next",
+      };
+    }
+    assert.equal(path, "/dokime.host.v1.content.Artifacts/List");
+    return { artifacts: [], resolvedAt: view };
+  });
+  const evidence = await fetchNativeCheckpointEvidence(session, checkpoint);
+  assert.equal(evidence.outputs.length, 2);
+  // A View Is Selected By Its First Page And Continued Only With Its Returned Cut.
+  assert.deepEqual(
+    cuts["/dokime.host.v1.content.ExecutionFiles/List"]?.map((at) => (at ? toJson(ReadCutSchema, at as never) : null)),
+    [null, toJson(ReadCutSchema, create(ReadCutSchema, view))],
+  );
+  assert.deepEqual(cuts["/dokime.host.v1.content.Artifacts/List"], [undefined]);
 });
 
 test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", async () => {

@@ -32,7 +32,6 @@
     actions?: Snippet;
   } = $props();
   const interaction = getPlotInteraction();
-  const cartesian = $derived({ plot, resetKey, viewportMode, actions });
 </script>
 
 {#if plot.failure && !plot.cartesian && !plot.series.some((series) => series.points.length)}
@@ -60,19 +59,19 @@
 {:else if plot.plotType === "bar"}
   <BarPlot {plot} />
 {:else if plot.plotType === "xy" && !plot.xyInterval}
-  <XyPlot {...cartesian} />
+  <XyPlot {plot} {resetKey} {viewportMode} {actions} />
 {:else if plot.plotType === "xy" && plot.xyInterval === "sigma"}
-  <XyIntervalPlot {...cartesian} />
+  <XyIntervalPlot {plot} {resetKey} {viewportMode} {actions} />
 {:else if plot.plotType === "trajectory"}
-  <TrajectoryPlot {...cartesian} />
+  <TrajectoryPlot {plot} {resetKey} {viewportMode} {actions} />
 {:else if plot.plotType === "frequency_series"}
-  <FrequencySeriesPlot {...cartesian} />
+  <FrequencySeriesPlot {plot} {resetKey} {viewportMode} {actions} />
 {:else if plot.plotType === "histogram"}
   <HistogramPlot {plot} />
 {:else if plot.plotType === "box_plot"}
   <BoxPlot {plot} />
 {:else if plot.plotType === "time_series"}
-  <TimeSeriesPlot {...cartesian} />
+  <TimeSeriesPlot {plot} {resetKey} {viewportMode} {actions} />
 {:else}
   <ErrorCard
     failure={failureOf(

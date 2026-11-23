@@ -2,6 +2,7 @@
 <script lang="ts">
   import type { ComponentProps } from "svelte";
   import type { ConnectedSession } from "../../app/native-session/session";
+  import type { PlotWindow } from "../../features/cycle/plot-window-state";
   import { updatePlotSettings } from "../../lib/api/native-document-session";
   import { orderedDocumentSections } from "../../lib/document-layout";
   import { createLivePlotPayloads } from "../../plots/live-data.svelte";
@@ -16,12 +17,20 @@
   import OperatorNotes from "./OperatorNotes.svelte";
   import OperatorNotesContent from "./OperatorNotesContent.svelte";
 
-  type Workspace = Extract<ComponentProps<typeof DocumentWorkspacePresentation>, { renderMode: "live" }>;
-  let { session, reportDefaults, ...workspace }: Workspace & { session: ConnectedSession | null; reportDefaults: ReportDefaults } =
-    $props();
+  type Workspace = Omit<
+    Extract<ComponentProps<typeof DocumentWorkspacePresentation>, { renderMode: "live" }>,
+    "renderMode" | "livePlotStates" | "plotResetKey" | "measurements"
+  >;
+  let {
+    session,
+    reportDefaults,
+    plotWindow,
+    ...workspace
+  }: Workspace & { session: ConnectedSession | null; reportDefaults: ReportDefaults; plotWindow?: PlotWindow } = $props();
   const transfers = $derived(session ? nativeMediaTransfers(session) : undefined);
   const resolvedCardFilter = $derived(workspace.cardFilter ?? isDocumentSurfaceCard);
-  const scopeKey = $derived(`${workspace.document?.document_id}/${workspace.plotResetKey}`);
+  const plotResetKey = $derived(plotWindow?.option().label ?? "");
+  const scopeKey = $derived(`${workspace.document?.document_id}/${plotResetKey}`);
   let overrides = $state.raw<{ key: string; settings: Record<string, PlotDisplaySettings> }>({ key: "", settings: {} });
   const document = $derived.by(() => {
     const source = workspace.document;
@@ -48,13 +57,7 @@
     })),
   );
   const live = createLivePlotPayloads(
-    () => ({
-      enabled: true,
-      plots,
-      scope: workspace.scope,
-      windowS: workspace.plotWindowS,
-      refresh: workspace.plotRefresh,
-    }),
+    () => ({ enabled: true, plots, scope: workspace.scope, window: plotWindow }),
     () => session,
   );
 
@@ -85,6 +88,8 @@
 <DocumentWorkspacePresentation
   {...workspace}
   {document}
+  renderMode="live"
+  {plotResetKey}
   livePlotStates={live.states}
   measurements={summaryWindowStore.getInitialState()}
   {reportDefaults}

@@ -14,7 +14,7 @@
     TelemetryStream,
     TraceabilitySnapshot,
   } from "@/lib/types";
-  import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+  import { emptyLivePlotState, type LivePlotStates } from "@/plots/live-frames";
   import type { PlotMeasurements } from "@/plots/plot-interaction";
   import type { ReportDefaults } from "@/plots/plot-settings";
   import type { MediaGalleryArtifact } from "../media-gallery-model";
@@ -42,7 +42,7 @@
   type LiveProps = SharedProps & {
     captureScope?: Wire<EvidenceScope> | null;
     noteScope?: Wire<EvidenceScope> | null;
-    livePlotStates: LivePlotStateMap;
+    livePlotStates: LivePlotStates;
     onPlotSettingsChange?: PlotSettingsChange;
     plotContextTelemetry: Record<string, TelemetryStream> | null;
     plotResetKey: string;
@@ -59,8 +59,8 @@
 
   export type DocumentCardContentProps = LiveProps | ReportProps;
 
-  function reportPlotStates(plots: DocumentViewPlot[], payloads: Record<string, PlotPayload>): LivePlotStateMap {
-    return Object.fromEntries(
+  function reportPlotStates(plots: DocumentViewPlot[], payloads: Record<string, PlotPayload>): LivePlotStates {
+    return new Map(
       plots.flatMap((plot) => {
         const payload = payloads[plot.plot_id];
         return payload ? [[plot.plot_id, { ...emptyLivePlotState(), payload, status: "live" as const }]] : [];

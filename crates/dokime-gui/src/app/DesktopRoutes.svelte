@@ -77,8 +77,10 @@
   let lastOutsideSettings = $state<string | null>(null);
   const mode = $derived(navigationMode(width));
   const ui = storeState(uiStore, (state) => state);
-  const hub = storeState(hubStore, (state) => state);
-  const connection = $derived(hub().connection);
+  // Runtime Frames Rewrite The Hub Store; Each Reader Follows Only Its Field.
+  const connection = storeState(hubStore, (state) => state.connection);
+  const hubError = storeState(hubStore, (state) => state.error);
+  const operations = storeState(hubStore, (state) => state.operations);
   const collapse = $derived(mode !== "desktop" || Boolean(ui().sidebarCollapsed[density]) || focus.focused);
   const parent = $derived(
     plugin
@@ -109,10 +111,13 @@
     }),
     client,
   );
-  const status = $derived<BackendStatus>({
-    connection: connection === "connecting" ? "unknown" : connection,
-    detail: hub().error,
-    label: backend.data?.status?.identity?.applicationName || backend.data?.status?.identity?.hostId || null,
+  const status = $derived.by<BackendStatus>(() => {
+    const current = connection();
+    return {
+      connection: current === "connecting" ? "unknown" : current,
+      detail: hubError(),
+      label: backend.data?.status?.identity?.applicationName || backend.data?.status?.identity?.hostId || null,
+    };
   });
   const availableCycles = $derived(openCycles(cycleRows(cycles.data ?? [], promptCountsByCycle(prompts.data ?? []))));
   const active = $derived<ActiveCycleState>({
@@ -226,7 +231,7 @@
       resize: (width) => ui().setUiState({ sidebarWidth: sidebarWidth(width) }),
     },
     actions: category === "cycles" && !cycleId ? newCycle : undefined,
-    operations: hub().operations,
+    operations: operations(),
     back: parent
       ? () => {
           if (parent) {

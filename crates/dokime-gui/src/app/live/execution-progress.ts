@@ -1,6 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import type { ConnectedSession } from "@/app/native-session/session";
 import { openNativeExecutionProgressStream } from "@/lib/api/native-observation";
+import { isHostReopen } from "@/lib/rpc/errors";
 import { safeNumber } from "@/lib/api/native-values";
 
 const GUI_RECONNECT_MS = 1_000;
@@ -28,6 +29,8 @@ export function observeExecutionProgress(
       return;
     }
     let reconnect = true;
+    // A Host Deadline Reopens The Watch At Once And Keeps The Shown Progress.
+    let reopen = false;
     try {
       stream = await openNativeExecutionProgressStream({ ...session.identity, own: session.own }, testExecutionId);
       if (!active || !session.identity.isCurrent()) {
@@ -67,13 +70,18 @@ export function observeExecutionProgress(
         "code" in detail &&
         (detail.code === 3 || detail.code === 9);
       reconnect = !refused;
-      if (active) {
+      reopen = isHostReopen(error);
+      if (active && !reopen) {
         setProgress(null);
       }
     } finally {
       stream = undefined;
       if (reconnect && active && session.identity.isCurrent()) {
-        retry = window.setTimeout(() => void connect(), GUI_RECONNECT_MS);
+        if (reopen) {
+          void connect();
+        } else {
+          retry = window.setTimeout(() => void connect(), GUI_RECONNECT_MS);
+        }
       }
     }
   };

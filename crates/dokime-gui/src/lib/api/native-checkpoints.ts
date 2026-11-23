@@ -80,12 +80,41 @@ function assertActive(session: SessionIdentity, signal: AbortSignal | undefined,
   if (!session.isCurrent() || signal?.aborted) throw new Error(`${action}: Owning Connection Changed or Read Cancelled`);
 }
 
+/** Evidence reads stay at the checkpoint's evidence position. */
 function evidenceCut(checkpoint: CheckpointReference): Wire<ReadCut> {
-  checkpointKey(checkpoint);
   return { positions: [checkpoint.evidenceThrough], revisions: [] };
 }
 
+type CutPage<T> = { resolvedAt?: Wire<ReadCut>; nextPageToken: string; items: T[] };
+
+/**
+ * Every page of one selection at one cut. An evidence read passes the
+ * checkpoint's evidence cut throughout; a view-backed read of the sealed
+ * execution names no cut on its first page and continues with the cut the
+ * host returned.
+ */
+async function readPages<T>(
+  action: string,
+  at: Wire<ReadCut> | undefined,
+  read: (at: Wire<ReadCut> | undefined, pageToken: string) => Promise<CutPage<T>>,
+): Promise<T[]> {
+  const items: T[] = [];
+  let cut = at;
+  let pageToken = "";
+  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+    const reply = await read(cut, pageToken);
+    if (cut && cutKey(reply.resolvedAt) !== cutKey(cut)) throw new Error(`${action}: Retained Cut Changed`);
+    cut = required(reply.resolvedAt, `${action} Cut`);
+    items.push(...reply.items);
+    if (!reply.nextPageToken) break;
+    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES) throw new Error(`${action}: Continuation Did Not Advance`);
+    pageToken = reply.nextPageToken;
+  }
+  return items;
+}
+
 async function executionAt(session: SessionIdentity, checkpoint: CheckpointReference, signal?: AbortSignal) {
+  checkpointKey(checkpoint);
   assertActive(session, signal, "Read Execution Checkpoint");
   const reply = await rpc.executionsGet(session, { name: checkpoint.executionIdentifier, at: checkpoint.position });
   const execution = required(reply.execution, "Read Execution Checkpoint");
@@ -240,37 +269,19 @@ export async function fetchNativeCheckpointDocument(session: SessionIdentity, ch
 
 export async function fetchNativeCheckpointEvidence(session: SessionIdentity, checkpoint: CheckpointReference, signal?: AbortSignal) {
   const execution = await executionAt(session, checkpoint, signal);
-  const at = evidenceCut(checkpoint);
-  const outputs: Wire<Awaited<ReturnType<typeof rpc.contentExecutionFilesList>>>["files"] = [];
-  const artifacts: Wire<Awaited<ReturnType<typeof rpc.contentArtifactsList>>>["artifacts"] = [];
-  let pageToken = "";
-  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
-    const reply = await rpc.contentExecutionFilesList(session, {
-      parent: checkpoint.executionIdentifier,
-      at,
-      page: { pageSize: NATIVE_PAGE_SIZE, pageToken },
-    });
-    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Files: Retained Cut Changed");
-    outputs.push(...reply.files);
-    if (!reply.nextPageToken) break;
-    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
-      throw new Error("Read Checkpoint Files: Continuation Did Not Advance");
-    pageToken = reply.nextPageToken;
-  }
-  pageToken = "";
-  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
+  const page = (pageToken: string) => ({ pageSize: NATIVE_PAGE_SIZE, pageToken });
+  const outputs = await readPages("Read Checkpoint Files", undefined, async (at, pageToken) => {
+    const reply = await rpc.contentExecutionFilesList(session, { parent: checkpoint.executionIdentifier, at, page: page(pageToken) });
+    return { ...reply, items: reply.files };
+  });
+  const artifacts = await readPages("Read Checkpoint Artifacts", undefined, async (at, pageToken) => {
     const reply = await rpc.contentArtifactsList(session, {
       scope: { executionId: checkpoint.executionIdentifier },
       at,
-      page: { pageSize: NATIVE_PAGE_SIZE, pageToken },
+      page: page(pageToken),
     });
-    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Artifacts: Retained Cut Changed");
-    artifacts.push(...reply.artifacts);
-    if (!reply.nextPageToken) break;
-    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
-      throw new Error("Read Checkpoint Artifacts: Continuation Did Not Advance");
-    pageToken = reply.nextPageToken;
-  }
+    return { ...reply, items: reply.artifacts };
+  });
   assertActive(session, signal, "Read Checkpoint Evidence");
   return { outputs, artifacts, telemetryTables: execution.schemas?.streams.map((schema) => ({ table: schema.stream, schema })) ?? [] };
 }
@@ -319,50 +330,25 @@ export async function fetchNativeCheckpointTelemetry(
 
 export async function fetchNativeCheckpointContext(session: SessionIdentity, checkpoint: CheckpointReference, signal?: AbortSignal) {
   const execution = await executionAt(session, checkpoint, signal);
-  const at = evidenceCut(checkpoint);
   const selection = {
     owner: {
       owner: { kind: { case: "execution" as const, value: { cycleId: execution.cycleId, executionId: checkpoint.executionIdentifier } } },
     },
     includeContext: true,
   };
-  const notes = [] as Awaited<ReturnType<typeof rpc.evidenceNotesList>>["notes"];
-  const health = [] as Awaited<ReturnType<typeof rpc.evidenceHealthEventsList>>["events"];
-  let pageToken = "";
-  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
-    const reply = await rpc.evidenceNotesList(session, { selection, at, page: { pageSize: NATIVE_PAGE_SIZE, pageToken } });
-    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Notes: Retained Cut Changed");
-    notes.push(...reply.notes);
-    if (!reply.nextPageToken) break;
-    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
-      throw new Error("Read Checkpoint Notes: Continuation Did Not Advance");
-    pageToken = reply.nextPageToken;
-  }
-  pageToken = "";
-  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
-    const reply = await rpc.evidenceHealthEventsList(session, { selection, at, page: { pageSize: NATIVE_PAGE_SIZE, pageToken } });
-    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Health: Retained Cut Changed");
-    health.push(...reply.events);
-    if (!reply.nextPageToken) break;
-    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
-      throw new Error("Read Checkpoint Health: Continuation Did Not Advance");
-    pageToken = reply.nextPageToken;
-  }
-  const prompts = [] as Awaited<ReturnType<typeof rpc.promptsList>>["prompts"];
-  pageToken = "";
-  for (let index = 0; index < NATIVE_MAX_PAGES; index++) {
-    const reply = await rpc.promptsList(session, {
-      executionId: checkpoint.executionIdentifier,
-      at,
-      page: { pageSize: NATIVE_PAGE_SIZE, pageToken },
-    });
-    if (cutKey(reply.resolvedAt) !== cutKey(at)) throw new Error("Read Checkpoint Prompts: Retained Cut Changed");
-    prompts.push(...reply.prompts);
-    if (!reply.nextPageToken) break;
-    if (reply.nextPageToken === pageToken || index + 1 === NATIVE_MAX_PAGES)
-      throw new Error("Read Checkpoint Prompts: Continuation Did Not Advance");
-    pageToken = reply.nextPageToken;
-  }
+  const page = (pageToken: string) => ({ pageSize: NATIVE_PAGE_SIZE, pageToken });
+  const notes = await readPages("Read Checkpoint Notes", evidenceCut(checkpoint), async (at, pageToken) => {
+    const reply = await rpc.evidenceNotesList(session, { selection, at, page: page(pageToken) });
+    return { ...reply, items: reply.notes };
+  });
+  const health = await readPages("Read Checkpoint Health", undefined, async (at, pageToken) => {
+    const reply = await rpc.evidenceHealthEventsList(session, { selection, at, page: page(pageToken) });
+    return { ...reply, items: reply.events };
+  });
+  const prompts = await readPages("Read Checkpoint Prompts", undefined, async (at, pageToken) => {
+    const reply = await rpc.promptsList(session, { executionId: checkpoint.executionIdentifier, at, page: page(pageToken) });
+    return { ...reply, items: reply.prompts };
+  });
   const cycle = await rpc.cyclesGet(session, { name: execution.cycleId });
   const overview = await rpc.backendOverviewGet(session, {});
   const document = await fetchNativeDocument(
@@ -372,7 +358,6 @@ export async function fetchNativeCheckpointContext(session: SessionIdentity, che
       executionId: checkpoint.executionIdentifier,
       documentId: "",
       epoch: required(overview.overview, "Read Checkpoint Host Epoch").sessionId,
-      at,
       structureOnly: true,
     },
     signal,
@@ -388,11 +373,7 @@ export async function readNativeCheckpointOutput(
   signal?: AbortSignal,
 ) {
   await executionAt(session, checkpoint, signal);
-  const item = await rpc.contentExecutionFilesGet(session, {
-    parent: checkpoint.executionIdentifier,
-    name: relativePath,
-    at: evidenceCut(checkpoint),
-  });
+  const item = await rpc.contentExecutionFilesGet(session, { parent: checkpoint.executionIdentifier, name: relativePath });
   const file = required(item.file, "Read Checkpoint File");
   const offset = options.offset ?? 0n;
   const maxBytes = options.maxBytes ?? NATIVE_CHECKPOINT_WINDOW_BYTES;
@@ -410,7 +391,7 @@ export async function downloadNativeCheckpointArtifact(
   signal?: AbortSignal,
 ) {
   await executionAt(session, checkpoint, signal);
-  const item = await rpc.contentArtifactsGet(session, { name: artifactId, at: evidenceCut(checkpoint) });
+  const item = await rpc.contentArtifactsGet(session, { name: artifactId });
   const metadata = required(item.metadata, "Read Checkpoint Artifact Metadata");
   if (metadata.artifactId !== artifactId || metadata.scope?.executionId !== checkpoint.executionIdentifier)
     throw new Error("Read Checkpoint Artifact: Identity Changed");

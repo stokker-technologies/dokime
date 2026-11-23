@@ -11,7 +11,7 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
-import type { Query, QueryClient } from "@tanstack/svelte-query";
+import { type Query, type QueryClient, replaceEqualDeep } from "@tanstack/svelte-query";
 
 /* === Local Imports === */
 
@@ -27,6 +27,7 @@ import {
 } from "@/lib/api/native-evidence";
 import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 import type { NativeDocumentCapture } from "../../lib/api/native-document-session";
+import { isHostReopen } from "../../lib/rpc/errors";
 import { mergeDocumentProgress } from "@/features/cycle/document-query-model";
 import { workflowQueryKeys } from "./workflow-query-keys";
 
@@ -130,7 +131,10 @@ export function selectDocument(document: RootDocument): DocumentViewPayload {
   return document.mapped;
 }
 
-/** Root query data owns native captures and their stable display projection. */
+/**
+ * Root query data owns native captures and their stable display projection:
+ * a refresh keeps every unchanged card and plot of the projection as it was.
+ */
 export async function capturedDocument(
   queryClient: QueryClient,
   queryKey: readonly unknown[],
@@ -139,13 +143,13 @@ export async function capturedDocument(
   const held = queryClient.getQueryData<RootDocument>(queryKey);
   let progress = held?.mapped;
   const completed = await capture(held?.completed ?? null, (document) => {
-    progress = mergeDocumentProgress(mapNativeDocument(document), progress);
+    progress = replaceEqualDeep(progress, mergeDocumentProgress(mapNativeDocument(document), progress));
     queryClient.setQueryData<RootDocument>(queryKey, { completed: held?.completed, current: document, mapped: progress });
   });
   if (held && completed === held.completed) {
     return held;
   }
-  return { completed, current: completed, mapped: mapNativeDocument(completed) };
+  return { completed, current: completed, mapped: replaceEqualDeep(progress, mapNativeDocument(completed)) };
 }
 
 /* === Record Tails === */
@@ -199,6 +203,7 @@ export function holdRecordTail(
   const follow = async () => {
     while (!stopped && session.isCurrent()) {
       const tail = queryClient.getQueryData<RecordTail>(queryKey);
+      let reopen = false;
       try {
         stream = await openStream(session, scope, cursor ?? tail?.cursor);
         if (stopped) {
@@ -221,12 +226,16 @@ export function holdRecordTail(
             frame ??= schedule(flush);
           }
         }
-      } catch {
-        // The stream failed: the tail is re-read below and followed again.
+      } catch (error) {
+        // A host deadline resumes from the cursor at once; any other end re-reads the tail below.
+        reopen = isHostReopen(error);
       }
       stream = undefined;
       if (stopped || !session.isCurrent()) {
         return;
+      }
+      if (reopen) {
+        continue;
       }
       flush();
       await queryClient.invalidateQueries({ queryKey, exact: true });

@@ -185,6 +185,30 @@ export function normalizeDeliveryError(error: unknown): unknown {
   return normalized;
 }
 
+/**
+ * The client ended the call itself: a teardown, an unsubscribe or a page
+ * reload. It is expected, never a failure; a host's own cancellation arrives
+ * as a gRPC status instead.
+ */
+export function isClientCancellation(error: unknown): boolean {
+  return (error as { kind?: unknown } | null)?.kind === "cancelled";
+}
+
+/**
+ * The host ended a long-lived watch at its deadline and asks for it to be
+ * reopened: the routine end of a stream, never a failure. A call that itself
+ * ran out of time carries no such request and stays a failure.
+ */
+export function isHostReopen(error: unknown): boolean {
+  const failure = error as { kind?: unknown; detail?: { code?: unknown; message?: unknown } } | null;
+  return (
+    failure?.kind === "grpc" &&
+    failure.detail?.code === 4 &&
+    typeof failure.detail.message === "string" &&
+    failure.detail.message.endsWith("Reopen After Its Deadline")
+  );
+}
+
 /** Keep native RPC failures usable by UI code that displays Error.message. */
 export function normalizeRpcError(error: unknown, operation?: string): unknown {
   if (error instanceof Error || !isRpcError(error)) return error;

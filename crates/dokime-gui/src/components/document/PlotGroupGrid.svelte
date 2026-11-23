@@ -3,14 +3,14 @@
   import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "../../lib/types";
   import type { PlotMeasurements } from "../../plots/plot-interaction";
   import type { PlotDisplaySettings, ReportDefaults } from "../../plots/plot-settings";
-  import type { LivePlotStateMap } from "../../plots/live-frames";
+  import type { LivePlotStates } from "../../plots/live-frames";
   import type { PlotViewportMode } from "../../plots/types";
 
   export type PlotSettingsChange = (plotId: string, settings: PlotDisplaySettings) => Promise<void>;
 
   export type PlotGroupGridProps = {
     documentPlots: DocumentViewPlot[];
-    liveStates?: LivePlotStateMap;
+    liveStates?: LivePlotStates;
     onPlotSettingsChange?: PlotSettingsChange;
     parameters?: JsonObject | null;
     records?: readonly HubRecord[];
@@ -94,7 +94,7 @@
       {prompts}
       {resetKey}
       {titleRepeated}
-      liveState={liveStates?.[descriptor.plot_id] ?? emptyState}
+      liveState={liveStates?.get(descriptor.plot_id) ?? emptyState}
       {telemetry}
       {viewportMode}
       {reportDefaults}

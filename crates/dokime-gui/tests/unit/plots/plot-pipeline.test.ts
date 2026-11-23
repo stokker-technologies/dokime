@@ -143,7 +143,7 @@ test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them Wh
   let state = emptyLivePlotState();
   const { container: host, rerender } = render(PlotGroupGrid, {
     documentPlots: [descriptor],
-    liveStates: { heat: state },
+    liveStates: new Map([["heat", state]]),
     title: "Values",
     viewportMode: "live",
   });
@@ -161,7 +161,7 @@ test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them Wh
       state = applyPlotMessages(state, [update]);
     }
     assert.equal(state.status, "live");
-    await rerender({ liveStates: { heat: state } });
+    await rerender({ liveStates: new Map([["heat", state]]) });
     assert.ok(host.querySelector('[data-testid="heat-strip-plot"]'));
     const cell = host.querySelector<HTMLElement>('[data-cell="6"]');
     assert.ok(cell?.title.includes(`6 · Band · ${frames ? 7 : 3}`));

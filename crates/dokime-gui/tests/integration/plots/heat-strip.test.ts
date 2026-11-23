@@ -67,7 +67,7 @@ test("Heat Strip Fills Each Facet With Equal Width Cells and Shares Its Scale", 
   const { container, rerender } = render(HeatStripPlot, { plot });
   const { container: routed } = render(PlotGroupGrid, {
     documentPlots: [descriptor],
-    liveStates: { heat: { ...emptyLivePlotState(), payload } },
+    liveStates: new Map([["heat", { ...emptyLivePlotState(), payload }]]),
     title: "Values",
     viewportMode: "fit",
   });

@@ -12,8 +12,7 @@
   import { createLiveDocumentSurface } from "../../../src/features/cycle/live-document.svelte";
   import { createPlotWindow } from "../../../src/features/cycle/plot-window-state";
   import type { DocumentViewPlot, StepExecutionRecord, TestExecution } from "../../../src/lib/types";
-  import type { LivePlotStateMap } from "../../../src/plots/live-frames";
-  import { storeState } from "../../../src/stores/store-state";
+  import type { LivePlotStates } from "../../../src/plots/live-frames";
   import { fetchNativeRecordTail, openNativeRecordStream } from "./responsiveness-source";
 
   let {
@@ -25,8 +24,8 @@
   }: {
     session: ConnectedSession;
     plots: DocumentViewPlot[];
-    options: Omit<DocumentSurfaceOptions, "plotWindow">;
-    initialFrames: LivePlotStateMap;
+    options: DocumentSurfaceOptions;
+    initialFrames: LivePlotStates;
     synchronous: boolean;
   } = $props();
   const time = "2026-11-01T00:00:00Z";
@@ -44,7 +43,6 @@
   ] as unknown as StepExecutionRecord[];
   const execution = { status: "running", started_at: time, finished_at: null, steps } as TestExecution;
   const plotWindow = createPlotWindow();
-  const windowState = storeState(plotWindow, (value) => value);
   function schedule(publish: () => void) {
     if (synchronous) {
       publish();
@@ -54,18 +52,39 @@
   }
   const surface = createLiveDocumentSurface(
     () => session,
-    () => ({ ...options, execution, plotWindow: windowState().option }),
+    {
+      get document() {
+        return options.document;
+      },
+      execution,
+      get live() {
+        return options.live;
+      },
+      get snapshot() {
+        return options.snapshot;
+      },
+      get scope() {
+        return options.scope;
+      },
+      get parameters() {
+        return options.parameters;
+      },
+      get noteElapsedStart() {
+        return options.noteElapsedStart;
+      },
+      plotWindow,
+    },
     {
       fetch: fetchNativeRecordTail,
       openStream: openNativeRecordStream,
       schedule,
     },
   );
-  let frames = $state.raw<LivePlotStateMap>();
+  let frames = $state.raw<LivePlotStates>();
   let modal = $state(false);
   let ticks = $state(false);
 
-  export function setStates(next: LivePlotStateMap) {
+  export function setStates(next: LivePlotStates) {
     frames = next;
   }
   export function setModal(open: boolean) {
@@ -75,7 +94,7 @@
     ticks = enabled;
   }
   export function currentView() {
-    return surface().view;
+    return surface.view;
   }
 </script>
 
@@ -95,22 +114,22 @@
     titlePrefix=""
     onRename={null}
     started={execution}
-    surface={surface()}
+    {surface}
     pane={{ kind: "document", staleReason: null }}
-    plotWindow={windowState()}
+    {plotWindow}
   >
     {#snippet documentView()}
-      <PlotGroupGrid documentPlots={plots} liveStates={frames ?? initialFrames} records={surface().view.records} title="Measurements" />
+      <PlotGroupGrid documentPlots={plots} liveStates={frames ?? initialFrames} records={surface.view.records} title="Measurements" />
     {/snippet}
   </ExecutionSectionsView>
 {:else}
   <ExecutionStepsCriteria {steps} criteria={[]} />
-  <div style="height: 180px; overflow: auto"><RecordTimeline records={surface().view.records} /></div>
+  <div style="height: 180px; overflow: auto"><RecordTimeline records={surface.view.records} /></div>
   <div class="grid grid-cols-2 gap-2">
     <PlotGroupGrid
       documentPlots={plots}
       liveStates={frames ?? initialFrames}
-      records={surface().view.records}
+      records={surface.view.records}
       title="Measurements"
       showGroupHeaders={false}
     />

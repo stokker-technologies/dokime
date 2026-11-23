@@ -3,7 +3,7 @@
   import DocumentViewRenderer from "@/components/document/DocumentViewRenderer.svelte";
   import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
   import type { DocumentViewCard, DocumentViewPayload, DocumentViewPlot } from "@/lib/types";
-  import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+  import { emptyLivePlotState, type LivePlotStates } from "@/plots/live-frames";
 
   let { frozen = false }: { frozen?: boolean } = $props();
 
@@ -40,7 +40,7 @@
       })),
     },
   };
-  const liveStates: LivePlotStateMap = Object.fromEntries(
+  const liveStates: LivePlotStates = new Map(
     plots.map((plot, index) => [
       plot.plot_id,
       {

@@ -5,7 +5,7 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import type { DocumentSurfaceOptions } from "@/features/cycle/document-view-model";
 import type { RecordTail } from "@/lib/api/native-evidence";
 import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
-import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { emptyLivePlotState, type LivePlotStates } from "@/plots/live-frames";
 import ResponsivenessWorkload from "./ResponsivenessWorkload.svelte";
 import { appendPage, detailReads } from "./responsiveness-source";
 import "../../../src/desktop.css";
@@ -23,7 +23,7 @@ const plots: DocumentViewPlot[] = Array.from({ length: 24 }, (_, index) => ({
   display_points: 2_000,
   fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
 }));
-const options: Omit<DocumentSurfaceOptions, "plotWindow"> = {
+const options: DocumentSurfaceOptions = {
   document: {
     cards: [
       { card_id: "plots", kind: "plots", plots },
@@ -56,7 +56,7 @@ declare global {
   }
 }
 
-function frame(revision: number): LivePlotStateMap {
+function frame(revision: number): LivePlotStates {
   const x = Array.from({ length: 2_000 }, (_, index) => 1_800_000_000 + index);
   const y = x.map((_, index) => Math.sin(index / 20 + revision / 10));
   const payload = {
@@ -70,7 +70,7 @@ function frame(revision: number): LivePlotStateMap {
     ],
     cartesian: { mode: "aligned", series: [{ x, y }], point_count: x.length, signature: `frame-${revision}` },
   } as PlotPayload;
-  return Object.fromEntries(plots.map((plot) => [plot.plot_id, { ...emptyLivePlotState(), status: "live", payload, revision }]));
+  return new Map(plots.map((plot) => [plot.plot_id, { ...emptyLivePlotState(), status: "live" as const, payload, revision }]));
 }
 
 async function settled() {

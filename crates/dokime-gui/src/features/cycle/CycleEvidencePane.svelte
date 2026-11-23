@@ -3,7 +3,6 @@
   import type { Snippet } from "svelte";
   import type { HubLiveState, PromptRequest, TestCyclePlan } from "../../lib/types";
   import PageChrome from "../../shell/PageChrome.svelte";
-  import { storeState } from "../../stores/store-state";
   import CycleEvidenceView, { isCycleEvidenceCard } from "./CycleEvidenceView.svelte";
   import DocumentPagination from "./DocumentPagination.svelte";
   import { createScopedDocumentQuery } from "./document-query.svelte";
@@ -34,23 +33,28 @@
     snapshot: HubLiveState | null;
   } = $props();
   const session = () => context.session;
-  const windowState = storeState(createPlotWindow(), (state) => state);
-  const plotWindow = $derived(windowState());
+  const plotWindow = createPlotWindow();
   const query = createScopedDocumentQuery(session, () => ({ cycleId, executionId: null, enabled: hasExecutions }));
   const document = $derived(query.data ?? null);
-  const readSurface = createLiveDocumentSurface(session, () => ({
-    document,
+  const surface = createLiveDocumentSurface(session, {
+    get document() {
+      return document;
+    },
     execution: null,
     live: true,
-    snapshot,
-    scope: { cycleId },
+    get snapshot() {
+      return snapshot;
+    },
+    get scope() {
+      return { cycleId };
+    },
     parameters: { case: undefined, execution: undefined },
-    noteElapsedStart: plan.test_cycle.started_at,
-    plotWindow: plotWindow.option,
-    plotRefresh: plotWindow.refresh,
+    get noteElapsedStart() {
+      return plan.test_cycle.started_at;
+    },
+    plotWindow,
     traceabilityExportName: null,
-  }));
-  const surface = $derived(readSurface());
+  });
   const pane = $derived(
     evidencePaneState({
       hasDocument: document !== null,
@@ -70,11 +74,11 @@
   <DocumentPagination navigation={query.navigation} />
 {/snippet}
 
-<CycleEvidenceView live {surface} {pane} {plotWindow} {onRetry} {lead}>
+<CycleEvidenceView live {surface} {pane} {onRetry} {lead}>
   {#snippet promptQueue()}
     <PromptQueue {prompts} {records} session={context.session} />
   {/snippet}
   {#snippet documentView()}
-    <LiveCycleDocument {context} {surface} {plotWindow} cardFilter={isCycleEvidenceCard} {onRetry} />
+    <LiveCycleDocument {context} {surface} windowControl cardFilter={isCycleEvidenceCard} {onRetry} />
   {/snippet}
 </CycleEvidenceView>
