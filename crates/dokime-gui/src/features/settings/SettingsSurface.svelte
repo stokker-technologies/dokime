@@ -7,10 +7,14 @@
   import { failureOf } from "../../lib/notification-details";
   import type { NavigationMode } from "../../shell/navigation-model";
   import { publishPageChrome } from "../../shell/page-chrome.svelte";
+  import { storeState } from "../../stores/store-state";
+  import { useUiStore } from "../../stores/ui-store";
+  import ApplicationPreferences from "./ApplicationPreferences.svelte";
   import BackendsTable from "./BackendsTable.svelte";
   import AboutSection from "./sections/AboutSection.svelte";
   import DiagnosticsSettings from "./sections/DiagnosticsSettings.svelte";
   import EngineSection from "./sections/EngineSection.svelte";
+  import RemoteSection from "./sections/RemoteSection.svelte";
   import SettingsAdvancedSwitch from "./SettingsAdvancedSwitch.svelte";
   import SettingsCard from "./SettingsCard.svelte";
   import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "./settings-sections";
@@ -41,6 +45,7 @@
     choose: (section: SettingsSectionId) => void;
   } = $props();
   const section = $derived(selected ?? DEFAULT_SETTINGS_SECTION);
+  const advanced = storeState(useUiStore, (state) => state.showAdvancedSettings);
   const showNavigation = $derived(mode !== "phone" || !selected);
   const showSection = $derived(mode !== "phone" || Boolean(selected));
   publishPageChrome(() => ({
@@ -77,6 +82,10 @@
           <DiagnosticsSettings {session} />
         {:else if section === "about"}
           <AboutSection brandLabel={label} backend={session.snapshot.connection.backend} />
+        {:else if section === "appearance"}
+          <ApplicationPreferences queryClient={session.queryClient} {session} advanced={advanced()} />
+        {:else if section === "remote"}
+          <RemoteSection queryClient={session.queryClient} {session} advanced={advanced()} {label} />
         {:else if legacySection}
           {@render legacySection()}
         {:else}

@@ -19,7 +19,8 @@ import { Button } from "@/components/ui/button";
 import { AddSecretDialog } from "@/features/settings/sections/SecretsSection";
 
 import { InstalledPluginRuntimeBadge, InstalledPluginStatusBadge } from "@/features/settings/installed-plugins/InstalledPluginBadges";
-import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugins/InstalledPluginSettingsForm";
+import { SvelteMount } from "@/components/SvelteMount";
+import InstalledPluginSettingsForm from "@/features/settings/installed-plugins/InstalledPluginSettingsForm.svelte";
 import type * as contracts from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -58,10 +59,9 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
       </SettingsCard>
       <SettingsCard title="Settings" description="Settings specific to this program.">
         <div id={`plugin-settings-${detail.plugin_id}`} className="divide-y scroll-mt-4">
-          <InstalledPluginSettingsForm
-            onSubmit={(values) => onSaveSettings(detail.plugin_id, values)}
-            schema={detail.settings}
-            values={detail.values}
+          <SvelteMount
+            component={InstalledPluginSettingsForm}
+            props={{ onSubmit: (values) => onSaveSettings(detail.plugin_id, values), schema: detail.settings, values: detail.values }}
           />
         </div>
       </SettingsCard>

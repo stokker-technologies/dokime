@@ -12,7 +12,6 @@
 /* === External Imports === */
 
 import { failureOf } from "@/lib/notification-details";
-import { useCallback, useEffect, useRef, useState } from "react";
 
 /* === Types === */
 
@@ -22,71 +21,10 @@ export type AutosaveState =
   | { kind: "saved" }
   | { kind: "saving" };
 
-export type Autosave<T> = {
-  /** Writes after the debounce; use for text and number inputs. */
-  change: (value: T) => void;
-  cancel: () => void;
-  retry: () => void;
-  state: AutosaveState;
-};
-
 /* === Constants === */
 
 const GUI_SETTINGS_DEBOUNCE_MS = 100;
-const GUI_SETTINGS_SAVED_MS = 2_000;
-
-const SAVED_MS = GUI_SETTINGS_SAVED_MS;
-
-/* === Public Functions === */
-
-export function useAutosave<T>(
-  save: (value: T) => Promise<unknown>,
-  message: (error: unknown) => string = (error) => failureOf(error, "Settings Could Not Be Saved").message,
-): Autosave<T> {
-  const [state, setState] = useState<AutosaveState>({ kind: "idle" });
-  const last = useRef<{ value: T } | null>(null);
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  const writer = useRef<ReturnType<typeof createDebouncedWriter<T>> | null>(null);
-  if (!writer.current) {
-    writer.current = createDebouncedWriter(
-      async (value) => {
-        await saveRef.current(value);
-      },
-      (next) => setState(next.kind === "error" ? { ...next, message: message(next.failure ?? new Error(next.message)) } : next),
-    );
-  }
-  useEffect(() => () => writer.current?.flush(), []);
-  const change = useCallback((value: T) => {
-    last.current = { value };
-    writer.current?.reset();
-    writer.current?.change(value);
-  }, []);
-
-  /* "Saved" states what just happened, then stops taking up the row. */
-  useEffect(() => {
-    if (state.kind !== "saved") {
-      return undefined;
-    }
-    const clear = setTimeout(() => setState({ kind: "idle" }), SAVED_MS);
-    return () => clearTimeout(clear);
-  }, [state]);
-
-  const retry = useCallback(() => {
-    if (last.current !== null) {
-      writer.current?.reset();
-      writer.current?.change(last.current.value);
-    }
-  }, []);
-
-  const cancel = useCallback(() => {
-    writer.current?.cancel();
-    last.current = null;
-    setState({ kind: "idle" });
-  }, []);
-
-  return { change, cancel, retry, state };
-}
+export const GUI_SETTINGS_SAVED_MS = 2_000;
 
 /** Serialize Debounced Writes And Keep The Latest Edit While A Write Is In Flight. */
 export function createDebouncedWriter<T>(write: (value: T) => Promise<void>, changed: (state: AutosaveState) => void) {

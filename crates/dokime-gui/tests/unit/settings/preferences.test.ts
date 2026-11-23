@@ -20,13 +20,13 @@ import assert from "node:assert/strict";
 import type { PreferencesSnapshot } from "@generated/typescript/application-settings";
 import defaults from "@generated/typescript/application-settings.json";
 // Third Party Imports
-import { act, type ComponentProps, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient } from "@tanstack/svelte-query";
+import { fireEvent, render, within } from "@testing-library/svelte";
+import { type ComponentProps, tick } from "svelte";
 import { beforeEach, onTestFinished, test, vi } from "vitest";
-import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
-import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugins/InstalledPluginSettingsForm";
-import { preferencesKey, usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
+import ApplicationPreferences from "@/features/settings/ApplicationPreferences.svelte";
+import InstalledPluginSettingsForm from "@/features/settings/installed-plugins/InstalledPluginSettingsForm.svelte";
+import { preferencesKey, preferencesMutation, preferencesQuery } from "@/features/settings/application-preferences";
 import { createDebouncedWriter } from "@/features/settings/settings-autosave";
 
 /* === Re-Exports === */
@@ -36,19 +36,7 @@ import { createDebouncedWriter } from "@/features/settings/settings-autosave";
 const fixture = vi.hoisted(() => ({
   read: vi.fn(),
   update: vi.fn(),
-  cache: vi.fn(),
-  invalidate: vi.fn(),
   appearance: vi.fn(),
-  session: null as { identity: { generation: string } } | null,
-  snapshot: null as PreferencesSnapshot | null,
-  loading: false,
-  backendError: null as unknown,
-  saveError: null as unknown,
-  queries: [] as { queryKey: readonly string[]; queryFn: () => Promise<PreferencesSnapshot>; retry: boolean }[],
-  mutations: [] as {
-    mutationFn: (input: { previous: PreferencesSnapshot; settings: PreferencesSnapshot["settings"] }) => Promise<PreferencesSnapshot>;
-    onSuccess: (snapshot: PreferencesSnapshot) => void;
-  }[],
 }));
 
 /* === Types === */
@@ -59,9 +47,23 @@ const fixture = vi.hoisted(() => ({
 
 /* === Private Functions === */
 
-function SavePreferencesProbe({ scope }: { scope: "local" | "backend" }) {
-  useSavePreferences(scope);
-  return null;
+function newQueryClient() {
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
+  onTestFinished(() => client.clear());
+  return client;
+}
+
+function showPreferences(
+  props: Omit<Parameters<typeof render<typeof ApplicationPreferences>>[1], "queryClient"> = {},
+  queryClient = newQueryClient(),
+) {
+  const view = render(ApplicationPreferences, { ...props, queryClient });
+  onTestFinished(() => {
+    if (view.container.isConnected) {
+      view.unmount();
+    }
+  });
+  return view;
 }
 
 function snapshot(): PreferencesSnapshot {
@@ -90,7 +92,6 @@ vi.mock("@/lib/notifications", async (original) => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
 vi.mock("@/lib/desktop/settings", () => ({
   preferencesCommands: {
     desktopSettingsRead: fixture.read,
@@ -98,50 +99,27 @@ vi.mock("@/lib/desktop/settings", () => ({
   },
 }));
 vi.mock("@/stores/ui-store", () => ({ useUiStore: { getState: () => ({ setUiState: fixture.appearance }) } }));
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: (options: (typeof fixture.queries)[number]) => {
-    fixture.queries.push(options);
-    const error = options.queryKey[2] === "backend" ? fixture.backendError : null;
-    return { data: error ? null : fixture.snapshot, error, isPending: fixture.loading, refetch: fixture.read };
-  },
-  useMutation: (options: (typeof fixture.mutations)[number]) => {
-    fixture.mutations.push(options);
-    return {
-      mutateAsync: async (input: Parameters<typeof options.mutationFn>[0]) => {
-        const saved = await options.mutationFn(input);
-        options.onSuccess(saved);
-        return saved;
-      },
-      reset: vi.fn(),
-      mutate: vi.fn(),
-      isPending: false,
-      error: fixture.saveError,
-      isSuccess: false,
-    };
-  },
-  useQueryClient: () => ({ setQueryData: fixture.cache, invalidateQueries: fixture.invalidate }),
-}));
-
 beforeEach(() => {
-  vi.clearAllMocks();
-  fixture.snapshot = snapshot();
-  fixture.session = null;
-  fixture.loading = false;
-  fixture.backendError = null;
-  fixture.saveError = null;
-  fixture.queries.length = 0;
-  fixture.mutations.length = 0;
-  fixture.read.mockResolvedValue(fixture.snapshot);
-  fixture.update.mockResolvedValue({ ...fixture.snapshot, revision: [8] });
+  vi.resetAllMocks();
+  fixture.read.mockImplementation(async () => snapshot());
+  fixture.update.mockImplementation(async (_scope, request) => ({ revision: [8], settings: request.settings }));
 });
 
-test("Advanced Reveals Additional Preference Fields", () => {
-  const simple =
-    renderToStaticMarkup(createElement(ApplicationPreferences)) +
-    renderToStaticMarkup(createElement(ApplicationPreferences, { section: "remote" }));
-  const advanced =
-    renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true })) +
-    renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true, section: "remote" }));
+test("Advanced Reveals Additional Preference Fields", async () => {
+  const simpleView = showPreferences();
+  const simpleRemote = showPreferences({ section: "remote" });
+  await simpleView.findByRole("combobox", { name: "Theme Mode" });
+  await within(simpleRemote.container).findByRole("switch", { name: "Listener Enabled" });
+  const simple = simpleView.container.innerHTML + simpleRemote.container.innerHTML;
+  for (const view of [simpleView, simpleRemote]) {
+    view.unmount();
+    view.container.remove();
+  }
+  const advancedView = showPreferences({ advanced: true });
+  const advancedRemote = showPreferences({ advanced: true, section: "remote" });
+  await advancedView.findByRole("combobox", { name: "Theme Mode" });
+  await within(advancedRemote.container).findByRole("switch", { name: "Listener Enabled" });
+  const advanced = advancedView.container.innerHTML + advancedRemote.container.innerHTML;
   const visible = [
     "local-appearance.theme_mode",
     "local-appearance.theme_family",
@@ -167,15 +145,18 @@ test("Advanced Reveals Additional Preference Fields", () => {
     assert.ok(advanced.includes(`id="${id}"`), id);
   }
   for (const value of ["fixture", "3210", "1234", "5678", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"]) {
-    assert.ok(advanced.includes(`value="${value}"`), value);
+    const inputs = [...advancedView.container.querySelectorAll("input"), ...advancedRemote.container.querySelectorAll("input")];
+    assert.ok(
+      inputs.some((input) => input.value === value),
+      value,
+    );
   }
 });
 
 test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
   for (const scope of ["local", "backend"] as const) {
-    renderToStaticMarkup(createElement(SavePreferencesProbe, { scope }));
-    const mutation = fixture.mutations.at(-1);
-    assert.ok(mutation);
+    const client = newQueryClient();
+    const mutation = preferencesMutation(scope, null, client);
     const previous = snapshot();
     const settings = structuredClone(previous.settings);
     if (scope === "local") {
@@ -197,7 +178,7 @@ test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
     assert.deepEqual(await mutation.mutationFn({ previous, settings }), saved);
     assert.deepEqual(fixture.update.mock.calls.at(-1), [scope, { expected_revision: [7], settings }]);
     mutation.onSuccess(saved);
-    assert.deepEqual(fixture.cache.mock.calls.at(-1), [preferencesKey(scope), saved]);
+    assert.deepEqual(client.getQueryData(preferencesKey(scope)), saved);
     assert.deepEqual(previous, snapshot());
   }
   assert.equal(fixture.appearance.mock.calls.length, 1);
@@ -205,30 +186,31 @@ test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
 });
 
 test("Offline Local Edits Remain Available While Backend Reads Fail", async () => {
-  fixture.backendError = { kind: "disconnected" };
-  const html = renderToStaticMarkup(createElement(ApplicationPreferences));
-  assert.ok(html.includes('aria-label="Theme Mode"'));
-  assert.match(html, /role="alert"/);
-  assert.ok(!html.includes('aria-label="Report Points"'));
-  usePreferences("local");
-  const query = fixture.queries.at(-1);
-  assert.ok(query);
-  await query.queryFn();
+  fixture.read.mockImplementation(async (scope) => {
+    if (scope === "backend") {
+      throw { kind: "disconnected" };
+    }
+    return snapshot();
+  });
+  const client = newQueryClient();
+  const view = showPreferences({}, client);
+  await view.findByRole("combobox", { name: "Theme Mode" });
+  assert.ok(await view.findByRole("alert"));
+  assert.equal(view.queryByLabelText("Report Points [points]"), null);
+  await preferencesQuery("local", null).queryFn();
   assert.deepEqual(fixture.read.mock.calls.at(-1), ["local"]);
-  useSavePreferences("local");
-  const mutation = fixture.mutations.at(-1);
-  assert.ok(mutation);
-  await mutation.mutationFn({ previous: snapshot(), settings: snapshot().settings });
+  await preferencesMutation("local", null, client).mutationFn({ previous: snapshot(), settings: snapshot().settings });
   assert.equal(fixture.update.mock.calls.at(-1)?.[0], "local");
   assert.deepEqual(preferencesKey("local", "new"), preferencesKey("local", "old"));
   assert.notDeepEqual(preferencesKey("backend", "new"), preferencesKey("backend", "old"));
 });
 
 test("Loading Does Not Render Editable Defaults", () => {
-  fixture.loading = true;
-  const html = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
-  assert.match(html, /role="status"/);
-  assert.ok(!html.includes("<form"));
+  fixture.read.mockImplementation(() => new Promise(() => {}));
+  const view = showPreferences({ advanced: true });
+  assert.ok(within(view.container).getAllByRole("status").length);
+  assert.equal(view.container.querySelector("form"), null);
+  assert.equal(view.queryByRole("combobox"), null);
 });
 
 test("Autosave Debounces Edits For 100ms And Serializes Pending Revisions", async () => {
@@ -333,58 +315,47 @@ test("Advanced View Persists per Viewer in Desktop and Browser Storage", async (
 });
 
 test("Preference Choices Keep Their Values and Keyboard Selection", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(() => {
-    act(() => root.unmount());
-    host.remove();
-    vi.unstubAllGlobals();
-  });
-  await act(async () => root.render(createElement("form", null, createElement(ApplicationPreferences, { advanced: true }))));
+  const view = showPreferences({ advanced: true });
+  await view.findByRole("combobox", { name: "Theme Mode" });
   for (const [id, value, next] of [
     ["local-appearance.theme_mode", "dark", "system"],
     ["local-appearance.density", "compact", "comfortable"],
     ["backend-report.plot_downsample", "lttb", "auto"],
   ]) {
-    const trigger = document.getElementById(id) as HTMLButtonElement;
+    const trigger = document.getElementById(id);
+    assert.ok(trigger instanceof HTMLButtonElement);
     assert.equal(trigger.getAttribute("role"), "combobox");
-    const label = trigger.closest("label") ?? host.querySelector(`label[for="${id}"]`);
+    const label = trigger.closest("label") ?? view.container.querySelector(`label[for="${id}"]`);
     assert.ok(label);
-    await act(async () => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
-    const selected = document.querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
-    assert.ok(selected);
-    assert.equal(selected.dataset.state, "checked");
-    const native = trigger.parentElement?.querySelector("select");
+    trigger.focus();
+    await fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    const listbox = await view.findByRole("listbox");
+    assert.equal(trigger.getAttribute("aria-controls"), listbox.id);
+    const choices = within(listbox);
+    const selected = choices.getByRole("option", { selected: true });
+    assert.equal(selected.getAttribute("aria-selected"), "true");
+    const name = id.slice(id.indexOf("-") + 1);
+    const native = view.container.querySelector<HTMLInputElement>(`input[name="${name}"]`);
     assert.ok(native);
     assert.equal(native.value, value);
-    const first = document.querySelector<HTMLElement>('[role="option"]');
-    assert.ok(first);
-    await act(async () => first.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    const [first] = choices.getAllByRole("option");
+    await fireEvent.keyDown(trigger, { key: "Home" });
+    assert.equal(trigger.getAttribute("aria-activedescendant"), first.id);
+    await fireEvent.keyDown(trigger, { key: "Enter" });
+    await tick();
     assert.equal(native.value, next);
     assert.equal(trigger.getAttribute("aria-expanded"), "false");
   }
 });
 
 test("Numeric Preferences Preserve Typing While Earlier Autosaves Complete", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const view = showPreferences({ advanced: true });
+  await view.findByRole("combobox", { name: "Theme Mode" });
   vi.useFakeTimers();
-  fixture.cache.mockImplementation((_key, saved) => {
-    fixture.snapshot = saved;
-  });
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
+  onTestFinished(() => {
     vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
-  const render = () => act(async () => root.render(createElement("div", null, createElement(ApplicationPreferences, { advanced: true }))));
-  await render();
-  const inputs = [...host.querySelectorAll<HTMLInputElement>('input[type="number"]')];
+  const inputs = [...view.container.querySelectorAll<HTMLInputElement>('input[type="number"]')];
   assert.ok(inputs.length > 0);
   let revision = 7;
   for (const input of inputs) {
@@ -398,28 +369,24 @@ test("Numeric Preferences Preserve Typing While Earlier Autosaves Complete", asy
     fixture.update.mockImplementation((_scope, request) => ({ revision: [++revision], settings: request.settings }));
     input.focus();
     for (const value of ["", "2", "25", "250", "2500"]) {
-      await act(async () => {
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-      });
+      await fireEvent.input(input, { target: { value } });
       if (value === "2") {
-        await act(async () => vi.advanceTimersByTimeAsync(100));
+        await vi.advanceTimersByTimeAsync(100);
       }
       if (value === "25") {
         const complete = finish;
         assert.ok(complete, "the earlier draft is saving");
         const request = fixture.update.mock.calls.at(-1)?.[1];
         assert.ok(request);
-        const saved = { revision: [++revision], settings: request.settings };
-        fixture.snapshot = saved;
-        await act(async () => complete(saved));
+        complete({ revision: [++revision], settings: request.settings });
+        await vi.advanceTimersByTimeAsync(0);
       }
-      await render();
+      await tick();
       assert.equal(document.getElementById(input.id), input);
       assert.equal(document.activeElement, input);
       assert.equal(input.value, value, input.id);
     }
-    await act(async () => vi.advanceTimersByTimeAsync(100));
+    await vi.advanceTimersByTimeAsync(100);
     assert.equal(input.value, "2500", input.id);
     const [group, key] = input.id.slice(input.id.indexOf("-") + 1).split(".");
     const request = fixture.update.mock.calls.at(-1)?.[1];
@@ -430,17 +397,7 @@ test("Numeric Preferences Preserve Typing While Earlier Autosaves Complete", asy
 });
 
 test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.useFakeTimers();
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-  });
   const save = vi.fn(async (): Promise<void> => {});
   let finish: (() => void) | undefined;
   save.mockImplementationOnce(
@@ -468,53 +425,59 @@ test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
     values: { budget: 1000 },
     onSubmit: save,
   };
-  await act(async () => root.render(createElement(InstalledPluginSettingsForm, props)));
-  const input = host.querySelector<HTMLInputElement>('input[type="number"]');
+  const view = render(InstalledPluginSettingsForm, props);
+  onTestFinished(() => {
+    view.unmount();
+    vi.useRealTimers();
+  });
+  const input = view.container.querySelector<HTMLInputElement>('input[type="number"]');
   assert.ok(input);
   input.focus();
   for (const value of ["", "2", "25", "250", "2500", "250", "", "2", "25", "250", "2500"]) {
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await fireEvent.input(input, { target: { value } });
     assert.equal(input.value, value);
     assert.equal(document.activeElement, input);
     if (value === "250") {
-      await act(async () => vi.advanceTimersByTimeAsync(100));
+      await vi.advanceTimersByTimeAsync(100);
     }
     assert.equal(save.mock.calls.length, 0);
   }
-  await act(async () => vi.advanceTimersByTimeAsync(100));
+  await vi.advanceTimersByTimeAsync(100);
   assert.deepEqual(save.mock.calls, [[{ budget: 2500 }]]);
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "3000");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await act(async () => root.render(createElement(InstalledPluginSettingsForm, { ...props, values: { budget: 2500 } })));
+  await fireEvent.input(input, { target: { value: "3000" } });
+  await view.rerender({ values: { budget: 2500 } });
   const complete = finish;
   assert.ok(complete);
-  await act(async () => complete());
+  complete();
+  await vi.advanceTimersByTimeAsync(0);
   assert.equal(input.value, "3000", "an earlier save cannot replace the newer edit");
-  await act(async () => vi.advanceTimersByTimeAsync(100));
+  await vi.advanceTimersByTimeAsync(100);
   assert.deepEqual(save.mock.calls, [[{ budget: 2500 }], [{ budget: 3000 }]]);
 });
 
-test("Shared Preference Failure Occupies Its Content Slot", () => {
-  const error = new Error("bench_write");
-  fixture.saveError = error;
-  const html = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true, localOnly: true }));
-  assert.ok(html.includes('role="alert"'));
-  assert.ok(html.includes(error.message));
-  assert.deepEqual(fixture.snapshot?.revision, snapshot().revision);
+test("Shared Preference Failure Occupies Its Content Slot", async () => {
+  const error = new Error("fixture-write");
+  fixture.update.mockRejectedValueOnce(error);
+  const client = newQueryClient();
+  const view = showPreferences({ advanced: true, localOnly: true }, client);
+  const input = await view.findByRole("textbox", { name: "Theme Family" });
+  vi.useFakeTimers();
+  try {
+    await fireEvent.input(input, { target: { value: "other" } });
+    await vi.advanceTimersByTimeAsync(100);
+    await tick();
+    assert.ok(view.getAllByRole("alert").some((alert) => alert.textContent?.includes(error.message)));
+    assert.deepEqual(client.getQueryData<PreferencesSnapshot>(preferencesKey("local"))?.revision, snapshot().revision);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("Failed Saves Submit the Reviewed Revision and Changed Settings", async () => {
   const previous = snapshot();
   const refusal = { kind: "persistence", message: "fixture-write-refused" };
   fixture.update.mockRejectedValueOnce(refusal);
-  renderToStaticMarkup(createElement(SavePreferencesProbe, { scope: "local" }));
-  const mutation = fixture.mutations.at(-1);
-  assert.ok(mutation);
+  const mutation = preferencesMutation("local", null, newQueryClient());
   const settings = { ...previous.settings, client: { ...previous.settings.client, request_timeout_ms: 6789 } };
   await mutation.mutationFn({ previous, settings }).catch(() => undefined);
   assert.deepEqual(fixture.update.mock.calls[0], ["local", { expected_revision: previous.revision, settings }]);

@@ -12,10 +12,11 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
+import defaults from "@generated/typescript/application-settings.json";
 
 // Third Party Imports
 import { QueryClient } from "@tanstack/svelte-query";
-import { render } from "@testing-library/svelte";
+import { render, within } from "@testing-library/svelte";
 import { beforeEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
@@ -34,6 +35,10 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
 vi.mock("@/lib/api/native-remote", async (original) => ({
   ...(await original<typeof import("@/lib/api/native-remote")>()),
   readNativeListener: fixture.read,
+  withNativeListener: async (_session: unknown, snapshot: unknown) => snapshot,
+}));
+vi.mock("@/lib/desktop/settings", () => ({
+  preferencesCommands: { desktopSettingsRead: async () => ({ revision: [7], settings: defaults }) },
 }));
 vi.mock("@/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 
@@ -44,7 +49,7 @@ function showSection() {
     queryClient,
     snapshot: { ownership: "attached", connection: { backend: { methods: ["/dokime.host.v1.access.Listener/Get"] } } },
   } as unknown as ConnectedSession;
-  const view = render(RemoteSection, { session, advanced: false, preferencesPending: false, label: "Fixture", queryClient });
+  const view = render(RemoteSection, { session, advanced: false, label: "Fixture", queryClient });
   onTestFinished(() => {
     view.unmount();
     queryClient.clear();
@@ -81,14 +86,18 @@ test("Repeated Remote Settings Loads and Failures Stay Inline", async () => {
     }),
   );
   const view = showSection();
+  const card = view.getByRole("heading", { name: "Remote Access" }).closest("section");
+  assert.ok(card);
+  const access = within(card);
   for (const advanced of [false, true, false]) {
     await view.rerender({ advanced });
-    assert.ok(view.getByRole("status"));
-    assert.equal(view.queryByRole("alert"), null);
+    assert.ok(access.getByRole("status"));
+    assert.equal(access.queryByRole("alert"), null);
   }
   const failure = new Error("fixture-failure");
   refuse(failure);
   const alert = await view.findByRole("alert");
+  assert.equal(alert.parentElement?.closest("section")?.querySelector("h2")?.textContent, "Remote Access");
   assert.ok(alert.textContent?.includes(failure.message));
 });
 

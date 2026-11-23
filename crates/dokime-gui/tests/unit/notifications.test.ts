@@ -422,19 +422,24 @@ test("Failure Presentation Copies Decoded Fields and Omits Client Stack", async 
 });
 
 test("Quiet Autosave States Never Render a Failure", async () => {
-  const { SettingsFieldStatus } = await import("@/features/settings/SettingsFieldStatus");
-  const { ErrorCard } = await import("@/components/ErrorCard");
+  const { fireEvent, render } = await import("@testing-library/svelte");
+  const { default: SettingsFieldStatus } = await import("@/features/settings/SettingsFieldStatus.svelte");
   const retry = vi.fn();
-  for (const kind of ["idle", "saving", "saved"] as const) {
-    const content = SettingsFieldStatus({ state: { kind }, onRetry: retry });
-    assert.notEqual(content.type, ErrorCard);
+  const view = render(SettingsFieldStatus, { state: { kind: "idle" }, onRetry: retry });
+  try {
+    for (const kind of ["idle", "saving", "saved"] as const) {
+      await view.rerender({ state: { kind } });
+      assert.ok(view.getByRole("status"));
+      assert.equal(view.queryByRole("alert"), null);
+    }
+    const error = new Error("fixture-write");
+    await view.rerender({ state: { kind: "error", message: error.message, failure: error } });
+    assert.ok(view.getByRole("alert").textContent?.includes(error.message));
+    await fireEvent.click(view.getByRole("button", { name: "Save Settings" }));
+    assert.equal(retry.mock.calls.length, 1);
+  } finally {
+    view.unmount();
   }
-  const error = new Error("bench_write");
-  const content = SettingsFieldStatus({ state: { kind: "error", message: error.message, failure: error }, onRetry: retry });
-  assert.equal(content.type, ErrorCard);
-  assert.equal(content.props.failure.message, error.message);
-  content.props.onRetry();
-  assert.equal(retry.mock.calls.length, 1);
 });
 
 test("Description Readiness Remains a Quiet Waiting State", async () => {

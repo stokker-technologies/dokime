@@ -2,17 +2,21 @@
 <script lang="ts">
   import { DropdownMenu } from "bits-ui";
   import { Ellipsis } from "lucide-svelte";
-  import type { Snippet } from "svelte";
+  import type { QueryClient } from "@tanstack/svelte-query";
   import type { NativeSession } from "../../app/native-session/session";
   import Button from "../../components/ui/Button.svelte";
   import { buttonVariants } from "../../components/ui/button-variants";
   import PanelHeader from "../../shell/PanelHeader.svelte";
+  import { storeState } from "../../stores/store-state";
+  import { useUiStore } from "../../stores/ui-store";
+  import ApplicationPreferences from "./ApplicationPreferences.svelte";
   import BackendsTable from "./BackendsTable.svelte";
   import SettingsAdvancedSwitch from "./SettingsAdvancedSwitch.svelte";
   import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "./settings-sections";
 
-  let { owner, close, appearance }: { owner: NativeSession; close: () => void; appearance?: Snippet } = $props();
+  let { owner, close, queryClient }: { owner: NativeSession; close: () => void; queryClient: QueryClient } = $props();
   let section = $state(DEFAULT_SETTINGS_SECTION);
+  const advanced = storeState(useUiStore, (state) => state.showAdvancedSettings);
   const sections = SETTINGS_SECTIONS.filter((item) => item.id === "backends" || item.id === "appearance");
 </script>
 
@@ -42,7 +46,7 @@
         {#if section === "backends"}
           <BackendsTable {owner} />
         {:else}
-          {@render appearance?.()}
+          <ApplicationPreferences {queryClient} advanced={advanced()} localOnly />
         {/if}
       </div>
     </div>

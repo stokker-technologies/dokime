@@ -1,7 +1,6 @@
 <!-- Dokime — SPDX-License-Identifier: Apache-2.0 -->
 <script lang="ts">
   import { createQuery, type QueryClient } from "@tanstack/svelte-query";
-  import type { Snippet } from "svelte";
   import type { ConnectedSession } from "@/app/native-session/session";
   import ErrorCard from "@/components/ErrorCard.svelte";
   import Button from "@/components/ui/Button.svelte";
@@ -10,6 +9,7 @@
   import { failureOf } from "@/lib/notification-details";
   import { toast } from "@/lib/notifications";
   import { isTauriDesktop } from "@/lib/surface-environment";
+  import ApplicationPreferences from "../ApplicationPreferences.svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import SettingsRow from "../SettingsRow.svelte";
   import FirewallNotice from "./FirewallNotice.svelte";
@@ -18,15 +18,11 @@
   let {
     session,
     advanced,
-    preferencesPending,
-    preferences,
     label,
     queryClient,
   }: {
     session: ConnectedSession | null;
     advanced: boolean;
-    preferencesPending: boolean;
-    preferences?: Snippet;
     label: string;
     queryClient: QueryClient;
   } = $props();
@@ -53,6 +49,7 @@
     () => queryClient,
   );
   let busy = $state(false);
+  let preferencesPending = $state(false);
   const disabled = $derived(busy || preferencesPending);
 
   function publish(updated: ListenerStatus, owner: ConnectedSession, key: readonly unknown[]) {
@@ -134,7 +131,13 @@
     </SettingsRow>
   </SettingsCard>
 {:else}
-  {@render preferences?.()}
+  <ApplicationPreferences
+    {session}
+    {queryClient}
+    {advanced}
+    section="remote"
+    onPendingChange={(pending) => (preferencesPending = pending)}
+  />
   {#if query.isPending}
     <SettingsCard title="Remote Access">
       <SettingsRow label="Remote Settings">
