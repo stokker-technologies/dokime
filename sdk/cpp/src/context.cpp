@@ -149,6 +149,9 @@ void Context::document(string document, Card part, string section, optional<stri
   host().documents.append_parts(execution(), document, section, move(options));
 }
 string Context::resolve(const Declaration &declaration) const {
+  const auto record = plugin_->records.find(declaration.key);
+  if (record != plugin_->records.end())
+    return record->second;
   if (!bindings_)
     throw invalid_argument("Resolve Declaration: Call From a Template Operation");
   const auto found = bindings_->identifiers.find(declaration.key);

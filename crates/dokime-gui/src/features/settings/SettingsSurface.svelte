@@ -5,7 +5,7 @@
   import Button from "../../components/ui/Button.svelte";
   import { failureOf } from "../../lib/notification-details";
   import type { NavigationMode } from "../../shell/navigation-model";
-  import { publishPageChrome } from "../../shell/page-chrome.svelte";
+  import PageChrome from "../../shell/PageChrome.svelte";
   import { storeState } from "../../stores/store-state";
   import { uiStore } from "../../stores/ui-store";
   import ApplicationPreferences from "./ApplicationPreferences.svelte";
@@ -45,11 +45,12 @@
   const advanced = storeState(uiStore, (state) => state.showAdvancedSettings);
   const showNavigation = $derived(mode !== "phone" || !selected);
   const showSection = $derived(mode !== "phone" || Boolean(selected));
-  publishPageChrome(() => ({
-    title: showSection ? `Settings › ${SETTINGS_SECTIONS.find((item) => item.id === section)?.label ?? section}` : "Settings",
-    overflow,
-  }));
 </script>
+
+<PageChrome
+  title={showSection ? `Settings › ${SETTINGS_SECTIONS.find((item) => item.id === section)?.label ?? section}` : "Settings"}
+  {overflow}
+/>
 
 {#snippet overflow()}
   <SettingsAdvancedSwitch />

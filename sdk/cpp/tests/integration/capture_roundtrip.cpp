@@ -32,7 +32,8 @@ using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
 using google::protobuf::BoolValue;
 using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
-using harmos::TransportError;
+using harmos::CLASSIFICATION_PERMANENT;
+using harmos::OperationError;
 using std::invalid_argument;
 using std::string;
 
@@ -70,7 +71,7 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
     if (section.type() == RecordContracts::descriptor()->full_name())
       check(contracts.ParseFromString(section.payload()), "Records Did Not Decode");
   }
-  check(contracts.records(0).metadata().identifier() == "example.capture.confirmation.confirmation", "Record Was Not Qualified");
+  check(contracts.records(0).metadata().identifier() == "example.confirmation", "Record Was Not Qualified");
   check(contracts.records(0).message() == BoolValue::descriptor()->full_name(), "Plain Record Contract Was Lost");
   const auto &binding = suites.suites(0).templates(0);
   check(binding.metadata().identifier() == "example.capture.confirmation", "Explicit Template Identifier Changed");
@@ -89,7 +90,9 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
   string saved;
   bool has_record = false;
   bool accepted = true;
-  host.child = [&](const string &operation, const string &bytes) -> string {
+  host.child = [&](const harmos::plugin::v1::ChildRequest &child) -> string {
+    const auto &operation = child.operation();
+    const auto &bytes = child.payload();
     if (operation == "dokime.host.v1.Prompts/Create") {
       const auto request = harmos::plugin::decode<dokime::host::v1::PromptsCreateRequest>(bytes);
       check(request.definition().actions_size() == 2, "Prompt Lost Its Actions");
@@ -108,16 +111,14 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
     }
     if (operation == "dokime.host.v1.evidence.Records/Append") {
       const auto request = harmos::plugin::decode<dokime::host::v1::evidence::RecordsAppendRequest>(bytes);
-      check(request.kind() == "example.capture.confirmation.confirmation" && request.execution() == "execution",
-            "Record Declaration Was Not Resolved");
+      check(request.kind() == "example.confirmation" && request.execution() == "execution", "Record Declaration Was Not Resolved");
       saved = request.payload();
       has_record = true;
       return dokime::host::v1::evidence::RecordsAppendResponse{}.SerializeAsString();
     }
     if (operation == "dokime.host.v1.evidence.Records/List") {
       const auto request = harmos::plugin::decode<dokime::host::v1::evidence::RecordsListRequest>(bytes);
-      check(request.record_type() == "example.capture.confirmation.confirmation" &&
-                request.step() == "example.capture.confirmation.confirm",
+      check(request.record_type() == "example.confirmation" && request.step() == "example.capture.confirmation.confirm",
             "Query Declaration Was Not Resolved");
       dokime::host::v1::evidence::RecordsListResponse response;
       if (has_record)
@@ -154,13 +155,20 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
 
   // Refuse Empty Queries, Invalid Answers and a Widened Execution Scope.
   has_record = false;
-  REQUIRE_THROWS_AS(host.invoke<CriteriaEvaluateResponse>(test_case.criteria(0).operation(), criterion, "execution"), TransportError);
+  try {
+    host.invoke<CriteriaEvaluateResponse>(test_case.criteria(0).operation(), criterion, "execution");
+    FAIL("Read Empty Records: Expected an Operation Error");
+  } catch (const OperationError &error) {
+    CHECK(error.value.classification() == CLASSIFICATION_PERMANENT);
+    CHECK(error.value.operation() == test_case.criteria(0).operation());
+    CHECK(!error.value.action().empty());
+  }
   accepted = false;
-  REQUIRE_THROWS_AS(host.invoke<StepsExecuteResponse>(test_case.steps(0).operation(), step, "execution"), TransportError);
+  REQUIRE_THROWS_AS(host.invoke<StepsExecuteResponse>(test_case.steps(0).operation(), step, "execution"), OperationError);
   accepted = true;
   answer = "unknown";
-  REQUIRE_THROWS_AS(host.invoke<StepsExecuteResponse>(test_case.steps(0).operation(), step, "execution"), TransportError);
-  REQUIRE_THROWS_AS(host.invoke<StepsExecuteResponse>(test_case.steps(0).operation(), step, "other"), TransportError);
+  REQUIRE_THROWS_AS(host.invoke<StepsExecuteResponse>(test_case.steps(0).operation(), step, "execution"), OperationError);
+  REQUIRE_THROWS_AS(host.invoke<StepsExecuteResponse>(test_case.steps(0).operation(), step, "other"), OperationError);
 
   // Clean Up and Stop the Selected Placement.
   ExecutionsCleanupRequest cleanup;

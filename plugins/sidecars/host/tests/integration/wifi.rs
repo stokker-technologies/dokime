@@ -71,7 +71,7 @@ fn wifi_channels_include_the_full_empty_fallback_plan_once_per_scan() {
         assert_eq!(rows.len(), 41);
         let cells = rows.iter().map(|row| (&row.wifi_band, row.wifi_channel)).collect::<BTreeSet<_>>();
         assert_eq!(cells.len(), rows.len());
-        assert!(rows.iter().all(|row| row.sample_index == sample_index as i64 && row.network_count == 0 && row.occupancy == 0.0));
+        assert!(rows.iter().all(|row| row.sample_index == sample_index as i64 && row.occupancy == 0));
         let channels = |band| rows.iter().filter(|row| row.wifi_band == band).map(|row| row.wifi_channel).collect::<Vec<_>>();
         assert_eq!(channels("2.4GHz"), (1..=13).collect::<Vec<_>>());
         assert_eq!(
@@ -97,7 +97,7 @@ fn wifi_channels_use_explicit_adapter_bands_and_regulatory_channel_14() {
     };
     let rows = plan.rows(3, &report);
     assert_eq!(rows.len(), 73);
-    assert!(rows.iter().all(|row| row.wifi_band != "5GHz" && row.occupancy == 0.0));
+    assert!(rows.iter().all(|row| row.wifi_band != "5GHz" && row.occupancy == 0));
     assert!(rows.iter().any(|row| row.wifi_band == "2.4GHz" && row.wifi_channel == 14));
     assert_eq!(
         rows.iter().filter(|row| row.wifi_band == "6GHz").map(|row| row.wifi_channel).collect::<Vec<_>>(),
@@ -120,7 +120,7 @@ fn wifi_channels_keep_observed_6ghz_until_collection_stop() {
     let observed = plan.rows(1, &report);
     assert_eq!(observed.len(), 100);
     let row = observed.iter().find(|row| row.wifi_band == "6GHz" && row.wifi_channel == 5).unwrap();
-    assert_eq!((row.network_count, row.occupancy), (1, 1.0));
+    assert_eq!(row.occupancy, 1);
     assert_eq!(plan.rows(2, &ScanReport::default()).len(), 100);
     assert_eq!(ChannelPlan::default().rows(3, &ScanReport::default()).len(), 41);
     let known = ScanReport {
@@ -134,7 +134,7 @@ fn wifi_channels_keep_observed_6ghz_until_collection_stop() {
 }
 
 #[test]
-fn wifi_channels_share_adjacent_overlap_without_scaling_or_clamping() {
+fn wifi_channels_count_networks_on_their_primary_2_4ghz_channel() {
     let report = ScanReport {
         networks: vec![network("a", 6, true), network("b", 6, false), network("c", 8, false), network("d", 36, false)],
         active: true,
@@ -142,22 +142,22 @@ fn wifi_channels_share_adjacent_overlap_without_scaling_or_clamping() {
     };
     let rows = ChannelPlan::default().rows(7, &report);
     let row = |band, channel| rows.iter().find(|row| row.wifi_band == band && row.wifi_channel == channel).unwrap();
-    assert_eq!(row("2.4GHz", 6).network_count, 2);
-    assert!((row("2.4GHz", 6).occupancy - 2.6).abs() < 1e-9);
-    assert!((row("2.4GHz", 7).occupancy - 2.4).abs() < 1e-9);
-    assert_eq!(row("2.4GHz", 1).occupancy, 0.0);
-    assert_eq!(row("5GHz", 36).occupancy, 1.0);
-    assert_eq!(row("5GHz", 40).occupancy, 0.0);
+    assert_eq!(row("2.4GHz", 6).occupancy, 2);
+    assert_eq!(row("2.4GHz", 7).occupancy, 0);
+    assert_eq!(row("2.4GHz", 8).occupancy, 1);
+    assert_eq!(row("5GHz", 36).occupancy, 1);
+    assert_eq!(row("5GHz", 40).occupancy, 0);
     let network_rows = scan_rows(7, Ok(report), WEIGHT);
     assert_eq!(network_rows.len(), 4);
     assert_eq!(network_rows[0].sample_index, Some(row("2.4GHz", 6).sample_index));
-    assert!((network_rows[0].wifi_network_congestion_score.unwrap() / WEIGHT - row("2.4GHz", 6).occupancy).abs() < 1e-9);
+    // Congestion Keeps Its Overlap Weighting: Two Networks on 6 Plus 0.6 of the One on 8.
+    assert!((network_rows[0].wifi_network_congestion_score.unwrap() / WEIGHT - 2.6).abs() < 1e-9);
     let encoded = row("2.4GHz", 6).encode_to_vec();
     assert_eq!(WifiChannels::decode(encoded.as_slice()).unwrap(), *row("2.4GHz", 6));
 }
 
 #[test]
-fn wifi_channels_count_bonded_spans_without_changing_primary_counts() {
+fn wifi_channels_count_bonded_spans_on_every_covered_channel() {
     let mut five = network("a", 36, false);
     five.channel_width_mhz = Some(80);
     five.center_channel = Some(42);
@@ -171,13 +171,11 @@ fn wifi_channels_count_bonded_spans_without_changing_primary_counts() {
     let rows = ChannelPlan::default().rows(8, &report);
     for row in rows {
         let expected = match row.wifi_band.as_str() {
-            "5GHz" if (36..=48).contains(&row.wifi_channel) => 1.0,
-            "6GHz" if (1..=29).contains(&row.wifi_channel) => 1.0,
-            _ => 0.0,
+            "5GHz" if (36..=48).contains(&row.wifi_channel) => 1,
+            "6GHz" if (1..=29).contains(&row.wifi_channel) => 1,
+            _ => 0,
         };
         assert_eq!(row.occupancy, expected, "{} Channel {}", row.wifi_band, row.wifi_channel);
-        let primary = (row.wifi_band == "5GHz" && row.wifi_channel == 36) || (row.wifi_band == "6GHz" && row.wifi_channel == 1);
-        assert_eq!(row.network_count, i64::from(primary));
     }
 }
 

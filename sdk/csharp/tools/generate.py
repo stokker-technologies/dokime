@@ -24,7 +24,7 @@ from pathlib import Path
 # isort: split
 
 # Local Imports
-from dokime_tools.build.protocol import configuration
+from dokime_tools.build.protocol import configuration, host_resources
 from harmos_tools.build.resources import sdk
 from projection import project
 
@@ -49,6 +49,7 @@ def main() -> None:
     output = Path(tempfile.mkdtemp(prefix="dokime-csharp-"))
     try:
         sdk.generate(root=output, descriptors=root / "crates/dokime-protocol/src/descriptors.bin", configuration=configuration(root))
+        host_resources(output, root / "crates/dokime-protocol/src/descriptors.bin", configuration(root), exclude={"harmos.plugin.v1.Time"})
         project(output)
         relative = Path("sdk/csharp/src/Dokime/Generated")
         expected = {path.relative_to(output) for path in (output / relative).rglob("*.cs")}

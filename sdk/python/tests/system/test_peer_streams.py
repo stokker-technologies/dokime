@@ -50,7 +50,7 @@ class PeerFixturePlugin(Plugin):
     async def system(self, ctx: Context) -> AsyncIterator[float]:
         try:
             scope = ctx._transport.scope()
-        except harmos.FailureError:
+        except harmos.OperationError:
             await asyncio.Future()
             return
         self.opened.append(scope)

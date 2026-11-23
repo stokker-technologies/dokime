@@ -53,7 +53,7 @@ public sealed class Client : IAsyncDisposable
 
   internal Client(CallInvoker invoker, GrpcChannel? channel = null, Grpc.Core.Metadata? headers = null)
   {
-    Transport = new Transport.Client(new FailureInvoker(invoker));
+    Transport = new Transport.Client(new TransportInvoker(invoker));
     this.channel = channel;
     this.headers = headers;
     Plugins = new PluginCollection(this);
@@ -116,7 +116,7 @@ public sealed class Client : IAsyncDisposable
           throw new ArgumentException("Connect: Export a Pairing from the Intended Host; Its Identity Changed");
         return client;
       }
-      catch (Exception failure) when (failure is SdkError or RpcException or ArgumentException or HttpRequestException)
+      catch (Exception failure) when (failure is OperationException or RpcException or ArgumentException or HttpRequestException)
       {
         channel?.Dispose();
         failures.Add(new InvalidOperationException($"Connect to {endpoint}: Check the Host Listener or Export a New Pairing", failure));

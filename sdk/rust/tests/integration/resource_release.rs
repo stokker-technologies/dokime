@@ -103,6 +103,7 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
         period: Some(prost_types::Duration { seconds: 1, nanos: 0 }),
         count: 1,
         sequence: 1,
+        capturing_executions: Vec::new(),
     };
     let answer = tokio::spawn(async move {
         let columns = Process::window(&grants, &mut samples, window).await.map_err(|error| error.to_string());

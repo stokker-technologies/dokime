@@ -2085,7 +2085,8 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", a
     },
   };
   const plot = documentPlotSpec({ plot: declaration, payload });
-  const { container: host, rerender } = render(ContourPlot, { plot });
+  const setPanelSize = vi.fn();
+  const { container: host, rerender } = render(ContourPlot, { plot, setPanelSize });
   assert.equal(host.querySelectorAll("rect[data-bin]").length, 2);
   assert.ok(host.querySelector('rect[data-bin="0"]')?.getAttribute("fill"));
   assert.equal(host.querySelector('rect[data-bin="1"]'), null);
@@ -2094,6 +2095,8 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", a
   assert.ok(Math.abs(Number(first.getAttribute("width")) / Number(last.getAttribute("width")) - 2) < 1e-12);
   assert.ok(Math.abs(Number(last.getAttribute("height")) / Number(first.getAttribute("height")) - 3) < 1e-12);
   await rerender({ plot: { ...plot, render: "bands" } });
+  // A revision keeps the measured panel, so the plot's request and watch stay open.
+  assert.ok(setPanelSize.mock.calls.every(([, size]) => size !== null));
   assert.ok(host.querySelectorAll("[data-contour-mask] path").length > 0);
   assert.equal(host.querySelectorAll("clipPath rect").length, 2);
   assert.equal(host.querySelector('clipPath rect[data-valid-bin="1"]'), null);

@@ -1,7 +1,7 @@
 # Dokime Rust SDK
 
 Author executable test plugins and call a running host with the `dokime` crate.
-The [Capture Suite](examples/starter/src/plugin/suites/capture/confirmation.rs) owns its records, steps and criteria.
+The plugin owns shared records; the [Capture Suite](examples/starter/src/plugin/suites/capture/confirmation.rs) owns its steps and criteria.
 
 Plugin lifecycle hooks use ordinary async operation contexts:
 
@@ -13,6 +13,22 @@ Plugin::of::<ExamplePlugin>("0.1.0")
 
 The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
 with empty payloads. Hooks share plugin-owned state with other operations.
+Host-backed `ctx.sleep(...)` and `ctx.now()` use the library context's clock.
+The product generator retains clock dependencies and excludes duplicate clock resources.
+
+Operation and template contexts accept the library's typed requests and untyped
+JSON calls through the same method:
+
+```rust
+use dokime::untyped;
+use serde_json::json;
+
+let reply = ctx.operation(untyped("example.measure", json!({"channel": 1}))).await?;
+```
+
+The host converts protobuf JSON, validates every field, and returns its structured
+failure unchanged. An in-process testing host does not simulate operation calls;
+exercise these calls against a real host.
 
 `Plugin::run()` and `Plugin::run_with(address)` register with the host selected by `DOKIME_REMOTE` in the process
 environment or working-directory `.env`. Managed launches take precedence.
@@ -167,3 +183,15 @@ Template contexts also support `artifact()` and `artifact_with()`; they share th
 client's fenced upload implementation and attach only to the calling execution.
 Context records, progress, logs, traceability and document mutations also
 accept operation-specific request identity options through `_with` methods.
+
+## Activation Resources
+
+Implement `dokime::operations::Resource::open(&Context)` and optional `close(&self)`;
+register with `plugin.resource::<RemoteApi>()` and call `ctx.resource::<RemoteApi>().await?`.
+Resources open lazily once per activation and close in reverse opening order.
+
+`dokime::Error` and `Result<T>` are the library types. `plugin.failure(mapper)` maps
+application errors preserved by `Error::other(error)`; unmapped errors become Permanent
+with their text and operation identity. Read `error.action()` for the caller's next step.
+Declare shared records with `plugin.record(record)`; operation and template contexts
+both expose `record(&record, value).await?`. Observer records fan out on the host.

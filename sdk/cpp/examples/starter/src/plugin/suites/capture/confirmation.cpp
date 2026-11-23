@@ -33,7 +33,6 @@ bool ConfirmationTestTemplate::confirmed(Context &context) {
 }
 Template ConfirmationTestTemplate::definition() {
   auto value = Template::from<ConfirmationTestTemplate>();
-  value.record(confirmation);
   value.step(Step::method<&ConfirmationTestTemplate::confirm>("Confirm"));
   value.criterion(Criterion::method<&ConfirmationTestTemplate::confirmed>("Confirmed"));
   return value;

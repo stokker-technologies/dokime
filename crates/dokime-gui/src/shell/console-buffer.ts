@@ -7,15 +7,11 @@
  * ***
  */
 
-/* The console's records, held for the session rather than for a route.
+/* The instance console's trace, held for the session rather than for a route.
  *
- * The drawer lives in the root shell, but the stream it reads is keyed by the
- * scope the route resolves to: leaving a cycle page for an execution page
- * changes the key. Each key keeps its own bounded ring and resume cursor here,
- * so returning to a scope shows what it already had and resumes from where it
- * stopped instead of starting empty. A new native session starts over.
- *
- * Pure: no React, no path aliases, so the Node test runner imports it as is.
+ * Each level keeps its own bounded ring here, so returning to a level shows
+ * what it already had instead of starting empty. A new native session starts
+ * over. Cycle and execution scopes read the shared records query instead.
  */
 
 /* === External Imports === */
@@ -25,19 +21,13 @@ import { createStore } from "zustand/vanilla";
 
 /* === Local Imports === */
 
+import type { TracePage } from "@/lib/api/native-logs";
 import type { HubRecord } from "@/lib/types";
 
 /* === Types === */
 
-export type ConsoleStreamKey = {
-  cycleId: string | null;
-  executionId: string | null;
-  level: string;
-};
-
-/** One scope's ring and the cursor its stream resumes from. */
+/** One level's ring and the trace history it was read from. */
 export type ConsoleBuffer = {
-  afterSequence: bigint;
   dropped: bigint;
   epoch: string | undefined;
   error: string | null;
@@ -45,11 +35,13 @@ export type ConsoleBuffer = {
   records: HubRecord[];
 };
 
-export type ConsolePage = {
+/** The Rows the Drawer Shows, From the Trace or the Records Query. */
+export type ConsoleRecords = {
+  clear: () => void;
   dropped: bigint;
-  epoch: string;
-  nextSequence: bigint;
   records: HubRecord[];
+  error: string | null;
+  failure?: NotificationFailure;
 };
 
 type ConsoleRecordsState = {
@@ -64,15 +56,8 @@ type ConsoleRecordsState = {
 type ConsoleRecordsActions = {
   /** Start over when the native session changes; keep everything otherwise. */
   bindSession: (session: string | null) => void;
-  /** Empty one scope's rows; its cursor stays, so nothing is replayed. */
-  clear: (key: string) => void;
-  /**
-   * Replay from the start after the backend expired the cursor. The rows and
-   * their epoch stay: a replay from the same epoch merges into them, one from
-   * another epoch replaces them.
-   */
-  rewind: (key: string) => void;
-  receive: (key: string, page: ConsolePage, dropped: bigint) => void;
+  /** A replay from the same epoch merges into the rows, one from another epoch replaces them. */
+  receive: (key: string, page: TracePage) => void;
   setError: (key: string, error: string | null, failure?: NotificationFailure) => void;
   setFilter: (filter: string) => void;
 };
@@ -88,11 +73,10 @@ const GUI_CONSOLE_RETENTION_BYTES = 2_097_152;
 export const RETAINED_RECORDS = GUI_CONSOLE_RECORDS;
 export const RETAINED_BYTES = GUI_CONSOLE_RETENTION_BYTES;
 
-/** Scopes kept at once; the least recently read one goes first. */
+/** Levels kept at once; the least recently read one goes first. */
 export const RETAINED_BUFFERS = GUI_CONSOLE_BUFFERS;
 
 export const EMPTY_CONSOLE_BUFFER: ConsoleBuffer = {
-  afterSequence: 0n,
   dropped: 0n,
   epoch: undefined,
   error: null,
@@ -100,10 +84,6 @@ export const EMPTY_CONSOLE_BUFFER: ConsoleBuffer = {
 };
 
 /* === Public Functions === */
-
-export function consoleBufferKey({ cycleId, executionId, level }: ConsoleStreamKey): string {
-  return `${cycleId ?? "*"}/${executionId ?? "*"}/${level}`;
-}
 
 /**
  * `incoming` folded into `current`, oldest first, once per sequence, then
@@ -148,20 +128,11 @@ export function createConsoleRecordsStore() {
       filter: "",
       session: null,
       bindSession: (session) => set((state) => (state.session === session ? state : { buffers: new Map(), session })),
-      clear: (key) => update(key, (buffer) => ({ ...buffer, records: [] })),
-      receive: (key, page, dropped) =>
+      receive: (key, page) =>
         update(key, (buffer) => {
           const held = buffer.epoch !== undefined && buffer.epoch !== page.epoch ? [] : buffer.records;
-          return {
-            afterSequence: page.nextSequence,
-            dropped,
-            epoch: page.epoch,
-            error: null,
-            failure: undefined,
-            records: mergeConsoleRecords(held, page.records),
-          };
+          return { dropped: page.dropped, epoch: page.epoch, error: null, records: mergeConsoleRecords(held, page.records) };
         }),
-      rewind: (key) => update(key, (buffer) => ({ ...buffer, afterSequence: 0n, dropped: 0n })),
       setError: (key, error, failure) => update(key, (buffer) => ({ ...buffer, error, failure })),
       setFilter: (filter) => set({ filter }),
     };
@@ -197,15 +168,6 @@ function touched(
   }
   return next;
 }
-
-/** Rows Returned By The Live Source To The Shared Console Surface. */
-export type ConsoleRecords = {
-  clear: () => void;
-  dropped: bigint;
-  records: HubRecord[];
-  error: string | null;
-  failure?: NotificationFailure;
-};
 
 /** One Per Window: The Console Rows Outlive Every Route. */
 export const consoleRecordsStore = createConsoleRecordsStore();

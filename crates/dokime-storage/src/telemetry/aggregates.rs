@@ -191,10 +191,6 @@ impl Store {
             for row in 0..batch.num_rows() {
                 position += 1;
                 let value = field.value(&batch, row)?;
-                // Nonfinite Measurements Cannot Contribute to Numeric Statistics.
-                if matches!(&value, ScalarValue::Float(value) if !value.is_finite()) {
-                    continue;
-                }
                 for accumulator in &mut accumulators {
                     accumulator.push(position, &value)?;
                 }

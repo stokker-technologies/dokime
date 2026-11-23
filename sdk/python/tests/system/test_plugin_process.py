@@ -28,13 +28,14 @@ from urllib.parse import urlsplit
 # Third Party Imports
 from dokime_tools.test import policy
 from grpc import ServicerContext, StatusCode, server
+from harmos import CLASSIFICATION_PERMANENT
+from harmos._wire.model.v1.failure_pb2 import Failure
 from harmos._wire.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
 from harmos._wire.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
-from starter_project.plugin import ExamplePlugin
 
 # Local Imports
-from dokime_sdk import Failure
-from dokime_sdk._errors import wire_failure
+from starter_project.plugin import ExamplePlugin
+
 from dokime_sdk._wire.host.v1 import plugins_pb2
 from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 
@@ -59,7 +60,7 @@ class Host(PluginsServicer, LaunchesServicer):
     def Create(self, request: plugins_pb2.PluginsCreateRequest, context: ServicerContext) -> plugins_pb2.PluginsCreateResponse:
         self.requests.append(request)
         if self.refusal is not None:
-            context.set_trailing_metadata((("grpc-status-details-bin", wire_failure(self.refusal).SerializeToString()),))
+            context.set_trailing_metadata((("grpc-status-details-bin", self.refusal.SerializeToString()),))
             context.abort(StatusCode.FAILED_PRECONDITION, self.refusal.message)
         # Like the Product Host, an Existing Name Reuses Its Entry.
         entry = self.entries.setdefault(request.name, plugins_pb2.PluginEntry(name=request.name, revision=b"created"))
@@ -111,7 +112,12 @@ class PluginProcessStory(unittest.TestCase):
         self.assertEqual(list(self.host.entries), names[:1])
 
     def test_refused_registration_exits_nonzero_with_the_host_message(self) -> None:
-        self.host.refusal = Failure("Permanent", "plugin_incompatible", "Fixture Host Refuses SDK", "Rebuild the Fixture Plugin")
+        self.host.refusal = Failure(
+            classification=CLASSIFICATION_PERMANENT,
+            code="plugin_incompatible",
+            message="Fixture Host Refuses SDK",
+            action="Rebuild the Fixture Plugin",
+        )
         environment = dict(os.environ)
         environment.pop("HARMOS_HOST_ENDPOINT", None)
         environment.pop("HARMOS_LAUNCH_TOKEN", None)

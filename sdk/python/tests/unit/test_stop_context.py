@@ -12,9 +12,13 @@
 
 # Standard Library Imports
 from asyncio import Queue
+from datetime import UTC, datetime, timedelta
 from unittest import IsolatedAsyncioTestCase
+from unittest.mock import AsyncMock
 
 # Third Party Imports
+from google.protobuf.duration_pb2 import Duration
+from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import plugin
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
@@ -48,6 +52,18 @@ class WaitPlugin(Plugin):
 
 
 class StopContextTests(IsolatedAsyncioTestCase):
+    async def test_clock_calls_delegate_to_the_library_with_product_value_conversion(self) -> None:
+        owner = WaitPlugin()
+        transport = plugin.Context(Request(attempt=1), owner.identifier, {})
+        transport.sleep = AsyncMock()
+        transport.now = AsyncMock(return_value=Timestamp(seconds=42, nanos=125_000_000))
+        context = Context(transport, owner)
+        for duration in (1.25, timedelta(seconds=1.25)):
+            await context.sleep(duration)
+            transport.sleep.assert_awaited_with(Duration(seconds=1, nanos=250_000_000))
+        self.assertEqual(await context.now(), datetime.fromtimestamp(42.125, tz=UTC))
+        transport.now.assert_awaited_once_with()
+
     async def test_stop_context(self) -> None:
         owner = WaitPlugin()
         transport = plugin.Context(Request(scope="execution", attempt=1), "wait_plugin", {}, Queue())

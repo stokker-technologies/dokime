@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Dokime.Clients;
+using Harmos;
 using Harmos.Plugins;
 
 namespace Dokime;
@@ -58,7 +59,7 @@ public sealed class PluginCollection
       catch (OperationCanceledException)
       {
       }
-      catch (SdkError failure) when (closing.IsCancellationRequested && failure.Failure.Classification == "Cancelled")
+      catch (OperationException failure) when (closing.IsCancellationRequested && failure.Failure.Classification == Harmos.Classification.Cancelled)
       {
       }
       catch (Exception failure)
@@ -181,7 +182,7 @@ public sealed class RegisteredPlugin : IAsyncDisposable
   internal void CheckFailure()
   {
     if (entry.Failure is not null)
-      throw new InvalidOperationException($"Register Plugin: {entry.Failure.Message}; {entry.Failure.Action}");
+      throw new OperationException(entry.Failure);
   }
   public async Task<RegisteredPlugin> RefreshAsync(CancellationToken cancellationToken = default)
   {

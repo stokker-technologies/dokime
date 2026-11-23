@@ -45,6 +45,8 @@ using grpc::ServerContext;
 using grpc::ServerWriter;
 using grpc::Status;
 using grpc::StatusCode;
+using harmos::OperationError;
+using harmos::model::Failure;
 using std::string;
 
 /* === Macros === */
@@ -72,7 +74,7 @@ public:
   Status Get(ServerContext *context, const dokime::host::v1::CasesGetRequest *request,
              dokime::host::v1::CasesGetResponse *response) override {
     if (request->name() == "missing") {
-      harmos::model::Failure failure;
+      Failure failure;
       failure.set_classification(harmos::CLASSIFICATION_REFUSED);
       failure.set_code("case_absent");
       failure.set_operation("cases.get");
@@ -81,6 +83,9 @@ public:
       failure.mutable_cause()->set_code("selection_absent");
       (*failure.mutable_details())["case"] = request->name();
       failure.set_diagnostics("test-diagnostics");
+      failure.mutable_retry()->set_retryable(true);
+      failure.mutable_retry()->set_attempts(2);
+      failure.mutable_retry()->set_max_attempts(3);
       context->AddTrailingMetadata("grpc-status-details-bin", failure.SerializeAsString());
       return {StatusCode::FAILED_PRECONDITION, "Case Is Missing"};
     }
@@ -460,7 +465,7 @@ TEST_CASE("Bound Handles Compose Materialization, Lazy Run and Seal") {
   REQUIRE(cycle.phase() == "Sealed");
   client.close();
   client.close();
-  REQUIRE_THROWS_AS(execution.refresh(), dokime::Error);
+  REQUIRE_THROWS_AS(execution.refresh(), OperationError);
 }
 TEST_CASE("Bound Lists Retain Cuts and Refuse Repeated Tokens") {
   Host host;
@@ -485,14 +490,18 @@ TEST_CASE("Bound Calls Preserve Structured Host Failures") {
   try {
     client.cases().get("missing");
     FAIL("Read Missing Case Must Fail");
-  } catch (const dokime::Error &error) {
-    REQUIRE(error.failure.classification == "Refused");
-    REQUIRE(error.failure.code == "case_absent");
-    REQUIRE(error.failure.operation == "cases.get");
-    REQUIRE(error.failure.cause);
-    REQUIRE(error.failure.cause->code == "selection_absent");
-    REQUIRE(error.failure.details.at("case") == "missing");
-    REQUIRE(error.failure.diagnostics == "test-diagnostics");
+  } catch (const OperationError &error) {
+    REQUIRE(error.value.classification() == harmos::CLASSIFICATION_REFUSED);
+    REQUIRE(error.value.code() == "case_absent");
+    REQUIRE(error.value.operation() == "cases.get");
+    REQUIRE(error.value.has_cause());
+    REQUIRE(error.value.cause().code() == "selection_absent");
+    REQUIRE(error.value.details().at("case") == "missing");
+    REQUIRE(error.value.diagnostics() == "test-diagnostics");
+    REQUIRE(error.value.action() == "Materialize a Case Before Reading It");
+    REQUIRE(error.value.retry().retryable());
+    REQUIRE(error.value.retry().attempts() == 2);
+    REQUIRE(error.value.retry().max_attempts() == 3);
   }
 }
 TEST_CASE("Bound Readers Decode Frozen Types and Retain Evidence Cuts") {
@@ -564,7 +573,7 @@ TEST_CASE("Bound Executions Refuse Foreign Cases and Incomplete Observation") {
   REQUIRE(host.executions.starts == 0);
   host.executions.refuse_start = true;
   auto run = execution.run();
-  REQUIRE_THROWS_AS(run.next(), dokime::Error);
+  REQUIRE_THROWS_AS(run.next(), OperationError);
   host.executions.refuse_start = false;
   REQUIRE_FALSE(run.next());
 }

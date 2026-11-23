@@ -228,6 +228,10 @@ impl StreamConsumer<Application> for Samples {
 }
 
 impl SampleScope {
+    pub fn captures(&self, stream: &str) -> bool {
+        self.streams.contains_key(stream)
+    }
+
     pub fn new(catalog: &Declarations, streams: &[String]) -> crate::Result<Self> {
         let types = catalog.types.clone().ok_or_else(|| Error::Invalid("Open Sample Scope: Declare Its Row Types".into()))?;
         let pool =

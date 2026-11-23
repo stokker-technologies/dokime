@@ -14,5 +14,4 @@ pub(crate) use self::host::{
     HostOperation, HostOperationsGetOptions, HostOperationsListOptions, HostOperationsResource, HostPluginsResource,
     HostPluginsSettingsListOptions, HostPluginsSettingsResource, HostPluginsStateGetOptions, HostPluginsStatePutOptions,
     HostPluginsStateResource, HostPromptsCreateOptions, HostPromptsResource, HostRoot, HostSecretsGetOptions, HostSecretsResource,
-    HostTimeGetOptions, HostTimeResource, HostTimeSleepOptions,
 };

@@ -15,7 +15,7 @@ pub(crate) mod desktop;
 pub(crate) mod firewall;
 mod http;
 pub(crate) mod local;
-mod logging;
+pub(crate) mod logging;
 pub(crate) mod media;
 pub(crate) mod organization;
 pub(crate) mod plugins;

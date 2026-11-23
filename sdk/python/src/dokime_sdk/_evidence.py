@@ -24,9 +24,9 @@ from harmos import PageRequest, ReadCut
 
 # Local Imports
 from ._authoring import Record, Stream
-from ._errors import call, invalid
 from ._generated import client_types
 from ._payloads import Payload, message_type, unpack
+from ._transport import call, invalid
 from ._values import RecordRow, SampleRow, Scalar, decode
 from ._wire.host.v1.evidence.records_pb2 import CapturedRecord, CapturedRecordSelection, RecordScope, RecordsListResponse
 from ._wire.model.v1.evidence_pb2 import EvidenceScope, Window

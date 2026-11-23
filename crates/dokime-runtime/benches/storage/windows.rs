@@ -161,6 +161,7 @@ pub fn serve() -> Result<()> {
             default: Some(dokime::SettingValue {
                 value: Some(dokime::setting_value::Value::Duration(window)),
             }),
+            ..Default::default()
         })
         .suite(Suite::of::<()>().identifier("storage.windows").label("Window Benchmark").template(template))
         .run()

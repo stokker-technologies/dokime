@@ -13,6 +13,7 @@
 #include <grpc/event_engine/event_engine.h>
 #include <iostream>
 
+using dokime::Metadata;
 using dokime::Plugin;
 using dokime::operations::Context;
 using dokime::operations::operation;
@@ -57,6 +58,15 @@ int main() {
     echo<bool>(plugin, "flag");
     echo<int64_t>(plugin, "count");
     echo<double>(plugin, "number");
+    plugin.operation(operation<Metadata, Metadata>("values.untyped", Visibility::Public, [](Context &context, Metadata request) {
+      auto payload = dokime::json("{}");
+      (*payload.mutable_fields())["identifier"].set_string_value(request.identifier());
+      const auto response = context.operation("device.measure", payload);
+      Metadata result;
+      result.set_identifier(response.fields().at("identifier").string_value());
+      result.set_label(response.fields().at("label").string_value());
+      return result;
+    }));
     plugin.serve();
   } catch (const exception &error) {
     cerr << error.what() << '\n';

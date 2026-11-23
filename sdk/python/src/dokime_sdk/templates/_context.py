@@ -15,7 +15,7 @@ from collections import ChainMap
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from types import MappingProxyType
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 # Third Party Imports
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -24,7 +24,6 @@ from harmos import plugin
 # Local Imports
 from .. import operations
 from .._authoring import PromptDeclaration, Record, _Template, prompt
-from .._errors import refused
 from .._evidence import RecordsQuery
 from .._generated import shared
 from .._generated.shared import (
@@ -32,11 +31,13 @@ from .._generated.shared import (
     ExecutionProgressValue,
     TraceabilityEntry,
 )
+from .._parameters import Parameter
 from .._payloads import Payload, pack
 from .._transfers import publish_artifact
+from .._transport import refused
 from .._values import Artifact, Note, Scalar, Statistics, Termination, decode, encode
 from .._wire.model.v1.evidence_pb2 import ArtifactScope, Window
-from ._captures import CaptureMode, CaptureResult, Environment, FileSource, Severity
+from ._captures import CaptureMode, CaptureResult, Environment, FileSource
 from ._documents import Document, Section
 
 # Type Checking Imports
@@ -64,7 +65,7 @@ class Context(operations.Context):
         termination: int | None = None,
     ) -> None:
         super().__init__(transport, owner)
-        self.parameters: Mapping[str, Scalar] = MappingProxyType(dict(parameters))
+        self._parameters: Mapping[str, Scalar] = MappingProxyType(dict(parameters))
         self._execution = transport.scope()
         self.termination = Termination(termination) if termination is not None else None
         self._template = template
@@ -73,6 +74,12 @@ class Context(operations.Context):
     @property
     def execution(self) -> str:
         return self._execution
+
+    def parameter[T](self, declaration: Parameter[T]) -> T:
+        if not any(declaration is member for member in self._template._methods.values()):
+            raise ValueError("Read Parameter: Select a Parameter Declared by This Template")
+        name = declaration._message.metadata.identifier
+        return declaration._read(self._parameters[name])
 
     async def prompt(self, text: str | PromptDeclaration | shared.Prompt, *, choices: Sequence[str] = ()) -> str:
         if self._template is None:
@@ -152,11 +159,6 @@ class Context(operations.Context):
         current = await self._host.executions.progress.get()
         await self._host.executions.progress.set(
             ExecutionProgressValue(completed=completed, total=total, label=label), current.revision, request_id=request_id
-        )
-
-    async def log(self, text: str, *, severity: Severity = Severity.INFO, request_id: str | None = None) -> None:
-        await self._host.evidence.logs.append(
-            self.execution, cast(shared.Severity, severity.value), text, _timestamp(await self.now()), request_id=request_id
         )
 
     async def traceability(

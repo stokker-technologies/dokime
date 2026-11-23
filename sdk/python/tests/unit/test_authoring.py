@@ -17,28 +17,30 @@ import unittest
 from collections.abc import Callable, Mapping
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import ClassVar
 from unittest.mock import Mock, patch
 
 # Third Party Imports
-# Local Imports
+from harmos import plugin
+
 import dokime_sdk.operations
 import dokime_sdk.templates
+
+# Local Imports
 from dokime_sdk import Lane, Plugin, Scalar, Suite
 from dokime_sdk._generated import shared
-from dokime_sdk.operations import Operation, OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
+from dokime_sdk.operations import OperationPolicy, RetryPolicy, Visibility, operation
 from dokime_sdk.templates import (
     Document,
     Materialization,
+    Observer,
     Section,
     TestTemplate,
     criterion,
     materialize,
-    observer,
     prompt,
     record,
     step,
-    stream,
 )
 
 # Type Checking Imports
@@ -54,7 +56,7 @@ from dokime_sdk.templates import (
 
 
 class ConfirmationTestTemplate(TestTemplate):
-    confirmation = record(bool, label="Confirmation")
+    confirmation = record(bool, label="Confirmation", identifier="confirmation")
 
     @step("Confirm")
     async def confirm(self, ctx: dokime_sdk.templates.Context) -> None:
@@ -72,6 +74,7 @@ class CaptureSuite(Suite):
 class ExamplePlugin(Plugin):
     version = "0.1.5"
     suites: ClassVar[list[type[Suite]]] = [CaptureSuite]
+    records = (ConfirmationTestTemplate.confirmation,)
 
 
 class AuthoringStory(unittest.TestCase):
@@ -96,9 +99,10 @@ class AuthoringStory(unittest.TestCase):
         class ReadingsPlugin(Plugin):
             version = "1.0.0"
             suites = (ReadingsSuite,)
+            records = (ReadingsTestTemplate.reading,)
 
         bound = ReadingsPlugin()._suites[0].templates[0].documents[0].message.sections[0].cards[0].plot
-        self.assertEqual(bound.x.transform.at.record_type, "readings.readings.readings.reading")
+        self.assertEqual(bound.x.transform.at.record_type, "readings.reading")
         self.assertEqual(bound.filters[0].expression.transform.input.transform.at.record_type, bound.x.transform.at.record_type)
         self.assertEqual(sampled.message.transform.at.record_type, "reading")
 
@@ -111,7 +115,16 @@ class AuthoringStory(unittest.TestCase):
         async def read(ctx: dokime_sdk.operations.Context, request: int) -> int:
             return request
 
+        class TrackingTestTemplateStatus(Observer[int]):
+            identifier = "example.status"
+            label = "Status"
+            row = int
+
+            async def sample(self, ctx: dokime_sdk.operations.Context) -> int:
+                return 1
+
         class TrackingTestTemplate(TestTemplate):
+            uses_streams = (TrackingTestTemplateStatus,)
             identifier = "example.layout.tracking"
             reading = record(int, identifier="example.reading")
             question = prompt("Continue?", identifier="example.question")
@@ -121,11 +134,6 @@ class AuthoringStory(unittest.TestCase):
             async def take(self, ctx: dokime_sdk.templates.Context) -> None:
                 pass
 
-            @stream("Status", row=int, identifier="example.status")
-            @observer()
-            async def status(self, ctx: dokime_sdk.templates.Context) -> int:
-                return 1
-
             @materialize
             def materialize(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
                 case.step("Read", self.take, identifier="example.channel")
@@ -134,16 +142,21 @@ class AuthoringStory(unittest.TestCase):
             identifier = "example.layout"
             templates = (TrackingTestTemplate,)
 
+        class QualifiedPluginSystem(Observer[int]):
+            identifier = "example.system"
+            label = "System"
+            row = int
+
+            async def sample(self, ctx: dokime_sdk.operations.Context) -> int:
+                return 1
+
         class QualifiedPlugin(Plugin):
             identifier = "example"
             version = "1.0.0"
             suites = (LayoutSuite,)
+            records = (TrackingTestTemplate.reading,)
             operations = (measure, read)
-
-            @stream("System", row=int, identifier="example.system")
-            @observer()
-            async def system(self, ctx: dokime_sdk.operations.Context) -> int:
-                return 1
+            observers = (TrackingTestTemplateStatus, QualifiedPluginSystem)
 
         plugin = QualifiedPlugin()
         template = plugin._suites[0].templates[0]
@@ -152,7 +165,7 @@ class AuthoringStory(unittest.TestCase):
         self.assertEqual(template.resolve(TrackingTestTemplate.reading), "example.reading")
         self.assertEqual(template.resolve(TrackingTestTemplate.question), "example.question")
         self.assertEqual(template.resolve(TrackingTestTemplate.take), "example.take")
-        self.assertEqual(template.resolve(TrackingTestTemplate.status), "example.status")
+        self.assertEqual(template.resolve(TrackingTestTemplateStatus), "example.status")
         self.assertEqual(template.definition().documents[0].metadata.identifier, "example.report")
         self.assertEqual(template.build({}).message.steps[0].metadata.identifier, "example.channel")
         declarations = plugin.declarations()
@@ -162,92 +175,6 @@ class AuthoringStory(unittest.TestCase):
         self.assertTrue(all(identifier.startswith("example.") for identifier in registered))
         required = {item.id for item in declarations.requires}
         self.assertTrue({"measure", "example.read"}.isdisjoint(required))
-        self.assertEqual(dokime_sdk.operations.declaration(measure).identifier, "measure")
-        self.assertEqual(dokime_sdk.operations.declaration(read).identifier, "example.read")
-
-    def test_setting_bounds(self) -> None:
-        for minimum, default, maximum, field, expected in (
-            (SettingValue(integer=0), SettingValue(integer=7), SettingValue(integer=10), "integer", (0, 7, 10)),
-            (SettingValue(number=0.0), SettingValue(number=1.5), SettingValue(number=2.0), "number", (0.0, 1.5, 2.0)),
-            (
-                SettingValue(duration=timedelta()),
-                SettingValue(duration=timedelta(seconds=1)),
-                SettingValue(duration=timedelta(seconds=2)),
-                "duration",
-                (timedelta(), timedelta(seconds=1), timedelta(seconds=2)),
-            ),
-        ):
-            declaration = SettingDeclaration("reading", "Reading", "", default, minimum=minimum, maximum=maximum)
-            value = declaration._definition()
-            for bound, expected_value in zip((value.minimum, value.default, value.maximum), expected, strict=True):
-                self.assertEqual(bound.WhichOneof("value"), field)
-                actual = bound.duration.ToTimedelta() if field == "duration" else getattr(bound, field)
-                self.assertEqual(actual, expected_value)
-        unbounded = SettingDeclaration("enabled", "Enabled", "", SettingValue(flag=False))._definition()
-        self.assertFalse(unbounded.HasField("minimum"))
-        self.assertFalse(unbounded.HasField("maximum"))
-
-    def test_scalar_list_elements_and_choices_preserve_wire_kinds(self) -> None:
-        for value, kind, field in (
-            (True, shared.VALUE_TYPE_BOOLEAN, "boolean"),
-            (-2, shared.VALUE_TYPE_INTEGER, "integer"),
-            (1.5, shared.VALUE_TYPE_NUMBER, "number"),
-            ("fast", shared.VALUE_TYPE_TEXT, "text"),
-        ):
-            listed = dokime_sdk.templates.Parameter.list("values", "Values", type(value)).default([value]).build()
-            self.assertEqual(listed.element_type, kind)
-            self.assertEqual(listed.expression.literal.list.values[0].WhichOneof("kind"), field)
-            chosen = dokime_sdk.templates.Parameter.choice("mode", "Mode", [value]).default(value).build()
-            self.assertEqual(chosen.type, kind)
-            self.assertEqual(chosen.choices[0].WhichOneof("kind"), field)
-            self.assertEqual(getattr(chosen.expression.literal, field), value)
-
-    def test_declaration_builders_preserve_parameters_and_document_queries(self) -> None:
-        templates = dokime_sdk.templates
-        parameter = templates.Parameter.text("serial", "Serial").required().build()
-        self.assertTrue(parameter.required)
-        self.assertFalse(parameter.HasField("expression"))
-        values = templates.Parameter.list("channels", "Channels", int).default([1, 2]).items(1, 4).build()
-        self.assertEqual([value.integer for value in values.expression.literal.list.values], [1, 2])
-        choices = templates.Parameter.choice("mode", "Mode", ["fast", "slow"]).default("fast").build()
-        self.assertIn(choices.expression.literal, choices.choices)
-        self.assertRaises(ValueError, templates.Parameter.choice("mode", "Mode", ["fast"]).default("other").build)
-        self.assertRaises(ValueError, templates.Parameter.list("channels", "Channels", int).default(["wrong"]).build)
-        self.assertRaises(ValueError, templates.Parameter.choice, "mode", "Mode", [])
-        self.assertRaises(ValueError, templates.Parameter.choice, "mode", "Mode", [True, 1])
-
-        declaration = record(int, identifier="reading")
-        reading = declaration.field()
-        section = Section("Readings").repeat(reading, order_by=reading.max()).traceability()
-        plot = templates.time_series(templates.field("samples", "value")).x(reading.time_between("reading")).markers("reading")
-        document = Document("Report").section(section.plot(plot))
-        reopened = type(document.message).FromString(document.message.SerializeToString())
-        repeated = reopened.sections[0]
-        self.assertEqual(repeated.repeat.value.record.identifier, "reading")
-        self.assertEqual(repeated.repeat.order_by.aggregate.input, reading.message)
-        self.assertEqual(repeated.cards[0].evidence, dokime_sdk.templates._documents.shared.EVIDENCE_CARD_TRACEABILITY)
-        self.assertEqual(list(repeated.cards[1].plot.marker_records), ["reading"])
-        section.repeat(reading)
-        self.assertFalse(section.message.repeat.HasField("order_by"))
-        self.assertRaises(ValueError, record(int).field)
-
-        class ReadingsTestTemplate(TestTemplate):
-            reading = declaration
-            documents = (document,)
-
-        class ReadingsSuite(Suite):
-            templates = (ReadingsTestTemplate,)
-
-        class ReadingsPlugin(Plugin):
-            version = "1.0.0"
-            suites = (ReadingsSuite,)
-
-        bound = ReadingsPlugin()._suites[0].templates[0]
-        cards = bound.documents[0].message.sections[0].cards
-        self.assertEqual(bound.documents[0].message.sections[0].repeat.value.record.identifier, "readings.readings.readings.reading")
-        self.assertEqual(list(cards[1].plot.marker_records), ["readings.readings.readings.reading"])
-        self.assertEqual(cards[1].plot.x.transform.time_between, "readings.readings.readings.reading")
-        self.assertEqual(reading.message.record.identifier, "reading")
 
     def test_lanes_preserve_declarations_and_operation_assignments(self) -> None:
         instrument = Lane("instrument", serial=True)
@@ -293,6 +220,11 @@ class AuthoringStory(unittest.TestCase):
         installed = distributions.start()
         self.addCleanup(distributions.stop)
         self.assertEqual(InstalledPlugin()._version, "2.3.4")
+        parent = Mock()
+        parent.version = "0.1.0"
+        parent.read_text.return_value = json.dumps({"url": Path(__file__).resolve().parents[2].as_uri(), "dir_info": {"editable": True}})
+        installed.return_value = [parent, unrelated, owning]
+        self.assertEqual(InstalledPlugin()._version, "2.3.4")
         installed.return_value = [unrelated]
         self.assertRaises(ValueError, InstalledPlugin)
         installed.return_value = [owning, owning]
@@ -305,21 +237,22 @@ class AuthoringStory(unittest.TestCase):
         template = plugin._suites[0].templates[0]
         self.assertEqual(plugin.identifier, "example")
         self.assertEqual(template.identifier, "example.capture.confirmation")
-        self.assertEqual(template.resolve(ConfirmationTestTemplate.confirmation), "example.capture.confirmation.confirmation")
+        self.assertEqual(template.resolve(ConfirmationTestTemplate.confirmation), "example.confirmation")
         self.assertEqual(template.resolve(ConfirmationTestTemplate().confirm), "example.capture.confirmation.confirm")
         self.assertIsNone(ConfirmationTestTemplate.identifier)
-        self.assertIsNone(ConfirmationTestTemplate.confirmation.identifier)
+        self.assertEqual(ConfirmationTestTemplate.confirmation.identifier, "confirmation")
 
         class OtherSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [ConfirmationTestTemplate]
 
         class OtherPlugin(ExamplePlugin):
             suites: ClassVar[list[type[Suite]]] = [OtherSuite]
+            records = (ConfirmationTestTemplate.confirmation,)
 
         other = OtherPlugin()._suites[0].templates[0]
-        self.assertEqual(other.resolve(ConfirmationTestTemplate.confirmation), "other.other.confirmation.confirmation")
+        self.assertEqual(other.resolve(ConfirmationTestTemplate.confirmation), "other.confirmation")
         self.assertEqual(template.identifier, "example.capture.confirmation")
-        self.assertRaises(ValueError, other.resolve, "other.other.confirmation.confirmation")
+        self.assertRaises(ValueError, other.resolve, "other.confirmation")
 
     def test_acronyms_suffixes_and_local_overrides(self) -> None:
         class ReadHTTPVoltageTestTemplate(TestTemplate):
@@ -335,6 +268,7 @@ class AuthoringStory(unittest.TestCase):
 
         class HTTPPlugin(ExamplePlugin):
             suites: ClassVar[list[type[Suite]]] = [HTTPAccuracySuite]
+            records = (ReadHTTPVoltageTestTemplate.reading,)
 
         plugin = HTTPPlugin()
         bound = plugin._suites[0]
@@ -343,7 +277,7 @@ class AuthoringStory(unittest.TestCase):
         self.assertEqual(bound.identifier, "http.http_accuracy")
         self.assertEqual(bound.label, "HTTP Accuracy")
         self.assertEqual(template.identifier, "http.http_accuracy.read_http_voltage")
-        self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.reading), "http.http_accuracy.read_http_voltage.rms")
+        self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.reading), "http.rms")
         self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.measure), "http.http_accuracy.read_http_voltage.take")
 
     def test_duplicate_empty_invalid_and_reused_members_fail(self) -> None:
@@ -351,17 +285,13 @@ class AuthoringStory(unittest.TestCase):
             declaration = type("InvalidSuite", (CaptureSuite,), {"identifier": identity})
             plugin = type("InvalidPlugin", (ExamplePlugin,), {"suites": [declaration]})
             self.assertRaises(ValueError, plugin)
-        for members in (
-            {"a": record(bool, identifier="same"), "b": record(str, identifier="same")},
-            {"reading": record(bool, identifier="cleanup")},
-        ):
-            template = type("InvalidTestTemplate", (TestTemplate,), members)
-            suite = type("InvalidSuite", (Suite,), {"templates": [template]})
-            plugin = type("InvalidPlugin", (ExamplePlugin,), {"suites": [suite]})
-            self.assertRaises(ValueError, plugin)
 
         class DuplicatePlugin(ExamplePlugin):
             suites: ClassVar[list[type[Suite]]] = [CaptureSuite, CaptureSuite]
+            records = (
+                ConfirmationTestTemplate.confirmation,
+                ConfirmationTestTemplate.confirmation,
+            )
 
         self.assertRaises(ValueError, DuplicatePlugin)
 
@@ -408,21 +338,19 @@ class AuthoringStory(unittest.TestCase):
         class TypedPlugin(ExamplePlugin):
             operations: ClassVar[list[Callable[..., object]]] = [readVoltage]
 
+        self.assertIsInstance(vars(readVoltage)["__dokime_operation__"], plugin.Operation)
         declaration = next(item for item in TypedPlugin().declarations().operations if item.id == "typed.read_voltage")
         self.assertEqual(declaration.request, "google.protobuf.Int64Value")
         self.assertEqual(declaration.response, "google.protobuf.BoolValue")
-        self.assertRaises(TypeError, Operation, "unsupported", bytes, bool, Visibility.PUBLIC)
 
         async def ambiguous(ctx: dokime_sdk.operations.Context, request: int | str) -> bool:
             return True
 
         self.assertRaises(TypeError, operation(visibility=Visibility.PUBLIC), ambiguous)
-        self.assertRaises(TypeError, Operation, "wrong_visibility", int, int, cast(Any, 2))
 
     def test_policy_has_one_retry_source_and_requires_replay_safety(self) -> None:
         policy = OperationPolicy(retries=RetryPolicy(2, timedelta(milliseconds=100)))
         self.assertRaises(ValueError, step, "Measure", retries=1, policy=policy)
-        self.assertRaises(ValueError, Operation, "read", int, int, Visibility.PUBLIC, policy)
         self.assertRaises(ValueError, RetryPolicy, 0, timedelta())
         self.assertRaises(ValueError, OperationPolicy, timeout=timedelta())
 
@@ -439,32 +367,6 @@ class AuthoringStory(unittest.TestCase):
             error = r"measure:.*retries\.initial"
             self.assertRaisesRegex(ValueError, error, step("Measure", policy=policy), measure)
             self.assertRaisesRegex(ValueError, r"evaluate:.*retries\.initial", criterion("Evaluate", policy=policy), evaluate)
-            self.assertRaisesRegex(ValueError, error, Operation, "measure", int, int, Visibility.PUBLIC, policy, replay_safe=True)
-
-    def test_operation_and_template_contexts_are_distinct(self) -> None:
-        operations = dokime_sdk.operations.Context
-        templates = dokime_sdk.templates.Context
-        self.assertIsNot(operations, templates)
-        self.assertTrue(issubclass(templates, operations))
-        for name in ("operation", "sleep", "now", "cancelled", "secret", "settings"):
-            self.assertTrue(callable(getattr(operations, name)))
-        for name in (
-            "prompt",
-            "record",
-            "records",
-            "statistics",
-            "progress",
-            "log",
-            "traceability",
-            "document",
-            "artifact",
-            "capture",
-            "start_capture",
-            "stop_capture",
-            "environment",
-        ):
-            self.assertFalse(hasattr(operations, name))
-            self.assertTrue(callable(getattr(templates, name)))
 
     def test_document_declarations_bind_copies_in_each_template_home(self) -> None:
         class ReportTestTemplate(TestTemplate):

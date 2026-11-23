@@ -72,7 +72,7 @@ class PluginDescription(unittest.TestCase):
                 for step in template["steps"]
             ],
         )
-        self.assertIn("example.capture.confirmation.temperature", [item.id for item in description.streams])
+        self.assertIn("example.temperature", [item.id for item in description.streams])
 
 
 # === Public Functions === #

@@ -2,7 +2,7 @@
 <script lang="ts">
   import { formatUnitLabel } from "../../lib/format";
   import { cutKey } from "../../lib/rpc/canonical";
-  import { sequentialColorScale } from "../colors";
+  import { plotColor } from "../colors";
   import { orderedInstants } from "../instants";
   import { plotPlaceholderText } from "../plot-placeholder";
   import { plotPlayback } from "../playback.svelte";
@@ -21,11 +21,19 @@
     () => instants,
   );
   const facets = $derived(heatStripSample(playback.data.series, playback.instant));
-  const { min, max, present, color } = $derived(
-    sequentialColorScale(playback.data.series.flatMap((series) => series.points.map((point) => point.y))),
+  // A count or occupancy ramps from the neutral surface at zero to the plot palette's first color.
+  const values = $derived(
+    playback.data.series.flatMap((series) =>
+      series.points.flatMap((point) => (point.y !== null && Number.isFinite(point.y) ? [point.y] : [])),
+    ),
   );
+  const min = $derived(values.reduce((low, value) => Math.min(low, value), 0));
+  const max = $derived(values.reduce((high, value) => Math.max(high, value), min));
+  const present = $derived(values.length > 0);
+  const accent = plotColor(0);
+  const share = (value: number) => (max > min ? (value - min) / (max - min) : 0);
+  const fill = (value: number) => `color-mix(in oklab, ${accent} ${Math.round(share(value) * 100)}%, var(--muted))`;
   const hasPoints = $derived(playback.data.series.some((series) => series.points.length));
-  const gradient = $derived(Array.from({ length: 11 }, (_, index) => color(min + ((max - min) * index) / 10)).join(", "));
 </script>
 
 {#if hasPoints}
@@ -37,7 +45,7 @@
       {#each facets as facet (facet.key)}
         <div class="grid gap-1" data-facet={facet.key}>
           {#if facet.label}
-            <span class="text-sm">{facet.label}</span>
+            <span class="text-sm font-semibold">{facet.label}</span>
           {/if}
           <div
             class="grid w-full min-w-0 gap-1"
@@ -51,15 +59,14 @@
               {@const title = [label, facet.label, value === null ? "No Value" : String(point.exact_y ?? value), point.instant]
                 .filter(Boolean)
                 .join(" · ")}
-              {@const bright = value !== null && max > min && (value - min) / (max - min) > 0.72}
               <div
-                class="grid min-w-0 place-items-center rounded border px-1 break-all text-center text-xs tabular-nums"
+                class="grid min-w-0 place-items-center rounded border px-1 break-all text-center text-xs font-semibold tabular-nums"
                 data-cell={label}
                 data-valid={String(value !== null)}
                 {title}
                 style:min-height="3rem"
-                style:background-color={value === null ? undefined : color(value)}
-                style:color={value === null ? undefined : bright ? "#fff" : "#18181b"}
+                style:background-color={value === null ? undefined : fill(value)}
+                style:color={value !== null && share(value) > 0.55 ? "#fff" : undefined}
               >
                 {label}
               </div>
@@ -69,9 +76,9 @@
       {/each}
     </div>
     {#if present}
-      <div class="flex items-center gap-2 text-xs tabular-nums" data-heat-legend="true" data-min={min} data-max={max}>
+      <div class="flex items-center gap-2 text-xs font-semibold tabular-nums" data-heat-legend="true" data-min={min} data-max={max}>
         <span>{String(min)}</span>
-        <span class="h-3 w-32 rounded" style:background={`linear-gradient(to right, ${gradient})`}></span>
+        <span class="h-3 w-32 rounded" style:background={`linear-gradient(in oklab to right, var(--muted), ${accent})`}></span>
         <span>{String(max)}</span>
         {#if plot.unit}
           <span>[{plot.unit}]</span>

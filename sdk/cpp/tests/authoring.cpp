@@ -11,6 +11,7 @@
 
 #include "dokime/plugin.hpp"
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
 #include <limits>
 
 using dokime::Plugin;
@@ -19,6 +20,7 @@ using dokime::RecordContracts;
 using dokime::Suite;
 using dokime::Suites;
 using dokime::operations::operation;
+using dokime::operations::Settings;
 using dokime::operations::Visibility;
 using dokime::templates::Case;
 using dokime::templates::Context;
@@ -36,6 +38,9 @@ using std::make_shared;
 using std::numeric_limits;
 using std::size_t;
 using std::string;
+using std::chrono::duration;
+using std::chrono::milliseconds;
+using std::chrono::seconds;
 
 /* === Macros === */
 
@@ -276,13 +281,55 @@ TEST_CASE("Retry Policies Require Positive Backoff Before Composition") {
   dokime::operations::OperationPolicy policy;
   policy.attempts = 2;
   REQUIRE_THROWS_AS(echo.policy(policy), invalid_argument);
-  policy.backoff = std::chrono::milliseconds(20);
-  policy.timeout = std::chrono::seconds(3);
+  policy.backoff = milliseconds(20);
+  policy.timeout = seconds(3);
   echo.replay_safe().policy(policy);
   Plugin plugin("policy", "1.0.0");
   REQUIRE_NOTHROW(plugin.operation(echo));
-  policy.backoff = std::chrono::duration<double>(numeric_limits<double>::infinity());
+  policy.backoff = duration<double>(numeric_limits<double>::infinity());
   REQUIRE_THROWS_AS(echo.policy(policy), invalid_argument);
+}
+
+TEST_CASE("Typed Settings Preserve Signed Durations and Inclusive Bounds") {
+  class ClockSettings : public Settings {
+  public:
+    using Settings::Settings;
+    const duration<double> offset = setting<duration<double>>("offset", "Clock Offset", duration<double>(-1.25), seconds(-2), seconds(0));
+  };
+  class RequiredSettings : public Settings {
+  public:
+    using Settings::Settings;
+    const string mode = setting<string>("mode", "Mode", "first", {}, {}, "", {"first", "second"}, true);
+  };
+  const RequiredSettings required;
+  REQUIRE(required.declarations().front().required());
+  REQUIRE(required.declarations().front().choices_size() == 2);
+  const ClockSettings defaults;
+  const auto &declaration = defaults.declarations().front();
+  REQUIRE(declaration.default_().duration().seconds() == -1);
+  REQUIRE(declaration.default_().duration().nanos() == -250000000);
+  REQUIRE(declaration.minimum().duration().seconds() == -2);
+  REQUIRE(declaration.maximum().has_duration());
+  harmos::SettingValues saved;
+  auto *saved_duration = (*saved.mutable_values())["offset"].mutable_duration();
+  saved_duration->set_seconds(-1);
+  saved_duration->set_nanos(-500000000);
+  const ClockSettings snapshot(saved);
+  REQUIRE(snapshot.offset.count() == -1.5);
+}
+
+TEST_CASE("Plugin Records Share One Contract Across Templates and Observers") {
+  const Record<bool> event("event", "Event");
+  Plugin plugin("events", "1.0.0");
+  plugin.record(event);
+  plugin.operation(operation<bool, bool>("events.write", Visibility::Public, [event](dokime::operations::Context &context, bool value) {
+    context.record(event, value);
+    return value;
+  }));
+  const auto description = plugin.describe();
+  REQUIRE(description.records.size() == 1);
+  REQUIRE(description.records.front().identifier == "events.event");
+  REQUIRE_THROWS_AS(plugin.record(event), invalid_argument);
 }
 
 /* === Private Functions === */

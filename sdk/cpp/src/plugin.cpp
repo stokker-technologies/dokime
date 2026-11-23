@@ -52,7 +52,7 @@ using std::vector;
 
 using google::protobuf::util::MessageDifferencer;
 using harmos::Declarations;
-using harmos::Failure;
+using harmos::OperationError;
 using harmos::OperationPolicy;
 using harmos::VISIBILITY_PROTECTED;
 using harmos::plugin::Contribution;
@@ -372,7 +372,7 @@ Plugin &Plugin::suite(Suite suite) {
           try {
             transport.scope();
             throw invalid_argument("Materialize Test Case: Omit the Execution Scope");
-          } catch (const Failure &failure) {
+          } catch (const OperationError &failure) {
             if (failure.value.code() != "scope_required")
               throw;
           }
@@ -459,7 +459,13 @@ harmos::plugin::Plugin Plugin::compose() const {
   registrar.add(Operation<Empty, Empty>(identifier_ + ".initialize", VISIBILITY_PROTECTED,
                                         [plugin = plugin_](harmos::plugin::Context &transport, const Empty &) {
                                           operations::Context context(transport, plugin);
-                                          context.plugin().initialize(context);
+                                          try {
+                                            plugin->activate(context);
+                                            context.plugin().initialize(context);
+                                          } catch (...) {
+                                            plugin->close();
+                                            throw;
+                                          }
                                           return Empty{};
                                         }));
   registrar.add(Operation<Empty, Empty>(identifier_ + ".finalize", VISIBILITY_PROTECTED,
@@ -469,9 +475,11 @@ harmos::plugin::Plugin Plugin::compose() const {
                                             context.plugin().finalize(context);
                                           } catch (...) {
                                             executions->clear();
+                                            plugin->close();
                                             throw;
                                           }
                                           executions->clear();
+                                          plugin->close();
                                           return Empty{};
                                         }));
   if (suites_.suites_size())

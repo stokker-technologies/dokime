@@ -4,6 +4,8 @@ using Dokime;
 using Stories.Support;
 using Xunit;
 
+using Harmos;
+
 namespace Stories.Integration;
 
 public sealed class ClientRunsBoundExecutions
@@ -123,7 +125,7 @@ public sealed class ClientRunsBoundExecutions
     await first.CloseAsync();
     backend.RegistrationRefusal = "fixture-sdk-refusal";
     var client = Connect(backend);
-    var failure = await Assert.ThrowsAsync<SdkError>(() => client.Plugins.RegisterAsync(new ExamplePlugin()));
+    var failure = await Assert.ThrowsAsync<OperationException>(() => client.Plugins.RegisterAsync(new ExamplePlugin()));
     Assert.Contains(backend.RegistrationRefusal, failure.Message);
     Assert.Empty(client.Plugins.Owned);
     Assert.Equal(1, backend.RegisteredCount);

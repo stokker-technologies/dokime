@@ -17,13 +17,16 @@
 use std::path::{Path, PathBuf};
 
 // Third Party Imports
-use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, prelude::*};
+use harmos_runtime::services::status::StatusLayer;
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, prelude::*, reload};
 
 // Local Imports
 
 /* === Constants === */
 
 static ACTIVE_LOG: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+// The Embedded Host Starts After Logging; Its Status History Joins Through This Slot.
+static HOST_STATUS: std::sync::OnceLock<reload::Handle<Option<StatusLayer>, Registry>> = std::sync::OnceLock::new();
 
 /* === Macros === */
 
@@ -53,7 +56,9 @@ pub(crate) fn active_log() -> Option<PathBuf> {
 pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &str) -> LoggingGuards {
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
     let stderr_layer: BoxedLayer = fmt::layer().with_writer(stderr_writer).with_filter(env_filter()).boxed();
-    let mut layers: Vec<BoxedLayer> = vec![stderr_layer];
+    let (status_layer, status) = reload::Layer::new(None::<StatusLayer>);
+    let _ = HOST_STATUS.set(status);
+    let mut layers: Vec<BoxedLayer> = vec![stderr_layer, status_layer.with_filter(env_filter()).boxed()];
 
     let mut file_guard = None;
     let mut log_path = None;
@@ -76,6 +81,13 @@ pub(crate) fn init(directory: &Path, retained_files: usize, slug: &str, label: &
     }
 
     LoggingGuards { _stderr: stderr_guard, _file: file_guard }
+}
+
+/// Feed the Embedded Host's Status History, Which the Console's Instance Scope Reads.
+pub(crate) fn attach_host_status(layer: StatusLayer) {
+    if let Some(status) = HOST_STATUS.get() {
+        let _ = status.reload(Some(layer));
+    }
 }
 
 /* === Private Functions === */

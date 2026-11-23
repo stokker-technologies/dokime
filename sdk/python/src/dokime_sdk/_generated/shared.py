@@ -4,12 +4,14 @@ from harmos._wire.model.v1.callers_pb2 import ALL, CALLERS_UNSPECIFIED, CLIENTS,
 from harmos._wire.model.v1.description_pb2 import Declarations, LaneDeclaration
 from harmos._wire.model.v1.failure_pb2 import (
     CLASSIFICATION_CANCELLED,
+    CLASSIFICATION_INVALID,
     CLASSIFICATION_PERMANENT,
     CLASSIFICATION_REFUSED,
     CLASSIFICATION_TIMED_OUT,
     CLASSIFICATION_TRANSIENT,
     CLASSIFICATION_UNSPECIFIED,
     Classification,
+    OperationRetry,
 )
 from harmos._wire.model.v1.file_pb2 import (
     UPLOAD_STATE_ABANDONED,
@@ -665,6 +667,7 @@ __all__ = [
     "CAPTURE_GAP_REASON_UNSPECIFIED",
     "CAPTURE_GAP_REASON_VANISHED",
     "CLASSIFICATION_CANCELLED",
+    "CLASSIFICATION_INVALID",
     "CLASSIFICATION_PERMANENT",
     "CLASSIFICATION_REFUSED",
     "CLASSIFICATION_TIMED_OUT",
@@ -909,6 +912,7 @@ __all__ = [
     "NumberRange",
     "OperationContract",
     "OperationPolicy",
+    "OperationRetry",
     "OperationsGetResponse",
     "OperationsListResponse",
     "Origin",

@@ -22,10 +22,10 @@ from grpc.aio import ServicerContext, server
 
 # Local Imports
 from dokime_sdk._connection import connect
-from dokime_sdk._errors import SdkError
 from dokime_sdk._plugin import Plugin
 from dokime_sdk._wire.host.v1 import plugins_pb2
 from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
+from dokime_sdk.operations import OperationError
 
 # Type Checking Imports
 
@@ -177,12 +177,11 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
 
         self.fail_ready = True
         self.ready.set()
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.client.plugins.register(FailingPlugin(), address="127.0.0.1:0", request_id="register-failure")
-        self.assertEqual(failed.exception.request_id, "register-failure")
-        cause = failed.exception.failure.cause
-        self.assertIsNotNone(cause)
-        assert cause is not None
+        self.assertEqual(failed.exception.value.details["request_id"], "register-failure")
+        cause = failed.exception.value.cause
+        self.assertTrue(failed.exception.value.HasField("cause"))
         self.assertEqual(cause.details, {"port": "1"})
         self.assertEqual(list(self.entries), ["failing"])
         self.assertNotIn("Delete", self.trace)
@@ -194,7 +193,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
 
         self.offline = True
         self.ready.set()
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await self.client.plugins.register(WaitingPlugin(), address="127.0.0.1:0")
         self.assertEqual(list(self.entries), ["waiting"])
         self.assertEqual(self.client.plugins._owned, {})

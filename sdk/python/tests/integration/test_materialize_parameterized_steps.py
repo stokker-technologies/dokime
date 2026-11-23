@@ -11,7 +11,6 @@
 # === Imports === #
 
 # Standard Library Imports
-import asyncio
 import runpy
 import unittest
 from collections.abc import Mapping
@@ -23,22 +22,22 @@ from typing import Any, ClassVar, cast
 from harmos import plugin
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
-# Local Imports
 import dokime_sdk.operations
 import dokime_sdk.templates
-from dokime_sdk import Client, Failure, Plugin, ResultStatus, Scalar, Suite
-from dokime_sdk.operations import OperationPolicy, RetryPolicy
+
+# Local Imports
+from dokime_sdk import Client, Plugin, ResultStatus, Scalar, Suite
+from dokime_sdk.operations import OperationError, OperationPolicy, RetryPolicy
 from dokime_sdk.templates import (
     Context,
     Materialization,
-    ParameterDefinition,
+    Observer,
+    Parameter,
     Termination,
     TestTemplate,
     criterion,
     materialize,
-    observer,
     step,
-    stream,
 )
 
 # Type Checking Imports
@@ -119,25 +118,32 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
     async def test_plugin_observers_use_the_actual_plugin_without_execution_fields(self) -> None:
         contexts: list[dokime_sdk.operations.Context] = []
 
+        class ObserverPluginReading(Observer[int]):
+            identifier = "reading"
+            label = "Reading"
+            row = int
+
+            async def sample(self, ctx: dokime_sdk.operations.Context) -> int:
+                contexts.append(ctx)
+                owner = cast(ObserverPlugin, ctx.plugin)
+                owner.reading_count += 1
+                return owner.reading_count
+
         class ObserverPlugin(Plugin):
+            observers = (ObserverPluginReading,)
             version = "1.0.0"
 
             def __init__(self) -> None:
                 self.reading_count = 0
                 super().__init__()
 
-            @stream("Reading", row=int)
-            @observer()
-            async def reading(self, ctx: dokime_sdk.operations.Context) -> int:
-                contexts.append(ctx)
-                self.reading_count += 1
-                return self.reading_count
-
         author = ObserverPlugin()
         definition, handler, observing = author._plugin._registrations()[1][0]
         self.assertTrue(observing)
         self.assertEqual(definition.id, "observer.reading")
         transport = plugin.Context(Request(attempt=1), author.identifier, {})
+        assert definition.on_start is not None
+        await definition.on_start(transport)
         for expected in (1, 2):
             result = await cast(Any, handler)(transport)
             self.assertEqual(result.value, expected)
@@ -146,62 +152,62 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(hasattr(context, "execution"))
             self.assertFalse(hasattr(context, "parameters"))
 
-    async def test_cleanup_retains_partial_state_after_failed_or_cancelled_initialization(self) -> None:
-        for failure in (ValueError, asyncio.CancelledError):
-            events: list[object] = []
-
-            class PartialTestTemplate(TestTemplate):
-                async def initialize(self, ctx: Context) -> None:
-                    self.device = "partial"
-                    cast(PartialPlugin, ctx.plugin).events.append(ctx.plugin)
-                    raise cast(PartialPlugin, ctx.plugin).failure_type()
-
-                async def cleanup(self, ctx: Context) -> None:
-                    cast(PartialPlugin, ctx.plugin).events.append((self.device, ctx.termination))
-
-            class PartialSuite(Suite):
-                templates: ClassVar[list[type[TestTemplate]]] = [PartialTestTemplate]
-
-            class PartialPlugin(Plugin):
-                version = "1.0.0"
-                suites: ClassVar[list[type[Suite]]] = [PartialSuite]
-
-                def __init__(self) -> None:
-                    self.events: list[object] = []
-                    self.failure_type: type[BaseException] = ValueError
-                    super().__init__()
-
-            author = PartialPlugin()
-            author.events = events
-            author.failure_type = failure
-            template = author._suites[0].templates[0]
-            case = template.build({}).message
-            origin = {"plugin_run": {"plugin": author.identifier, "template": template.identifier, "test_case": case}}
-            transport = plugin.Context(Request(scope="execution", attempt=1), author.identifier, {})
-            handlers = {definition.id: (definition, handler) for definition, handler in author._plugin._registrations()[0]}
-            definition, handler = handlers["partial.partial.partial.initialize"]
-            request = cast(Any, definition.request)(execution="execution", test_case=case, origin=origin)
-            try:
-                await handler(transport, request)
-            except failure:
-                pass
-            else:
-                self.fail("Setup Must Preserve Its Failure")
-            definition, handler = handlers["partial.partial.partial.cleanup"]
-            request = cast(Any, definition.request)(
-                execution="execution", test_case=case, origin=origin, termination=Termination.FAILED.value
-            )
-            await handler(transport, request)
-            self.assertEqual(events, [author, ("partial", Termination.FAILED)])
-            self.assertFalse(author._sessions)
-
 
 class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
+    async def test_host_refuses_parameter_constraints_before_materialization(self) -> None:
+        materialized: list[object] = []
+
+        class RadioTestTemplate(TestTemplate):
+            channel = Parameter.integer("Wi-Fi Channel", choices=(1, 6, 11), default=6)
+            country = Parameter.text("Country Code", choices=("CH", "DE"), default="CH")
+            power = Parameter.number("Power", min=0.0, max=10.0, default=5.0)
+
+            @materialize
+            def create(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
+                materialized.append(parameters)
+                case.step("Read", self.read)
+                case.criterion("Declared Parameters", self.resolved_parameters)
+
+            @step("Read")
+            async def read(self, ctx: Context) -> None:
+                if ctx.parameter(RadioTestTemplate.channel) != 6:
+                    raise ValueError("Select Wi-Fi Channel 6")
+
+            @criterion("Declared Parameters")
+            async def resolved_parameters(self, ctx: Context) -> bool:
+                return (
+                    ctx.parameter(RadioTestTemplate.channel) == 6
+                    and ctx.parameter(RadioTestTemplate.country) == "CH"
+                    and ctx.parameter(RadioTestTemplate.power) == 5.0
+                )
+
+        class RadioSuite(Suite):
+            templates = (RadioTestTemplate,)
+
+        class RadioPlugin(Plugin):
+            version = "1.0.0"
+            suites = (RadioSuite,)
+
+        mechanical = Path(__file__).resolve().parents[2] / "tests/support/host.py"
+        host = await runpy.run_path(str(mechanical))["Host"].start(self)
+        client = cast(Client, host.client)
+        await client.plugins.register(RadioPlugin())
+        for name, value, label in (("channel", 2, "Wi-Fi Channel"), ("country", "XX", "Country Code"), ("power", 11.0, "Power")):
+            materialized.clear()
+            with self.assertRaises(OperationError) as raised:
+                await client.cases.materialize(RadioTestTemplate, parameters={name: [value]})
+            self.assertIn(label, str(raised.exception))
+            self.assertFalse(materialized)
+        cases = await client.cases.materialize(RadioTestTemplate)
+        cycle = await client.cycle(label="Radio")
+        execution = await cycle.execution(cases[0])
+        async for _ in execution.run():
+            pass
+        self.assertEqual((await execution.seal()).status, ResultStatus.PASSED)
+
     async def test_counts_keep_the_host_resolved_values_through_materialization(self) -> None:
         class DurationTestTemplate(TestTemplate):
-            parameters: ClassVar[list[ParameterDefinition]] = [
-                dokime_sdk.templates.Parameter.count("duration_min", "Duration").unit("min").default(240).range(1).build()
-            ]
+            duration_min = Parameter.unsigned_integer("Duration", unit="min", default=240, min=1)
 
             @step("Wait")
             async def wait(self, ctx: Context) -> None:
@@ -239,12 +245,10 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
         lifecycle: list[tuple[str, object]] = []
 
         class ChannelsTestTemplate(TestTemplate):
-            parameters: ClassVar[list[ParameterDefinition]] = [
-                ParameterDefinition(metadata={"identifier": "channels"}, type="VALUE_TYPE_LIST", element_type="VALUE_TYPE_INTEGER")
-            ]
+            channels = Parameter.list("Channels", int)
 
             def __init__(self) -> None:
-                self.channels: list[int] = []
+                self.measured_channels: list[int] = []
 
             @materialize
             def channels_case(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
@@ -256,22 +260,22 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
                 case.criterion("All Channels", self.all_channels)
 
             async def initialize(self, ctx: Context) -> None:
-                instances.append(self.channels)
+                instances.append(self.measured_channels)
 
             @step("Measure", policy=OperationPolicy(retries=RetryPolicy(2, timedelta(milliseconds=100))))
             async def measure(self, ctx: Context, *, channel: int) -> None:
                 attempts.append((channel, ctx.attempt))
                 if channel == 2 and ctx.attempt == 1:
-                    raise dokime_sdk.operations.FailureError(
-                        Failure("Transient", "retry_measurement", "Measurement Requires Another Attempt", "Retry Measurement")
+                    raise dokime_sdk.operations.OperationError(
+                        "transient", code="retry_measurement", message="Measurement Requires Another Attempt", action="Retry Measurement"
                     )
                 measured = channel * channel
                 await ctx.artifact(f"channel_{channel}.bin", measured.to_bytes(4, "big"))
-                self.channels.append(measured)
+                self.measured_channels.append(measured)
 
             @criterion("All Channels")
             async def all_channels(self, ctx: Context) -> bool:
-                return self.channels == [4, 16]
+                return self.measured_channels == [4, 16]
 
         class ChannelsSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [ChannelsTestTemplate]

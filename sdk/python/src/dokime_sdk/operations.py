@@ -15,12 +15,12 @@
 import inspect
 import math
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import IntEnum
-from types import CodeType, FunctionType, ModuleType
-from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast, get_type_hints
+from types import FunctionType
+from typing import TYPE_CHECKING, Any, cast, get_type_hints
 
 # Third Party Imports
 import harmos
@@ -28,7 +28,7 @@ from google.protobuf.message import Message
 from harmos import plugin
 
 # Local Imports
-from . import _context, _errors
+from . import _context, _logs
 from ._authoring import build_identifier
 from ._generated import shared
 from ._payloads import Payload, message_type, pack, unpack
@@ -41,9 +41,9 @@ if TYPE_CHECKING:
 # === Public Exports === #
 
 Context = _context.Context
-BoundOperation = _context.BoundOperation
 StreamSubscription = _context.StreamSubscription
-FailureError = _errors.FailureError
+
+OperationError = harmos.OperationError
 
 
 # === Constants === #
@@ -107,101 +107,181 @@ class OperationPolicy:
 
 
 @dataclass(frozen=True)
-class SettingValue:
-    flag: bool | None = None
-    integer: int | None = None
-    number: float | None = None
-    text: str | None = None
-    duration: timedelta | None = None
-
-    def __post_init__(self) -> None:
-        variants = (self.flag, self.integer, self.number, self.text, self.duration)
-        if sum(item is not None for item in variants) != 1:
-            raise ValueError("Declare Setting: Supply Exactly One Value Variant")
-        for name, expected in (("flag", bool), ("integer", int), ("number", float), ("text", str), ("duration", timedelta)):
-            item = getattr(self, name)
-            if item is not None and type(item) is not expected:
-                raise TypeError(f"Declare Setting: Supply {expected.__name__} for {name}")
-
-    def _definition(self) -> shared.SettingValue:
-        value = shared.SettingValue()
-        for name in ("flag", "integer", "number", "text", "duration"):
-            item = getattr(self, name)
-            if item is None:
-                continue
-            if name == "duration":
-                value.duration.FromTimedelta(item)
-            else:
-                setattr(value, name, item)
-        return value
-
-
-@dataclass(frozen=True)
-class SettingDeclaration:
-    name: str
+class Setting:
     title: str
     description: str
-    default: SettingValue
-    minimum: SettingValue | None = None
-    maximum: SettingValue | None = None
+    default: harmos.SettingValue
+    minimum: harmos.SettingValue | None = None
+    maximum: harmos.SettingValue | None = None
+    choices: tuple[harmos.SettingValue, ...] = ()
+    required: bool = False
 
-    def _definition(self) -> shared.SettingDeclaration:
-        return shared.SettingDeclaration(
-            name=self.name,
+    @staticmethod
+    def flag(title: str, *, default: bool, description: str = "", choices: tuple[bool, ...] = (), required: bool = False) -> bool:
+        return cast(
+            bool,
+            Setting(
+                title,
+                description,
+                harmos.SettingValue(flag=default),
+                choices=tuple(harmos.SettingValue(flag=item) for item in choices),
+                required=required,
+            ),
+        )
+
+    @staticmethod
+    def integer(
+        title: str,
+        *,
+        default: int,
+        min: int | None = None,
+        max: int | None = None,
+        description: str = "",
+        choices: tuple[int, ...] = (),
+        required: bool = False,
+    ) -> int:
+        return cast(
+            int,
+            Setting(
+                title,
+                description,
+                harmos.SettingValue(integer=default),
+                harmos.SettingValue(integer=min) if min is not None else None,
+                harmos.SettingValue(integer=max) if max is not None else None,
+                choices=tuple(harmos.SettingValue(integer=item) for item in choices),
+                required=required,
+            ),
+        )
+
+    @staticmethod
+    def number(
+        title: str,
+        *,
+        default: float,
+        min: float | None = None,
+        max: float | None = None,
+        description: str = "",
+        choices: tuple[float, ...] = (),
+        required: bool = False,
+    ) -> float:
+        return cast(
+            float,
+            Setting(
+                title,
+                description,
+                harmos.SettingValue(number=default),
+                harmos.SettingValue(number=min) if min is not None else None,
+                harmos.SettingValue(number=max) if max is not None else None,
+                choices=tuple(harmos.SettingValue(number=item) for item in choices),
+                required=required,
+            ),
+        )
+
+    @staticmethod
+    def text(title: str, *, default: str, description: str = "", choices: tuple[str, ...] = (), required: bool = False) -> str:
+        return cast(
+            str,
+            Setting(
+                title,
+                description,
+                harmos.SettingValue(text=default),
+                choices=tuple(harmos.SettingValue(text=item) for item in choices),
+                required=required,
+            ),
+        )
+
+    @staticmethod
+    def duration(
+        title: str,
+        *,
+        default: timedelta,
+        min: timedelta | None = None,
+        max: timedelta | None = None,
+        description: str = "",
+        choices: tuple[timedelta, ...] = (),
+        required: bool = False,
+    ) -> timedelta:
+        value = harmos.SettingValue()
+        value.duration.FromTimedelta(default)
+        minimum = harmos.SettingValue() if min is not None else None
+        maximum = harmos.SettingValue() if max is not None else None
+        if minimum is not None and min is not None:
+            minimum.duration.FromTimedelta(min)
+        if maximum is not None and max is not None:
+            maximum.duration.FromTimedelta(max)
+        encoded_choices = []
+        for item in choices:
+            encoded = harmos.SettingValue()
+            encoded.duration.FromTimedelta(item)
+            encoded_choices.append(encoded)
+        return cast(timedelta, Setting(title, description, value, minimum, maximum, tuple(encoded_choices), required))
+
+    def _definition(self, name: str) -> harmos.SettingDeclaration:
+        return harmos.SettingDeclaration(
+            name=name,
             title=self.title,
             description=self.description,
-            default=self.default._definition(),
-            minimum=self.minimum._definition() if self.minimum is not None else None,
-            maximum=self.maximum._definition() if self.maximum is not None else None,
+            default=self.default,
+            minimum=self.minimum,
+            maximum=self.maximum,
+            choices=self.choices,
+            required=self.required,
         )
+
+    def __get__(self, instance: "Settings | None", owner: "type[Settings]") -> object:
+        if instance is None:
+            return self
+        for name, declaration in owner._fields().items():
+            if declaration is self:
+                return instance._values[name]
+        raise ValueError("Read Settings: Declare the Setting on a Settings Class")
+
+    def __set__(self, instance: "Settings", value: object) -> None:
+        raise AttributeError("Change Settings: Save Values on the Host, Then Retry or Restart the Plugin")
+
+
+class Settings:
+    """Typed Settings Read From One Activation Snapshot."""
+
+    def __init__(self, values: harmos.SettingValues) -> None:
+        self._values: dict[str, object] = {}
+        for name, declaration in self._fields().items():
+            if name not in values.values:
+                raise ValueError(f"Read Settings: Configure {name}, Then Retry the Plugin")
+            value = values.values[name]
+            kind = value.WhichOneof("value")
+            if kind != declaration.default.WhichOneof("value"):
+                raise ValueError(f"Read Settings: Save the Declared Type for {name}, Then Retry the Plugin")
+            self._values[name] = value.duration.ToTimedelta() if kind == "duration" else getattr(value, kind)
+
+    @classmethod
+    def _fields(cls) -> dict[str, Setting]:
+        fields: dict[str, Setting] = {}
+        for parent in reversed(cls.__mro__):
+            for name, value in vars(parent).items():
+                fields.pop(name, None)
+                if isinstance(value, Setting):
+                    fields[name] = value
+        return fields
 
 
 @dataclass(frozen=True)
-class SecretDeclaration:
+class Secret:
     identifier: str
     label: str
-    required: bool = True
 
     def _definition(self) -> shared.SecretDeclaration:
-        return shared.SecretDeclaration(metadata={"identifier": self.identifier, "label": self.label}, required=self.required)
+        return shared.SecretDeclaration(metadata={"identifier": self.identifier, "label": self.label}, required=True)
 
 
-@dataclass(frozen=True)
-class Operation[Q: Payload, R: Payload]:
-    __type_params__: ClassVar[tuple[TypeVar, ...]]
+class Resource:
+    """A Lazily Opened Class Released When the Plugin Activation Ends."""
 
-    identifier: str
-    request: type[Q]
-    response: type[R]
-    visibility: Visibility
-    policy: OperationPolicy | None = None
-    description: str = ""
-    replay_safe: bool = False
-    lane: plugin.Lane | None = None
+    async def open(self, ctx: Context) -> None:
+        pass
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.visibility, Visibility):
-            raise TypeError("Declare Operation: Supply a Visibility Member")
-        if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)*", self.identifier):
-            raise ValueError("Declare Operation: Supply a Lowercase Dotted Identifier")
-        if self.policy is not None:
-            self.policy._validate(self.identifier)
-        if self.policy is not None and self.policy.retries is not None and not self.replay_safe:
-            raise ValueError("Declare Operation: Mark Retried Operations replay_safe")
-        message_type(self.request)
-        message_type(self.response)
-
-    def _definition(self) -> plugin.Operation[Message, Message]:
-        return plugin.Operation(
-            self.identifier,
-            message_type(self.request),
-            message_type(self.response),
-            cast(Any, self.visibility.value),
-            self.policy._definition() if self.policy is not None else None,
-            self.description,
-            self.replay_safe,
-            lane=self.lane,
-        )
+    async def close(self) -> None:
+        pass
 
 
 # === Public Functions === #
@@ -228,123 +308,57 @@ def operation[F: Callable[..., object]](
             response = annotations["return"]
         except (KeyError, NameError, TypeError) as error:
             raise TypeError("Declare Operation: Supply Resolvable Request and Result Payload Annotations") from error
-        definition = Operation(
-            identifier if identifier is not None else build_identifier(handler.__name__),
-            request,
-            response,
-            visibility,
-            policy,
+        identity = identifier if identifier is not None else build_identifier(handler.__name__)
+        if not isinstance(visibility, Visibility):
+            raise TypeError("Declare Operation: Supply a Visibility Member")
+        if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)*", identity):
+            raise ValueError("Declare Operation: Supply a Lowercase Dotted Identifier")
+        if policy is not None:
+            policy._validate(identity)
+        if policy is not None and policy.retries is not None and not replay_safe:
+            raise ValueError("Declare Operation: Mark Retried Operations replay_safe")
+        definition = plugin.Operation(
+            identity,
+            message_type(request),
+            message_type(response),
+            cast(Any, visibility.value),
+            policy._definition() if policy is not None else None,
             description,
             replay_safe,
-            lane,
+            lane=lane,
         )
         vars(handler)["__dokime_operation__"] = definition
+        vars(handler)["__dokime_policy__"] = policy
         return handler
 
     return decorate
 
 
-def declaration[Q: Payload, R: Payload](handler: Callable[[Context, Q], Awaitable[R]]) -> Operation[Q, R]:
-    """Read the Immutable Declaration Attached by the Operation Decorator."""
-    definition = vars(handler).get("__dokime_operation__") if isinstance(handler, FunctionType) else None
-    if not isinstance(definition, Operation):
-        raise TypeError("Read Operation Declaration: Supply a Function Decorated With operation")
-    return cast(Operation[Q, R], definition)
-
-
-def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier: str) -> Callable[..., Awaitable[Message]]:
-    definition = declaration(cast(Callable[[Context, Any], Awaitable[Any]], handler))
-    transport = definition._definition()
-
-    async def execute(adapter: object, transport: plugin.Context, request: Message) -> Message:
-        context = Context(transport, owner)
-        try:
-            result = handler(context, unpack(definition.request, request))
-            if inspect.isawaitable(result):
-                result = await result
-            return pack(definition.response, cast(Payload, result))
-        except _errors.SdkError as error:
-            raise harmos.FailureError(_errors.wire_failure(error.failure)) from error
-
-    return plugin.operation(
-        identifier,
-        request=transport.request,
-        response=transport.response,
-        visibility=transport.visibility,
-        policy=transport.policy,
-        description=transport.description,
-        replay_safe=transport.replay_safe,
-        lane=transport.lane,
-    )(execute)
-
-
 # === Private Functions === #
 
 
-def _requirements(
-    handlers: Sequence[object], owners: Sequence[type], registered: Sequence[Callable[..., object]]
-) -> tuple[plugin.Operation[Message, Message], ...]:
-    """Freeze Typed References Reachable From Author Handlers Before Activation."""
-    pending = [(item, frozenset[str]()) for item in handlers]
-    visited: set[tuple[int, frozenset[str]]] = set()
-    required: dict[str, plugin.Operation[Message, Message]] = {}
-    while pending:
-        value, attributes = pending.pop()
-        identity = (id(value), attributes)
-        if identity in visited:
-            continue
-        visited.add(identity)
-        if isinstance(value, Operation):
-            if value.visibility == Visibility.PRIVATE:
-                continue
-            definition = value._definition()
-            previous = required.get(definition.id)
-            if previous is not None and previous.fingerprint != definition.fingerprint:
-                raise ValueError(f"Build Plugin: Import One Matching Contract for {definition.id}")
-            required[definition.id] = definition
-            continue
-        if isinstance(value, (ModuleType, type)):
-            pending.extend(
-                (inspect.getattr_static(value, name), attributes)
-                for name in attributes
-                if inspect.getattr_static(value, name, None) is not None
-            )
-            continue
-        if isinstance(value, (tuple, list, dict)):
-            members = value.values() if isinstance(value, dict) else value
-            pending.extend((item, attributes) for item in members)
-            continue
-        if isinstance(value, (staticmethod, classmethod)):
-            pending.append((value.__func__, attributes))
-            continue
-        if not isinstance(value, FunctionType):
-            continue
-        declaration = vars(value).get("__dokime_operation__")
-        if declaration is not None and value not in registered:
-            pending.append((declaration, frozenset()))
-        if value.__module__.startswith(("dokime_sdk.", "harmos.")):
-            continue
-        names: set[str] = set()
-        code = [value.__code__]
-        while code:
-            current = code.pop()
-            names.update(current.co_names)
-            code.extend(item for item in current.co_consts if isinstance(item, CodeType))
-        references = [value.__globals__[name] for name in names if name in value.__globals__]
-        for cell in value.__closure__ or ():
-            try:
-                references.append(cell.cell_contents)
-            except ValueError:
-                # A Handler May Capture Its Plugin Before Construction Completes.
-                continue
-        references.extend(value.__defaults__ or ())
-        references.extend((value.__kwdefaults__ or {}).values())
-        for owner in owners:
-            references.extend(
-                inspect.getattr_static(owner, name) for name in names if inspect.getattr_static(owner, name, None) is not None
-            )
-        pending.extend((reference, frozenset(names)) for reference in references)
-    return tuple(required[name] for name in sorted(required))
+def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier: str) -> Callable[..., Awaitable[Message]]:
+    definition = cast(plugin.Operation[Message, Message], vars(handler)["__dokime_operation__"])
+    annotations = get_type_hints(handler)
+    parameters = tuple(inspect.signature(handler).parameters)
+    request_type = annotations[parameters[1]]
+    response_type = annotations["return"]
+
+    async def execute(adapter: object, transport: plugin.Context, request: Message) -> Message:
+        context = Context(transport, owner)
+        result = await _logs.run(context, handler, context, unpack(request_type, request))
+        return pack(response_type, cast(Payload, result))
+
+    return plugin.operation(
+        identifier,
+        request=definition.request,
+        response=definition.response,
+        visibility=definition.visibility,
+        policy=definition.policy,
+        description=definition.description,
+        replay_safe=definition.replay_safe,
+        lane=definition.lane,
+    )(execute)
 
 
 # === Entry Point === #

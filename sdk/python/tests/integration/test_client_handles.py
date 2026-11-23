@@ -25,13 +25,12 @@ from zipfile import ZipFile
 from google.protobuf.message import Message
 from grpc import StatusCode
 from grpc.aio import ServicerContext, server
-from harmos._wire.host.v1 import invocations_pb2, operations_pb2
+from harmos import CLASSIFICATION_REFUSED
 from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk._client import Case, Client
 from dokime_sdk._connection import connect
-from dokime_sdk._errors import SdkError
 from dokime_sdk._transfers import verify_archive
 from dokime_sdk._values import Outcome, PromptAnswer, PromptQuestion, ResultStatus, Termination, decode
 from dokime_sdk._wire.host.v1 import cases_pb2, cycles_pb2, evidence_pb2, executions_pb2, files_pb2, prompts_pb2, reports_pb2
@@ -46,13 +45,11 @@ from dokime_sdk._wire.host.v1.executions_pb2_grpc import ExecutionsServicer, add
 from dokime_sdk._wire.host.v1.files import uploads_pb2
 from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
 from dokime_sdk._wire.host.v1.files_pb2_grpc import FilesServicer, add_FilesServicer_to_server
-from dokime_sdk._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
-from dokime_sdk._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
 from dokime_sdk._wire.host.v1.prompts import answers_pb2
 from dokime_sdk._wire.host.v1.prompts.answers_pb2_grpc import AnswersServicer, add_AnswersServicer_to_server
 from dokime_sdk._wire.host.v1.prompts_pb2_grpc import PromptsServicer, add_PromptsServicer_to_server
 from dokime_sdk._wire.host.v1.reports_pb2_grpc import ReportsServicer, add_ReportsServicer_to_server
-from dokime_sdk.operations import Operation, Visibility
+from dokime_sdk.operations import OperationError
 
 # Type Checking Imports
 
@@ -307,27 +304,10 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                     data=data[request.offset : request.offset + request.max_bytes], total_length=len(data), sha256=digest
                 )
 
-        operation = Operation("echo", str, str, Visibility.PUBLIC)._definition()
         self.answered = asyncio.Event()
         self.prompts_released = asyncio.Event()
         answered = self.answered
         released = self.prompts_released
-
-        class Operations(OperationsServicer):
-            async def Get(
-                self, request: operations_pb2.OperationsGetRequest, context: ServicerContext
-            ) -> operations_pb2.OperationsGetResponse:
-                trace.append(request)
-                return operations_pb2.OperationsGetResponse(
-                    operation={"contract": {"fingerprint": operation.fingerprint, "visibility": "VISIBILITY_PUBLIC"}}
-                )
-
-        class Invocations(InvocationsServicer):
-            async def Create(
-                self, request: invocations_pb2.InvocationsCreateRequest, context: ServicerContext
-            ) -> invocations_pb2.InvocationsCreateResponse:
-                trace.append(request)
-                return invocations_pb2.InvocationsCreateResponse(payload=request.payload)
 
         class Prompts(PromptsServicer):
             async def Watch(
@@ -367,8 +347,6 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
             (add_FilesServicer_to_server, Files()),
             (add_ReportsServicer_to_server, Reports()),
             (add_UploadsServicer_to_server, Uploads()),
-            (add_OperationsServicer_to_server, Operations()),
-            (add_InvocationsServicer_to_server, Invocations()),
             (add_PromptsServicer_to_server, Prompts()),
             (add_AnswersServicer_to_server, Answers()),
         ):
@@ -435,7 +413,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
     async def test_refresh_refuses_a_changed_execution_binding(self) -> None:
         execution = await self.client.executions.get("execution")
         self.changed_binding = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await execution.refresh()
         self.assertEqual(execution.case.identifier, "case")
         self.assertEqual(execution._detail.summary.case_id, "case")
@@ -460,7 +438,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(cycle._summary.sealed)
         self.assertTrue(cycle._summary.archived)
         self.seal_failure = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await cycle.seal()
         self.assertFalse(cycle._summary.sealed)
 
@@ -477,32 +455,32 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
     async def test_sealed_execution_note_and_artifact_refusals_are_sdk_errors(self) -> None:
         execution = await self.client.executions.get("execution")
         self.execution_sealed = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await execution.note("later")
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await execution.artifact("later.bin", b"later")
 
     async def test_lost_reply_keeps_the_identity_for_an_unchanged_replay(self) -> None:
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.client.cycle(label="Lost Reply")
-        identity = failed.exception.request_id
+        identity = failed.exception.value.details["request_id"]
         self.assertIsNotNone(identity)
         self.assertEqual(len(self.trace), 1)
         await self.client.cycle(label="Lost Reply", request_id=identity)
         self.assertEqual(self.trace[0], self.trace[1])
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await self.client.cycle(label="Different Payload", request_id=identity)
 
     async def test_remote_failures_preserve_classification_causes_details_and_request(self) -> None:
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.client.cycle(label="Refuse", request_id="refused-id")
-        failure = failed.exception.failure
+        failure = failed.exception.value
         self.assertEqual(
-            (failure.classification, failure.code, failure.operation, failure.plugin), ("Refused", "sealed", "cycles.create", "source")
+            (failure.classification, failure.code, failure.operation, failure.plugin),
+            (CLASSIFICATION_REFUSED, "sealed", "cycles.create", "source"),
         )
         self.assertEqual(failure.details, {"cycle": "cycle", "request_id": "refused-id"})
-        self.assertIsNotNone(failure.cause)
-        assert failure.cause is not None
+        self.assertTrue(failure.HasField("cause"))
         self.assertEqual(failure.cause.details, {"device": "1"})
 
     async def test_list_retains_the_first_cut_and_filters(self) -> None:
@@ -542,15 +520,6 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         archive = [item for item in self.trace if isinstance(item, evidence_pb2.EvidenceArchiveRequest)]
         self.assertEqual([item.subject.WhichOneof("kind") for item in archive], ["cycle", "execution"])
 
-    async def test_public_operation_validates_then_invokes_and_decodes_plain_values(self) -> None:
-        operation = Operation("echo", str, str, Visibility.PUBLIC)
-        response = await self.client.operation(operation)("value")
-        self.assertEqual(response, "value")
-        self.assertIsInstance(self.trace[-2], operations_pb2.OperationsGetRequest)
-        request = self.trace[-1]
-        assert isinstance(request, invocations_pb2.InvocationsCreateRequest)
-        self.assertEqual((request.operation, request.fingerprint), ("echo", operation._definition().fingerprint))
-
     async def test_prompt_handler_answers_once_and_close_releases_observation(self) -> None:
         questions: list[str] = []
 
@@ -579,9 +548,9 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(await execution.seal(), Outcome(ResultStatus.FAILED, "declared", "Imported", importer="reader"))
         self.outcome.Clear()
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await execution.seal(request_id="missing-outcome")
-        self.assertEqual(failed.exception.request_id, "missing-outcome")
+        self.assertEqual(failed.exception.value.details["request_id"], "missing-outcome")
 
     async def test_run_starts_lazily_and_watch_requires_sealed_finality(self) -> None:
         execution = await self.client.executions.get("execution")
@@ -603,7 +572,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         await watch.aclose()
         self.assertEqual(self.trace, [progress_pb2.ProgressWatchRequest(name="execution")])
         self.end_unsealed = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             [value async for value in execution.watch()]
 
 
@@ -631,7 +600,7 @@ class ArchiveIntegrityStory(unittest.TestCase):
         archive.writestr("report.html", b"corrupt report")
         archive.writestr("manifest.json", json.dumps({"version": 1, "entries": [member]}))
         archive.close()
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             verify_archive(buffer.getvalue())
 
         buffer = BytesIO()
@@ -639,7 +608,7 @@ class ArchiveIntegrityStory(unittest.TestCase):
         archive.writestr("unlisted", b"evidence")
         archive.writestr("manifest.json", json.dumps({"version": 1, "entries": []}))
         archive.close()
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             verify_archive(buffer.getvalue())
 
 

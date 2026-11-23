@@ -1,6 +1,7 @@
 <!-- Dokime — SPDX-License-Identifier: Apache-2.0 -->
 <script lang="ts">
   import Button from "../components/ui/Button.svelte";
+  import { recordMessage } from "../lib/dashboard";
   import { recordClockLabel, recordLevelLabel, recordLevelTextClass } from "../lib/record-display";
   import type { HubRecord } from "../lib/types";
   import { cn } from "../lib/utils";
@@ -27,5 +28,5 @@
   <span class="truncate text-muted-foreground">{recordClockLabel(record.timestamp)}</span>
   <span class={cn("truncate uppercase", recordLevelTextClass(level))}>{label}</span>
   <span class="truncate text-muted-foreground">{record.source}</span>
-  <span class={cn("min-w-0", expanded ? "break-words whitespace-pre-wrap" : "truncate")}>{record.message ?? ""}</span>
+  <span class={cn("min-w-0", expanded ? "break-words whitespace-pre-wrap" : "truncate")}>{recordMessage(record)}</span>
 </Button>

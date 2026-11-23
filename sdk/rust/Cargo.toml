@@ -35,7 +35,6 @@ harmos = { workspace = true }
 harmos-protocol = { workspace = true }
 
 # Error Handling
-thiserror = { workspace = true }
 
 # Logging
 

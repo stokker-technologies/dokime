@@ -331,7 +331,8 @@ fn write_file<W: Write + Seek>(
     archive: &mut ZipWriter<W>, member: &str, options: FullFileOptions<'static, 'static>, path: &Path, length: u64, sha256: &[u8],
 ) -> Result<serde_json::Value> {
     let mut input = File::open(path)?;
-    archive.start_file(member, options.clone())?;
+    // Native Files Keep Their Own Encoding; Recompressing zstd Telemetry Only Costs Time.
+    archive.start_file(member, options.compression_method(CompressionMethod::Stored))?;
     let mut hash = Sha256::new();
     let mut size = 0u64;
     let mut buffer = [0u8; CONTENT_CHUNK_BYTES];

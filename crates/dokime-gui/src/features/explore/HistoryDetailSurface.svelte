@@ -10,6 +10,11 @@
   };
 </script>
 
+<PageChrome
+  actions={historyActions}
+  title={selected?.metadata.title ?? entry?.title ?? (target.kind === "cycle" ? `Cycle ${target.id}` : `Execution ${target.id}`)}
+/>
+
 <script lang="ts">
   import { Dialog } from "bits-ui";
   import { LoaderCircle } from "lucide-svelte";
@@ -19,7 +24,7 @@
   import { checkpointKey, deleteNativeExecution } from "@/lib/api/native-checkpoints";
   import { failureOf } from "@/lib/notification-details";
   import type { ExecutionBrowseEntry } from "@/lib/types/browse";
-  import { publishPageChrome } from "@/shell/page-chrome.svelte";
+  import PageChrome from "@/shell/PageChrome.svelte";
   import CheckpointInspection from "./CheckpointInspection.svelte";
   import { exploreEntryKey, type ExploreEntry, isDeletableExecution, unrunCaption } from "./explore-contracts";
   import { createHistoryQuery, exploreQueryKeys } from "./explore-queries";
@@ -42,11 +47,6 @@
   let deletePending = $state(false);
   let deleteError = $state.raw<unknown>(null);
   let deleteNotice = $state<string | null>(null);
-
-  publishPageChrome(() => ({
-    actions: historyActions,
-    title: selected?.metadata.title ?? entry?.title ?? (target.kind === "cycle" ? `Cycle ${target.id}` : `Execution ${target.id}`),
-  }));
 
   function closeDelete(open: boolean) {
     if (!open && !deletePending) {

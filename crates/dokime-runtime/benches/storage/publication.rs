@@ -41,9 +41,7 @@ use dokime::templates::Context;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
 use dokime_protocol::host::files_client::FilesClient;
-use dokime_protocol::host::reports_client::ReportsClient;
 use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceSubject, FilesReadRequest, PromptsCreateResponse, evidence_subject};
-use dokime_protocol::host::{ReportSubject, ReportsCreateRequest, ReportsPublishRequest, report_subject};
 use dokime_runtime::{ControlledClock, CredentialNamespace, Cycle, Host, HostSettings, PlacementSettings, PluginProcess, services};
 use dokime_storage::storage_defaults;
 
@@ -273,7 +271,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     });
     super::boundary(
         "Execution End and Host Shutdown, 65,536 Rows",
-        "warm populated host; answer final prompt, execution cleanup, stream finalization, seal, final snapshot join and shutdown; durable; capture excluded",
+        "warm populated host; answer final prompt, execution cleanup, stream finalization, seal, report and evidence archive freeze, final snapshot join and shutdown; durable; capture excluded",
     );
     group.bench_function("execution_end_and_shutdown/65536", |b| {
         let plugin = plugin.get_or_insert_with(|| {
@@ -328,30 +326,6 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                 };
                 let server = services::serve(([127, 0, 0, 1], 0).into(), root.as_path(), settings(), bounds).await.unwrap();
                 let endpoint = format!("http://{}", server.endpoint());
-                let mut reports = ReportsClient::connect(endpoint.clone()).await.unwrap();
-                let subject = ReportSubject {
-                    kind: Some(report_subject::Kind::Execution(execution.clone())),
-                };
-                let prepared = reports
-                    .create(ReportsCreateRequest {
-                        subject: Some(subject.clone()),
-                        request_id: "archive-report".into(),
-                        ..Default::default()
-                    })
-                    .await
-                    .unwrap()
-                    .into_inner();
-                let file = prepared.file.unwrap();
-                reports
-                    .publish(ReportsPublishRequest {
-                        name: file.metadata.unwrap().id,
-                        subject: Some(subject),
-                        expected_revision: file.sha256,
-                        request_id: "archive-publish".into(),
-                    })
-                    .await
-                    .unwrap();
-
                 let evidence = EvidenceClient::connect(endpoint.clone()).await.unwrap();
                 let files = FilesClient::connect(endpoint).await.unwrap();
                 (server, root, execution, evidence, files)

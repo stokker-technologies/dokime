@@ -103,6 +103,7 @@ class Context : public operations::Context {
           std::shared_ptr<const detail::Bindings> bindings = {}, std::shared_ptr<dokime::detail::PluginState> plugin = {});
 
 public:
+  using operations::Context::operation;
   const google::protobuf::Map<std::string, Value> &parameters() const {
     return test_case_.parameters();
   }
@@ -179,9 +180,9 @@ private:
     return std::static_pointer_cast<T>(instance);
   }
   template <class Q, class R>
-  harmos::plugin::Call<R> call(const harmos::plugin::Operation<Q, R> &operation, const Q &request,
-                               std::optional<harmos::OperationPolicy> policy = {}) {
-    return transport_.call(operation, request, std::move(policy));
+  harmos::plugin::Call<R> operation(const harmos::plugin::Operation<Q, R> &operation, const Q &request,
+                                    std::optional<harmos::OperationPolicy> policy = {}) {
+    return transport_.operation(operation, request, std::move(policy));
   }
   template <class Q, class R>
   harmos::plugin::Watching<R> watch(const harmos::plugin::Operation<Q, R> &operation, const Q &request, std::size_t max_item_bytes) {

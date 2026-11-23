@@ -97,6 +97,7 @@ pub(super) async fn launch(
     let store = &host.store;
     let placement = &host.settings.placement;
     let sample_scopes = host.executions.inner.sample_scopes.clone();
+    let capturing_scopes = sample_scopes.clone();
     let sample_failures = host.executions.inner.sample_failures.clone();
     let backend_settings = store.storage_settings()?;
     let capacity =
@@ -215,6 +216,10 @@ pub(super) async fn launch(
     }))
     .await
     .map_err(|error| Error::ComposedStartup(Box::new(error)))?;
+    runtime.streams.capture_resolver(move |stream, _| {
+        let scopes = capturing_scopes.lock().expect("sample scope lock is healthy");
+        scopes.iter().filter(|(_, scope)| scope.captures(stream)).map(|(execution, _)| execution.clone()).collect()
+    });
     let runtime = Arc::new(runtime);
     plugins.start(&runtime).await.map_err(|source| Error::ComposedStartup(Box::new(source)))?;
     Ok((runtime, lease, plugins))

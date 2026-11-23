@@ -21,13 +21,14 @@ from typing import Protocol, cast
 from zipfile import ZipFile
 
 # Third Party Imports
+import harmos
 from grpc.aio import AioRpcError
 
 # Local Imports
-from dokime_sdk import Client, Plugin, ResultStatus, SdkError, Suite
+from dokime_sdk import Client, Plugin, ResultStatus, Suite, operations
 from dokime_sdk._generated.shared import SettingValues
-from dokime_sdk.operations import SettingDeclaration, SettingValue
-from dokime_sdk.templates import Context, TestTemplate, criterion, observer, record, step, stream
+from dokime_sdk.operations import OperationError, Setting, Settings
+from dokime_sdk.templates import Context, Observer, TestTemplate, criterion, record, step
 
 # Type Checking Imports
 
@@ -43,7 +44,7 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 
 
 class CaptureTestTemplate(TestTemplate):
-    flag = record(bool, label="Captured Flag")
+    flag = record(bool, label="Captured Flag", identifier="flag")
 
     @step("Capture")
     async def capture(self, ctx: Context) -> None:
@@ -61,6 +62,7 @@ class CaptureSuite(Suite):
 class CapturePlugin(Plugin):
     version = "1.0.0"
     suites = (CaptureSuite,)
+    records = (CaptureTestTemplate.flag,)
 
 
 class Host(Protocol):
@@ -74,32 +76,21 @@ class HostFactory(Protocol):
 
 class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
     async def test_library_host_enforces_setting_defaults_and_writes(self) -> None:
+        class BoundsSettings(Settings):
+            count: int = Setting.integer("Count", default=5, min=0, max=10)
+            level: float = Setting.number("Level", default=0.5, min=0.0, max=1.0)
+            interval: timedelta = Setting.duration("Interval", default=timedelta(seconds=1), min=timedelta(), max=timedelta(seconds=2))
+
         class SettingsPlugin(Plugin):
             version = "1.0.0"
-            settings = (
-                SettingDeclaration(
-                    "count", "Count", "", SettingValue(integer=5), minimum=SettingValue(integer=0), maximum=SettingValue(integer=10)
-                ),
-                SettingDeclaration(
-                    "level", "Level", "", SettingValue(number=0.5), minimum=SettingValue(number=0.0), maximum=SettingValue(number=1.0)
-                ),
-                SettingDeclaration(
-                    "interval",
-                    "Interval",
-                    "",
-                    SettingValue(duration=timedelta(seconds=1)),
-                    minimum=SettingValue(duration=timedelta()),
-                    maximum=SettingValue(duration=timedelta(seconds=2)),
-                ),
-            )
+            settings = (BoundsSettings,)
+
+        class OutsideSettings(Settings):
+            count: int = Setting.integer("Count", default=11, min=0, max=10)
 
         class OutsideBoundsPlugin(Plugin):
             version = "1.0.0"
-            settings = (
-                SettingDeclaration(
-                    "count", "Count", "", SettingValue(integer=11), minimum=SettingValue(integer=0), maximum=SettingValue(integer=10)
-                ),
-            )
+            settings = (OutsideSettings,)
 
         # Admit Defaults Through the Library Host Without Native Collectors or Controls.
         specification = spec_from_file_location("settings_host", REPOSITORY / "sdk/python/tests/support/host.py")
@@ -108,23 +99,23 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         specification.loader.exec_module(module)
         host = await cast(HostFactory, module.Host).start(self)
         client = host.client
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await client.plugins.register(OutsideBoundsPlugin())
         entry = await client.plugins.register(SettingsPlugin())
         initial = await client._transport.plugins.settings.list(name=entry.identifier)
 
         # Refused Writes Preserve the Complete Saved Value.
         for name, outside in (
-            ("count", SettingValue(integer=-1)),
-            ("count", SettingValue(integer=11)),
-            ("level", SettingValue(number=-0.5)),
-            ("level", SettingValue(number=1.5)),
-            ("interval", SettingValue(duration=timedelta(seconds=-1))),
-            ("interval", SettingValue(duration=timedelta(seconds=3))),
+            ("count", harmos.SettingValue(integer=-1)),
+            ("count", harmos.SettingValue(integer=11)),
+            ("level", harmos.SettingValue(number=-0.5)),
+            ("level", harmos.SettingValue(number=1.5)),
+            ("interval", harmos.SettingValue(duration={"seconds": -1})),
+            ("interval", harmos.SettingValue(duration={"seconds": 3})),
         ):
             values = SettingValues()
             values.CopyFrom(initial.value)
-            values.values[name].CopyFrom(outside._definition())
+            values.values[name].CopyFrom(outside)
             with self.assertRaises(AioRpcError):
                 await client._transport.plugins.settings.set(entry.identifier, values, initial.revision)
             current = await client._transport.plugins.settings.list(name=entry.identifier)
@@ -133,34 +124,42 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         # Inclusive Bounds Are Saved Through the Same Host Resource.
         revision = initial.revision
         for bound in ("minimum", "maximum"):
-            values = SettingValues(
-                values={declaration.name: getattr(declaration, bound)._definition() for declaration in SettingsPlugin.settings}
-            )
+            values = SettingValues(values={name: getattr(declaration, bound) for name, declaration in BoundsSettings._fields().items()})
             saved = await client._transport.plugins.settings.set(entry.identifier, values, revision)
             self.assertEqual(saved.value, values)
             revision = saved.revision
 
     async def test_observer_children(self) -> None:
+        class ObserverSettings(Settings):
+            sample_count: int = Setting.integer("Sample Count", default=0, min=0, max=10, description="Samples per Capture")
+
+        written = asyncio.Event()
+
+        class ObserverTestTemplateReading(Observer[float]):
+            identifier = "reading"
+            label = "Reading"
+            row = float
+            interval_ms = 10
+
+            async def sample(self, ctx: operations.Context) -> float:
+                try:
+                    saved = ctx.settings(ObserverSettings)
+                    await ctx.record(ObserverTestTemplate.flag, saved.sample_count == 0)
+                    return 2.5
+                finally:
+                    written.set()
+
         class ObserverTestTemplate(TestTemplate):
-            flag = record(bool)
+            uses_streams = (ObserverTestTemplateReading,)
+            flag = record(bool, identifier="flag")
 
             def __init__(self) -> None:
-                self.written = asyncio.Event()
+                pass
 
             @step("Capture")
             async def capture(self, ctx: Context) -> None:
                 await ctx.sleep(0.25)
-                await self.written.wait()
-
-            @stream("Reading")
-            @observer(interval_ms=10)
-            async def reading(self, ctx: Context) -> float:
-                try:
-                    saved = await ctx.settings()
-                    await ctx.record(self.flag, saved["sample_count"].integer == 0)
-                    return 2.5
-                finally:
-                    self.written.set()
+                await written.wait()
 
             @criterion("Captured")
             async def captured(self, ctx: Context) -> bool:
@@ -172,16 +171,9 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         class ObserverPlugin(Plugin):
             version = "1.0.0"
             suites = (ObserverSuite,)
-            settings = (
-                SettingDeclaration(
-                    "sample_count",
-                    "Sample Count",
-                    "Samples per Capture",
-                    SettingValue(integer=0),
-                    minimum=SettingValue(integer=0),
-                    maximum=SettingValue(integer=10),
-                ),
-            )
+            records = (ObserverTestTemplate.flag,)
+            settings = (ObserverSettings,)
+            observers = (ObserverTestTemplateReading,)
 
         # Start the Product Host and Bind the Observer's Execution Scope.
         specification = spec_from_file_location("observer_host", REPOSITORY / "sdk/python/tests/support/host.py")

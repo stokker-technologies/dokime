@@ -91,7 +91,8 @@ test("Heat Strip Fills Each Facet With Equal Width Cells and Shares Its Scale", 
   }
   const legend = container.querySelectorAll<HTMLElement>("[data-heat-legend]");
   assert.equal(legend.length, 1);
-  assert.equal(legend[0].dataset.min, "1");
+  // A Count Ramps From Zero, Whatever the Smallest Observed Value.
+  assert.equal(legend[0].dataset.min, "0");
   assert.equal(legend[0].dataset.max, "4");
   const colored = container.querySelectorAll<HTMLElement>('[data-cell="10"], [data-cell="36"]');
   assert.equal(colored[0].style.backgroundColor, colored[1].style.backgroundColor);

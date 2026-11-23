@@ -113,8 +113,8 @@ run = [
 
 [tasks."build:reference"]
 hide = true
-description = "Build the Pinned Reference Host"
-run = 'python tools/prepare_reference.py'
+description = "Build the Resolved Library Reference Host"
+run = 'uv run --no-sync --project ../../tools/python python -m dokime_tools.build.host_fixtures --reference-only --profile dev'
 
 [tasks."build:examples"]
 hide = true

@@ -368,7 +368,7 @@ class HostBackendResource:
 
     async def environment(self, *, at: Position | None = None, policy: OperationPolicy | None = None) -> BackendEnvironmentResponse:
         request = BackendEnvironmentRequest(at=at)
-        response = await self._context.call(_BACKEND_ENVIRONMENT, request, policy=policy)
+        response = await self._context._call(_BACKEND_ENVIRONMENT, request, policy=policy)
         return response
 
 
@@ -401,7 +401,7 @@ class HostContentArtifactsResource:
             request_id=request_id if request_id is not None else str(uuid4()),
             metadata=metadata,
         )
-        response = await self._context.call(_CONTENT_ARTIFACTS_CREATE, request, policy=policy)
+        response = await self._context._call(_CONTENT_ARTIFACTS_CREATE, request, policy=policy)
         return response
 
 
@@ -428,7 +428,7 @@ class HostDocumentsResource:
             card=card,
             request_id=request_id if request_id is not None else str(uuid4()),
         )
-        response = await self._context.call(_DOCUMENTS_APPEND_PARTS, request, policy=policy)
+        response = await self._context._call(_DOCUMENTS_APPEND_PARTS, request, policy=policy)
         if not response.HasField("receipt"):
             raise ValueError("Read DOCUMENTS_APPEND_PARTS: Missing Payload")
         return response.receipt
@@ -457,7 +457,7 @@ class HostEvidenceResource:
         request = EvidenceStatisticsRequest(
             scope=scope, stream=stream, versions=versions, between=between, outputs=outputs, field=field, step=step, at=at
         )
-        response = await self._context.call(_EVIDENCE_STATISTICS, request, policy=policy)
+        response = await self._context._call(_EVIDENCE_STATISTICS, request, policy=policy)
         return response
 
 
@@ -482,7 +482,7 @@ class HostEvidenceLogsResource:
             at=at,
             request_id=request_id if request_id is not None else str(uuid4()),
         )
-        response = await self._context.call(_EVIDENCE_LOGS_APPEND, request, policy=policy)
+        response = await self._context._call(_EVIDENCE_LOGS_APPEND, request, policy=policy)
         if not response.HasField("receipt"):
             raise ValueError("Read EVIDENCE_LOGS_APPEND: Missing Payload")
         return response.receipt
@@ -508,7 +508,7 @@ class HostEvidenceRecordsResource:
         request = RecordsListRequest(
             scope=scope, record_type=record_type, versions=versions, between=between, step=step, selection=selection, at=at, page=page
         )
-        response = await self._context.call(_EVIDENCE_RECORDS_LIST, request, policy=policy)
+        response = await self._context._call(_EVIDENCE_RECORDS_LIST, request, policy=policy)
         return response
 
     async def append(
@@ -528,7 +528,7 @@ class HostEvidenceRecordsResource:
             source_at=source_at,
             request_id=request_id if request_id is not None else str(uuid4()),
         )
-        response = await self._context.call(_EVIDENCE_RECORDS_APPEND, request, policy=policy)
+        response = await self._context._call(_EVIDENCE_RECORDS_APPEND, request, policy=policy)
         return response
 
 
@@ -546,7 +546,7 @@ class HostEvidenceTraceabilityResource:
         policy: OperationPolicy | None = None,
     ) -> TraceabilityGetResponse:
         request = TraceabilityGetRequest(scope=scope, page=page, at=at, entry=entry)
-        response = await self._context.call(_EVIDENCE_TRACEABILITY_GET, request, policy=policy)
+        response = await self._context._call(_EVIDENCE_TRACEABILITY_GET, request, policy=policy)
         return response
 
     async def set(
@@ -566,7 +566,7 @@ class HostEvidenceTraceabilityResource:
             request_id=request_id if request_id is not None else str(uuid4()),
             entry=entry,
         )
-        response = await self._context.call(_EVIDENCE_TRACEABILITY_SET, request, policy=policy)
+        response = await self._context._call(_EVIDENCE_TRACEABILITY_SET, request, policy=policy)
         return response
 
 
@@ -584,7 +584,7 @@ class HostExecutionsProgressResource:
         self, *, name: str | None = None, at: Position | None = None, policy: OperationPolicy | None = None
     ) -> ProgressGetResponse:
         request = ProgressGetRequest(name=name, at=at)
-        response = await self._context.call(_EXECUTIONS_PROGRESS_GET, request, policy=policy)
+        response = await self._context._call(_EXECUTIONS_PROGRESS_GET, request, policy=policy)
         return response
 
     async def set(
@@ -599,7 +599,7 @@ class HostExecutionsProgressResource:
         request = ProgressSetRequest(
             name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
         )
-        response = await self._context.call(_EXECUTIONS_PROGRESS_SET, request, policy=policy)
+        response = await self._context._call(_EXECUTIONS_PROGRESS_SET, request, policy=policy)
         return response
 
 
@@ -611,14 +611,14 @@ class HostFilesResource:
 
     async def get(self, file: FileReference, *, at: ReadCut | None = None, policy: OperationPolicy | None = None) -> FilesGetResponse:
         request = FilesGetRequest(file=file, at=at)
-        response = await self._context.call(_FILES_GET, request, policy=policy)
+        response = await self._context._call(_FILES_GET, request, policy=policy)
         return response
 
     async def read(
         self, file: FileReference, offset: int, max_bytes: int, *, at: ReadCut | None = None, policy: OperationPolicy | None = None
     ) -> FilesReadResponse:
         request = FilesReadRequest(file=file, offset=offset, max_bytes=max_bytes, at=at)
-        response = await self._context.call(_FILES_READ, request, policy=policy)
+        response = await self._context._call(_FILES_READ, request, policy=policy)
         return response
 
     async def watch(
@@ -640,14 +640,14 @@ class HostFilesResource:
 
     async def delete(self, file: FileReference, *, request_id: str | None = None, policy: OperationPolicy | None = None) -> Receipt:
         request = FilesDeleteRequest(file=file, request_id=request_id if request_id is not None else str(uuid4()))
-        response = await self._context.call(_FILES_DELETE, request, policy=policy)
+        response = await self._context._call(_FILES_DELETE, request, policy=policy)
         if not response.HasField("receipt"):
             raise ValueError("Read FILES_DELETE: Missing Payload")
         return response.receipt
 
     async def capture(self, source: FileSource, output: str, *, policy: OperationPolicy | None = None) -> FilesCaptureResponse:
         request = FilesCaptureRequest(source=source, output=output)
-        response = await self._context.call(_FILES_CAPTURE, request, policy=policy)
+        response = await self._context._call(_FILES_CAPTURE, request, policy=policy)
         return response
 
 
@@ -657,12 +657,12 @@ class HostFilesCapturesResource:
 
     async def start(self, source: FileSource, output: str, mode: CaptureMode, *, policy: OperationPolicy | None = None) -> int:
         request = CapturesStartRequest(source=source, output=output, mode=mode)
-        response = await self._context.call(_FILES_CAPTURES_START, request, policy=policy)
+        response = await self._context._call(_FILES_CAPTURES_START, request, policy=policy)
         return response.capture_id
 
     async def stop(self, capture_id: int, *, policy: OperationPolicy | None = None) -> CapturesStopResponse:
         request = CapturesStopRequest(capture_id=capture_id)
-        response = await self._context.call(_FILES_CAPTURES_STOP, request, policy=policy)
+        response = await self._context._call(_FILES_CAPTURES_STOP, request, policy=policy)
         return response
 
 
@@ -674,19 +674,19 @@ class HostFilesUploadsResource:
         self, metadata: FileMetadata, *, request_id: str | None = None, policy: OperationPolicy | None = None
     ) -> UploadsCreateResponse:
         request = UploadsCreateRequest(metadata=metadata, request_id=request_id if request_id is not None else str(uuid4()))
-        response = await self._context.call(_FILES_UPLOADS_CREATE, request, policy=policy)
+        response = await self._context._call(_FILES_UPLOADS_CREATE, request, policy=policy)
         return response
 
     async def get(self, upload: Upload, *, at: ReadCut | None = None, policy: OperationPolicy | None = None) -> UploadsGetResponse:
         request = UploadsGetRequest(upload=upload, at=at)
-        response = await self._context.call(_FILES_UPLOADS_GET, request, policy=policy)
+        response = await self._context._call(_FILES_UPLOADS_GET, request, policy=policy)
         return response
 
     async def resume(
         self, upload: Upload, *, request_id: str | None = None, policy: OperationPolicy | None = None
     ) -> UploadsResumeResponse:
         request = UploadsResumeRequest(upload=upload, request_id=request_id if request_id is not None else str(uuid4()))
-        response = await self._context.call(_FILES_UPLOADS_RESUME, request, policy=policy)
+        response = await self._context._call(_FILES_UPLOADS_RESUME, request, policy=policy)
         return response
 
     async def append(
@@ -695,7 +695,7 @@ class HostFilesUploadsResource:
         request = UploadsAppendRequest(
             upload=upload, offset=offset, data=data, request_id=request_id if request_id is not None else str(uuid4())
         )
-        response = await self._context.call(_FILES_UPLOADS_APPEND, request, policy=policy)
+        response = await self._context._call(_FILES_UPLOADS_APPEND, request, policy=policy)
         return response
 
     async def publish(
@@ -704,14 +704,14 @@ class HostFilesUploadsResource:
         request = UploadsPublishRequest(
             upload=upload, length=length, sha256=sha256, request_id=request_id if request_id is not None else str(uuid4())
         )
-        response = await self._context.call(_FILES_UPLOADS_PUBLISH, request, policy=policy)
+        response = await self._context._call(_FILES_UPLOADS_PUBLISH, request, policy=policy)
         return response
 
     async def delete(
         self, upload: Upload, *, request_id: str | None = None, policy: OperationPolicy | None = None
     ) -> UploadsDeleteResponse:
         request = UploadsDeleteRequest(upload=upload, request_id=request_id if request_id is not None else str(uuid4()))
-        response = await self._context.call(_FILES_UPLOADS_DELETE, request, policy=policy)
+        response = await self._context._call(_FILES_UPLOADS_DELETE, request, policy=policy)
         return response
 
 
@@ -721,14 +721,14 @@ class HostInvocationsResource:
 
     async def get(self, instance: int, *, policy: OperationPolicy | None = None) -> InstanceState:
         request = InvocationsGetRequest(instance=instance)
-        response = await self._context.call(_INVOCATIONS_GET, request, policy=policy)
+        response = await self._context._call(_INVOCATIONS_GET, request, policy=policy)
         if not response.HasField("invocation"):
             raise ValueError("Read INVOCATIONS_GET: Missing Payload")
         return response.invocation
 
     async def cancel(self, instance: int, reason: str, *, policy: OperationPolicy | None = None) -> InstanceState:
         request = InvocationsCancelRequest(instance=instance, reason=reason)
-        response = await self._context.call(_INVOCATIONS_CANCEL, request, policy=policy)
+        response = await self._context._call(_INVOCATIONS_CANCEL, request, policy=policy)
         if not response.HasField("invocation"):
             raise ValueError("Read INVOCATIONS_CANCEL: Missing Payload")
         return response.invocation
@@ -751,12 +751,12 @@ class HostOperationsResource:
 
     async def list(self, *, policy: OperationPolicy | None = None) -> list[DiscoveredOperation]:
         request = OperationsListRequest()
-        response = await self._context.call(_OPERATIONS_LIST, request, policy=policy)
+        response = await self._context._call(_OPERATIONS_LIST, request, policy=policy)
         return list(response.operations)
 
     async def get(self, id: str, *, policy: OperationPolicy | None = None) -> DiscoveredOperation:
         request = OperationsGetRequest(id=id)
-        response = await self._context.call(_OPERATIONS_GET, request, policy=policy)
+        response = await self._context._call(_OPERATIONS_GET, request, policy=policy)
         if not response.HasField("operation"):
             raise ValueError("Read OPERATIONS_GET: Missing Payload")
         return response.operation
@@ -777,7 +777,7 @@ class HostPluginsSettingsResource:
         self, *, name: str | None = None, at: ReadCut | None = None, policy: OperationPolicy | None = None
     ) -> SettingsListResponse:
         request = SettingsListRequest(name=name, at=at)
-        response = await self._context.call(_PLUGINS_SETTINGS_LIST, request, policy=policy)
+        response = await self._context._call(_PLUGINS_SETTINGS_LIST, request, policy=policy)
         return response
 
 
@@ -787,12 +787,12 @@ class HostPluginsStateResource:
 
     async def get(self, *, policy: OperationPolicy | None = None) -> StateGetResponse:
         request = StateGetRequest()
-        response = await self._context.call(_PLUGINS_STATE_GET, request, policy=policy)
+        response = await self._context._call(_PLUGINS_STATE_GET, request, policy=policy)
         return response
 
     async def put(self, expected_revision: int, value: bytes, *, policy: OperationPolicy | None = None) -> int:
         request = StatePutRequest(expected_revision=expected_revision, value=value)
-        response = await self._context.call(_PLUGINS_STATE_PUT, request, policy=policy)
+        response = await self._context._call(_PLUGINS_STATE_PUT, request, policy=policy)
         return response.revision
 
 
@@ -810,7 +810,7 @@ class HostPromptsResource:
         policy: OperationPolicy | None = None,
     ) -> PromptsCreateResponse:
         request = PromptsCreateRequest(prompt=prompt, prompt_type=prompt_type, values=values, definition=definition)
-        response = await self._context.call(_PROMPTS_CREATE, request, policy=policy)
+        response = await self._context._call(_PROMPTS_CREATE, request, policy=policy)
         return response
 
 
@@ -820,7 +820,7 @@ class HostSecretsResource:
 
     async def get(self, name: str, *, at: ReadCut | None = None, policy: OperationPolicy | None = None) -> SecretsGetResponse:
         request = SecretsGetRequest(name=name, at=at)
-        response = await self._context.call(_SECRETS_GET, request, policy=policy)
+        response = await self._context._call(_SECRETS_GET, request, policy=policy)
         return response
 
 
@@ -830,12 +830,12 @@ class HostTimeResource:
 
     async def get(self, *, policy: OperationPolicy | None = None) -> Timestamp:
         request = TimeGetRequest()
-        response = await self._context.call(_TIME_GET, request, policy=policy)
+        response = await self._context._call(_TIME_GET, request, policy=policy)
         if not response.HasField("now"):
             raise ValueError("Read TIME_GET: Missing Payload")
         return response.now
 
     async def sleep(self, duration: Duration, *, policy: OperationPolicy | None = None) -> TimeSleepResponse:
         request = TimeSleepRequest(duration=duration)
-        response = await self._context.call(_TIME_SLEEP, request, policy=policy)
+        response = await self._context._call(_TIME_SLEEP, request, policy=policy)
         return response

@@ -17,18 +17,16 @@ namespace Example.Plugin.Suites.Capture;
 
 public sealed class ConfirmationTestTemplate : TestTemplate
 {
-  public static readonly Record<bool> Confirmation = new("Confirmation");
-
   [Step("Confirm")]
   public async Task Confirm(Context context)
   {
     var answer = await context.PromptAsync("Continue?", choices: ["Yes", "No"]);
-    await context.RecordAsync(Confirmation, answer == "Yes");
+    await context.RecordAsync(ExamplePlugin.Confirmation, answer == "Yes");
   }
 
   [Criterion("Confirmed")]
   public Task<bool> Confirmed(Context context)
   {
-    return context.Records(Confirmation, step: Confirm).LastAsync();
+    return context.Records(ExamplePlugin.Confirmation, step: Confirm).LastAsync();
   }
 }

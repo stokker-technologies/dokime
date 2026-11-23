@@ -19,7 +19,7 @@ license = "Apache-2.0"
 dependencies = [
   "grpcio>=1.85.1,<2",
   "protobuf>=7.35.1,<8",
-  "harmos-sdk @ git+https://github.com/stokker-technologies/harmos@37729ccb3c9a05ebf71b9e7700bedc3f42cd0dda#subdirectory=sdk/python",
+  "harmos-sdk @ git+https://github.com/stokker-technologies/harmos@ded8e21b98915d57996488018cae1c574eb4b45a#subdirectory=sdk/python",
 ]
 
 [project.optional-dependencies]

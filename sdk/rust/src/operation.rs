@@ -109,7 +109,7 @@ impl Operation {
             if let Some(policy) = self.policy {
                 operation = operation.policy(policy);
             }
-            plugin.register(|registrar| registrar.register(operation)).map_err(Error::from)
+            plugin.register(|registrar| registrar.register(operation))
         }))
     }
 }
@@ -138,10 +138,8 @@ where
     R: Message,
     H: for<'a> AsyncFn(&'a plugin::Context, Q) -> Result<R> + Send + Sync + 'static,
 {
-    plugin::Operation::new(identifier, async move |context: &plugin::Context, request| {
-        handler(context, request).await.map_err(::harmos::Error::from)
-    })
-    .visibility(visibility)
+    plugin::Operation::new(identifier, async move |context: &plugin::Context, request| handler(context, request).await)
+        .visibility(visibility)
 }
 
 pub(crate) fn validate_policy(policy: &OperationPolicy) -> Result<()> {

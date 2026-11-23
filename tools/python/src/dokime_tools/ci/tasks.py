@@ -149,9 +149,9 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("build --check requires --package")
     if args.changed:
         if args.operation != "test" or any(
-            (args.package, args.features, args.exact, args.story, args.target, args.select, args.coverage, args.wheel)
+            (args.package, args.features, args.exact, args.story, args.target, args.select, args.filterset, args.coverage, args.wheel)
         ):
-            parser.error("--changed selects test packages, targets and required features from paths")
+            parser.error("Select Changed Tests: Remove Explicit Package, Target, Feature and Filter Selectors")
         if args.language not in (None, "rust") or args.profile != "dev":
             parser.error("--changed selects Rust tests in the Cargo test profile")
         try:

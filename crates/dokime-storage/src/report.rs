@@ -92,6 +92,12 @@ impl Store {
         transaction.commit()?;
         Ok(report)
     }
+    /// Published Report Identities Without Their HTML, in the Order `reports` Returns Them.
+    pub fn report_identifiers(&self, execution: &str) -> Result<Vec<String>> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare("SELECT id FROM reports WHERE execution=?1 ORDER BY id")?;
+        Ok(statement.query_map([execution], |row| row.get(0))?.collect::<result::Result<Vec<_>, _>>()?)
+    }
     pub fn reports(&self, execution: &str) -> Result<Vec<Report>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT payload FROM reports WHERE execution=?1 ORDER BY id")?;

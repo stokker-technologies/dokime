@@ -12,11 +12,48 @@ The starter's `mise run build` builds Release plugin and client binaries and sta
 the plugin's runtime files in `assets/plugin` for bundling. The `development`
 CMake preset keeps Debug outputs in the build directory.
 
+## Local Integration
+
+Integration Only: source builds select the sibling `harmos` main checkout through
+`FETCHCONTENT_SOURCE_DIR_HARMOS` and keep build outputs in this repository's `target/`.
+
+## Operation Calls
+
+Both handler contexts support `ctx.operation("example.measure", dokime::json(R"({"channel":1})"))`,
+returning a `google::protobuf::Struct`. The library owns JSON conversion, validation and child admission.
+
 ## Operation Lanes
 
 `dokime::Lane` re-exports the library declaration. Create `auto instrument = Lane::serial("instrument");`, assign it with `operation.lane(instrument)`, and register it with `plugin.lane(instrument)`. `Lane::concurrent("workers", 4)` bounds concurrency; `Lane::unbounded("independent")` is unbounded. Plugin descriptions retain lane declarations and operation references; the library rejects undeclared references.
 
 ## Author a Plugin
+
+Declare activation resources with `plugin.resource<RemoteApi>()`, where `RemoteApi`
+derives from `dokime::operations::Resource` and overrides `open(Context &)` and
+`close()`. Handlers call `auto api = ctx.resource<RemoteApi>();` without naming the
+plugin class. The SDK opens each type lazily under a lock once per activation,
+then closes resources in reverse opening order. An unsuccessful `open` owns cleanup
+of its partially initialized state.
+
+Settings use typed classes and synchronous activation snapshots:
+
+```cpp
+class ConnectionSettings : public dokime::operations::Settings {
+public:
+  using Settings::Settings;
+  const std::string api_address = setting<std::string>("api_address", "Remote API Address", "127.0.0.1:30059");
+  const std::chrono::duration<double> dll_timeout = setting<std::chrono::duration<double>>(
+      "dll_timeout", "DLL Host Timeout", std::chrono::seconds(5), std::chrono::seconds(0), std::chrono::seconds(30));
+};
+```
+
+Register with `plugin.settings<ConnectionSettings>()` and read
+`ctx.settings<ConnectionSettings>().dll_timeout`. The inherited constructor loads
+saved values before plugin initialization; Retry or restart refreshes the snapshot.
+Settings use the library's defaults and inclusive bounds. Supported field types are
+`bool`, `std::int64_t`, `double`, `std::string`, and `std::chrono::duration<double>`.
+The `setting` declaration accepts `choices` and `required`, enforced by the host. Secret declarations and
+`ctx.secret("api_token")` remain independent of resource and settings classes.
 
 ```cpp
 #include <dokime/plugin.hpp>
@@ -79,6 +116,8 @@ returns product description values without starting a listener.
 Plugin author classes may override `initialize(dokime::operations::Context&)` and
 `finalize(dokime::operations::Context&)`. The SDK encodes them as protected
 `<plugin>.initialize` and `<plugin>.finalize` operations with empty payloads.
+Clock reads and waits use the library context. The product generator excludes
+duplicate clock resources while retaining their operation dependencies.
 
 Each execution owns a template instance shared by initialize, steps, observers,
 criteria and cleanup. Use template fields for execution state. The optional
@@ -167,8 +206,9 @@ verified and shared by the client.
 Cycle/execution notes and artifacts return product values. Evidence downloads
 verify retained length and SHA-256. `on_prompt` installs one optional answer
 handler; close releases its observation and the channel. Explicit close reports
-handler failures; destructors release resources without throwing. `Error` retains
-structured host failure classification, code, cause, details and diagnostics.
+handler failures; destructors release resources without throwing. `harmos::OperationError` retains
+the library failure in `.value`, including classification, code, action, cause,
+details, diagnostics and host retry evidence.
 
 ## Build and Test
 
@@ -214,3 +254,14 @@ dotenv parsing and managed/remote calls. The C++ thermal host fixture is the
 
 Use fresh development storage when changing evidence schemas; preserve existing
 roots. The [SDK guide](../../docs/sdks/cpp.md) is maintained by the owner.
+
+## Operation Failures and Shared Records
+
+Operation calls throw the library's `harmos::OperationError`, retaining kind, code,
+message, action, operation and retry evidence. `plugin.failure(mapper)` accepts an
+exception mapper returning `std::optional<harmos::OperationError>`; unmapped exceptions
+become Permanent with their text and handler identity.
+
+Declare shared records with `plugin.record(record)`. Template and operation contexts
+write them with `ctx.record(record, value)`. Observer writes reach every execution
+in the host call's capture set and no other execution.

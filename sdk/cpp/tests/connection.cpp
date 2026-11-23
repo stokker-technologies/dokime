@@ -20,6 +20,7 @@
 #include "dokime/client.hpp"
 #include "dokime/host/v1/status.grpc.pb.h"
 
+using harmos::OperationError;
 using std::string;
 using std::filesystem::path;
 
@@ -116,11 +117,11 @@ TEST_CASE("Pairing Failures Preserve Every Endpoint Cause") {
   try {
     dokime::connect(settings);
     FAIL("Pairing Must Refuse Different Host Identities");
-  } catch (const dokime::Error &error) {
-    REQUIRE(error.failure.cause);
-    REQUIRE(error.failure.cause->details.at("connection_endpoint") == first.endpoint);
-    REQUIRE(error.failure.cause->cause);
-    REQUIRE(error.failure.cause->cause->details.at("connection_endpoint") == second.endpoint);
+  } catch (const OperationError &error) {
+    REQUIRE(error.value.has_cause());
+    REQUIRE(error.value.cause().details().at("connection_endpoint") == first.endpoint);
+    REQUIRE(error.value.cause().has_cause());
+    REQUIRE(error.value.cause().cause().details().at("connection_endpoint") == second.endpoint);
   }
 }
 TEST_CASE("Direct Connections Refuse Unpinned HTTPS and Non-Origin Targets") {

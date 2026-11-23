@@ -11,7 +11,7 @@
 # === Imports === #
 
 # Standard Library Imports
-from typing import assert_type
+from typing import Any, assert_type
 
 # Third Party Imports
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -21,7 +21,7 @@ from google.protobuf.wrappers_pb2 import Int64Value
 import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Case, Client, Cycle, Execution, Gap, Outcome, Plugin, Progress, StreamRow, Suite
-from dokime_sdk.operations import Operation, StreamSubscription, Visibility, declaration, operation
+from dokime_sdk.operations import Context, Resource, Setting, Settings, StreamSubscription, Visibility, operation
 from dokime_sdk.templates import TestTemplate, criterion, record, step
 
 # Type Checking Imports
@@ -35,8 +35,19 @@ from dokime_sdk.templates import TestTemplate, criterion, record, step
 # === Classes === #
 
 
+class ConnectionSettings(Settings):
+    api_address: str = Setting.text("Remote API Address", default="127.0.0.1:30059")
+
+
+class RemoteApi(Resource):
+    async def open(self, ctx: Context) -> None:
+        assert_type(ctx.settings(ConnectionSettings), ConnectionSettings)
+        assert_type(ctx.settings(ConnectionSettings).api_address, str)
+        assert_type(await ctx.secret("api_token"), str)
+
+
 class ConfirmationTestTemplate(TestTemplate):
-    confirmation = record(bool)
+    confirmation = record(bool, identifier="confirmation")
 
     @step("Confirm")
     async def confirm(self, ctx: dokime_sdk.templates.Context) -> None:
@@ -56,12 +67,14 @@ class CaptureSuite(Suite):
 class ExamplePlugin(Plugin):
     version = "1.0.0"
     suites = (CaptureSuite,)
+    records = (ConfirmationTestTemplate.confirmation,)
 
 
 # === Public Functions === #
 
 
 async def subscription_surface(ctx: dokime_sdk.operations.Context, stream: dokime_sdk.templates.Stream[Int64Value]) -> None:
+    assert_type(await ctx.resource(RemoteApi), RemoteApi)
     subscription = await ctx.subscribe(stream, max_item_bytes=4096)
     assert_type(subscription, StreamSubscription[Int64Value])
     async for item in subscription:
@@ -82,7 +95,6 @@ async def echo(ctx: dokime_sdk.operations.Context, request: str) -> str:
 
 
 async def client_surface(client: Client) -> None:
-    assert_type(declaration(echo), Operation[str, str])
     await client.plugins.register(ExamplePlugin())
     cycle = await client.cycle(label="Capture")
     assert_type(cycle, Cycle)
@@ -97,15 +109,13 @@ async def client_surface(client: Client) -> None:
         assert_type(await execution.evidence(), bytes)
     await cycle.seal()
     assert_type(await cycle.evidence(), bytes)
-    assert_type(
-        await client.operation(dokime_sdk.operations.Operation("example.echo", request=str, response=str, visibility=Visibility.PUBLIC))(
-            "value"
-        ),
-        str,
-    )
     await client.close()
 
 
 # === Private Functions === #
 
 # === Entry Point === #
+
+
+async def operation_surface(ctx: dokime_sdk.operations.Context) -> None:
+    assert_type(await ctx.operation("example.measure", {"channel": 1}), dict[str, Any])

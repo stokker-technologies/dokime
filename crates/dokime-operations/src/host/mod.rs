@@ -105,6 +105,10 @@ pub struct ClientSettings {
 #[derive(Clone)]
 pub struct Context {
     pub administration: Arc<Mutex<()>>,
+    /// Admits One Frozen Report Render at a Time, So a Download Joins the Seal's.
+    pub reports: Arc<Mutex<()>>,
+    /// Admits One Evidence Archive Build at a Time, So an Export Joins the Seal's.
+    pub archives: Arc<Mutex<()>>,
     pub host: Arc<dyn Host>,
     pub settings: ClientSettings,
     pub operations: OperationManager,
@@ -160,7 +164,7 @@ pub trait Host: Send + Sync {
     fn register_sensitive(&self, value: &str) -> Result<()>;
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
-    fn report_template(&self) -> &'static [u8];
+    fn report_template(&self) -> std::borrow::Cow<'static, [u8]>;
     async fn plugins(&self) -> Result<Vec<PluginEntry>>;
     fn plugin_admission_failures(&self) -> Result<Vec<(String, String)>>;
     async fn refresh_plugin_states(&self) -> Result<()>;

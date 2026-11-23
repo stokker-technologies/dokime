@@ -51,6 +51,8 @@ pub fn catalog() -> [SettingDeclaration; 2] {
                 value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 1 })),
             }),
             maximum: None,
+            choices: Vec::new(),
+            required: false,
             name: SAMPLE_INTERVAL.into(),
             title: "Sample Interval".into(),
             description: "Host time between two observer samples; the simulated model advances one step per sample.".into(),
@@ -61,6 +63,8 @@ pub fn catalog() -> [SettingDeclaration; 2] {
         SettingDeclaration {
             minimum: None,
             maximum: None,
+            choices: Vec::new(),
+            required: false,
             name: IMAGES_DIRECTORY.into(),
             title: "Reference Images Directory".into(),
             description: "Directory containing the optional reference.png the start-up evidence step attaches.".into(),

@@ -8,6 +8,8 @@ using Google.Protobuf.WellKnownTypes;
 using Stories.Support;
 using Xunit;
 
+using Harmos;
+
 namespace Stories.Integration;
 
 public sealed class ClientInspectsABackend
@@ -117,7 +119,7 @@ public sealed class ClientInspectsABackend
     var client = new Client(server, headers: headers);
     var testCase = await client.Cases.GetAsync("case-a", "cycle-a");
     Assert.Equal("case-a", testCase.Identifier);
-    var failure = await Assert.ThrowsAsync<SdkError>(() => client.Cases.GetAsync("", "cycle-a"));
+    var failure = await Assert.ThrowsAsync<OperationException>(() => client.Cases.GetAsync("", "cycle-a"));
     Assert.Equal("InvalidArgument", failure.Failure.Code);
     await client.CloseAsync();
     await Assert.ThrowsAsync<InvalidOperationException>(() => client.Cases.GetAsync("case-a"));

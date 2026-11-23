@@ -218,9 +218,8 @@ def plugin_paths(arguments: list[str] | None = None) -> list[Path]:
 
 
 def command(environment: Mapping[str, str]) -> list[str]:
-    """Let Tauri Watch Report Sources and Regenerate Their Template Before Each Rust Run."""
+    """Run Tauri Dev; Frontend Edits Only Hot-Reload, Rust Edits Regenerate the Report Before Each Rust Run."""
     build: dict[str, object] = {
-        "additionalWatchFolders": [str(ROOT / "crates/dokime-gui/src")],
         # Tauri Prepends `run`; Uv Consumes It Before Invoking the Development Runner.
         "runner": {
             "cmd": "uv",
@@ -367,6 +366,24 @@ def main(arguments: list[str] | None = None) -> int:
             raise policy.ToolError(f"Install the Shipped Plugins: the Seeding Host Exited With {server.returncode}")
         # The Reaped Host's Identifier May Be Reused; Stop Never Signals It Again.
         owner.processes.remove(server)
+
+        # Rebuild the Report Renderer on Frontend Edits; Debug Runtimes Read It at Report Time, So No Restart
+        owner.start(
+            [
+                "node",
+                GUI / "node_modules/vite/bin/vite.js",
+                "build",
+                "--mode",
+                "report",
+                "--watch",
+                "--outDir",
+                ROOT / "target/generated/report",
+            ],
+            cwd=GUI,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=sys.stderr,
+        )
 
         # Start Tauri Dev With Vite Live Reload; Closing the Window Ends It
         desktop = owner.start(

@@ -23,14 +23,12 @@ from google.protobuf.wrappers_pb2 import BoolValue
 from grpc import StatusCode
 from grpc.aio import Channel, ServicerContext, server
 from harmos import OperationPolicy, plugin
-from harmos._wire.host.v1 import invocations_pb2, operations_pb2
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
-from dokime_sdk import Plugin, Suite
+from dokime_sdk import Plugin, Suite, operations
 from dokime_sdk._client import Case, Cycle, Execution
 from dokime_sdk._connection import connect
-from dokime_sdk._errors import SdkError
 from dokime_sdk._generated import client_types
 from dokime_sdk._wire.host.v1 import documents_pb2, evidence_pb2
 from dokime_sdk._wire.host.v1.content import artifacts_pb2
@@ -44,10 +42,8 @@ from dokime_sdk._wire.host.v1.executions import schemas_pb2
 from dokime_sdk._wire.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
 from dokime_sdk._wire.host.v1.files import uploads_pb2
 from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
-from dokime_sdk._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
-from dokime_sdk._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
-from dokime_sdk.operations import BoundOperation, Operation, Visibility
-from dokime_sdk.templates import Context, Document, Section, Termination, TestTemplate, observer, record, stream
+from dokime_sdk.operations import OperationError
+from dokime_sdk.templates import Context, Document, Observer, Section, Termination, TestTemplate, record
 
 # Type Checking Imports
 
@@ -65,21 +61,9 @@ class ScopedCarrier(plugin.Context):
         super().__init__(Request(scope="execution", attempt=1), "plugin", {})
         self.channel = channel
 
-    async def call[Q: Message, R: Message](
+    async def _call[Q: Message, R: Message](
         self, operation: plugin.Operation[Q, R], request: Q, *, policy: OperationPolicy | None = None
     ) -> R:
-        if "/" not in operation.id:
-            invoke = self.channel.unary_unary(
-                "/dokime.host.v1.Invocations/Create",
-                request_serializer=invocations_pb2.InvocationsCreateRequest.SerializeToString,
-                response_deserializer=invocations_pb2.InvocationsCreateResponse.FromString,
-            )
-            response = await invoke(
-                invocations_pb2.InvocationsCreateRequest(
-                    operation=operation.id, fingerprint=operation.fingerprint, payload=request.SerializeToString()
-                )
-            )
-            return operation.response.FromString(response.payload)
         invoke = self.channel.unary_unary(
             f"/{operation.id}",
             request_serializer=operation.request.SerializeToString,
@@ -96,7 +80,6 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.fail_append = False
         self.fail_attach = False
         owner = self
-        self.operation = Operation("example.echo", bool, bool, Visibility.PUBLIC)
 
         class Uploads(UploadsServicer):
             async def Create(
@@ -162,7 +145,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         types = FileDescriptorSet()
         BoolValue.DESCRIPTOR.file.CopyToProto(types.file.add())
         digest = sha256(types.SerializeToString()).digest()
-        bindings = [{"record_type": "capture.capture.capture.flag", "message_name": BoolValue.DESCRIPTOR.full_name}]
+        bindings = [{"record_type": "capture.flag", "message_name": BoolValue.DESCRIPTOR.full_name}]
         self.detail = client_types.ExecutionDetail(
             summary={"execution_id": "execution", "case_id": "case"},
             cycle_id="cycle",
@@ -198,21 +181,6 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
                     resolved_at={"positions": [{"sequence": 9}]},
                 )
 
-        class Operations(OperationsServicer):
-            async def Get(
-                self, request: operations_pb2.OperationsGetRequest, context: ServicerContext
-            ) -> operations_pb2.OperationsGetResponse:
-                return operations_pb2.OperationsGetResponse(
-                    operation={"contract": {"fingerprint": owner.operation._definition().fingerprint, "visibility": "VISIBILITY_PUBLIC"}}
-                )
-
-        class Invocations(InvocationsServicer):
-            async def Create(
-                self, request: invocations_pb2.InvocationsCreateRequest, context: ServicerContext
-            ) -> invocations_pb2.InvocationsCreateResponse:
-                owner.requests.append(request)
-                return invocations_pb2.InvocationsCreateResponse(payload=request.payload)
-
         class Evidence(EvidenceServicer):
             async def Statistics(
                 self, request: evidence_pb2.EvidenceStatisticsRequest, context: ServicerContext
@@ -239,8 +207,6 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         add_UploadsServicer_to_server(Uploads(), host)
         add_EvidenceServicer_to_server(Evidence(), host)
         add_DocumentsServicer_to_server(Documents(), host)
-        add_OperationsServicer_to_server(Operations(), host)
-        add_InvocationsServicer_to_server(Invocations(), host)
         add_RecordsServicer_to_server(Records(), host)
         add_SchemasServicer_to_server(Schemas(), host)
         add_ArtifactsServicer_to_server(Artifacts(), host)
@@ -263,22 +229,28 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(artifact.execution)
 
     async def test_client_and_scoped_callers_share_publication_and_record_queries(self) -> None:
+        class CaptureTestTemplateVoltage(Observer[float]):
+            identifier = "voltage"
+            label = "Voltage"
+            row = float
+
+            async def sample(self, ctx: operations.Context) -> float:
+                return 0.0
+
         class CaptureTestTemplate(TestTemplate):
-            flag = record(bool)
+            uses_streams = (CaptureTestTemplateVoltage,)
+            flag = record(bool, identifier="flag")
             report = Document("Report")
             documents: ClassVar[list[Document]] = [report]
-
-            @stream("Voltage")
-            @observer()
-            async def voltage(self, ctx: Context) -> float:
-                return 0.0
 
         class CaptureSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [CaptureTestTemplate]
 
         class CapturePlugin(Plugin):
+            observers = (CaptureTestTemplateVoltage,)
             version = "1.0.0"
             suites: ClassVar[list[type[Suite]]] = [CaptureSuite]
+            records = (CaptureTestTemplate.flag,)
 
         owner = CapturePlugin()
         channel = self.client._transport._owned_channel
@@ -301,7 +273,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await context.artifact("trace.json", b"{}", mime="test/json")).mime, "test/json")
 
         self.requests.clear()
-        rows = await execution.records("capture.capture.capture.flag", row_type=bool).read(limit=2)
+        rows = await execution.records("capture.flag", row_type=bool).read(limit=2)
         client_requests = list(self.requests)
         self.requests.clear()
         query = context.records(CaptureTestTemplate.flag)
@@ -312,14 +284,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await query.last())
         self.assertIs(context.termination, None)
         self.requests.clear()
-        client_call = self.client.operation(self.operation)
-        scoped_call = context.operation(self.operation)
-        self.assertIs(type(client_call), BoundOperation)
-        self.assertIs(type(scoped_call), BoundOperation)
-        self.assertTrue(await client_call(True))
-        self.assertTrue(await scoped_call(True))
-        self.assertEqual(self.requests[0], self.requests[1])
-        statistics = await context.statistics(CaptureTestTemplate.voltage)
+        statistics = await context.statistics(CaptureTestTemplateVoltage)
         self.assertEqual(
             (statistics.count, statistics.min, statistics.max, statistics.mean, statistics.stddev), (3, 1, 2**64 - 1, Fraction(7, 3), 1.25)
         )
@@ -332,23 +297,23 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.requests[0].document, "capture.capture.capture.report")
         with self.assertRaises(ValueError):
             await context.document("unknown", Section("Measured"))
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await context.note("Operator Note")
         cleanup = Context(ScopedCarrier(channel), owner, {}, owner._suites[0].templates[0], termination=3)
         self.assertIs(cleanup.termination, Termination.CANCELLED)
 
     async def test_failed_upload_abandons_without_changing_the_request_identity(self) -> None:
         self.fail_append = True
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.cycle.artifact("capture.bin", b"abcde", request_id="failed")
-        self.assertEqual(failed.exception.request_id, "failed")
+        self.assertEqual(failed.exception.value.details["request_id"], "failed")
         self.assertEqual(self.identities, ["failed/create", "failed/append/0", "failed/abandon"])
 
     async def test_failed_attachment_never_deletes_a_published_file(self) -> None:
         self.fail_attach = True
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.cycle.artifact("capture.bin", b"abcde", request_id="published")
-        self.assertEqual(failed.exception.request_id, "published")
+        self.assertEqual(failed.exception.value.details["request_id"], "published")
         self.assertEqual(self.identities[-2:], ["published/publish", "published/attach"])
         self.assertFalse(any(identity.endswith("/abandon") for identity in self.identities))
 

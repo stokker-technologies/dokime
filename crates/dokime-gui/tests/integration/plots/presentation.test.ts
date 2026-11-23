@@ -24,7 +24,7 @@ import XyPlot from "@/plots/catalog/XyPlot.svelte";
 import TimeSeriesPlot from "@/plots/catalog/TimeSeriesPlot.svelte";
 import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
-import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
+import type { DocumentViewPlot, PlotCartesianFrame, PlotPayload } from "@/lib/types";
 import { failureOf } from "@/lib/notification-details";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { emptyLivePlotState } from "@/plots/live-frames";
@@ -34,7 +34,8 @@ import PlotPlaceholder from "../../../src/plots/PlotPlaceholder.svelte";
 
 /* === Constants === */
 
-const charts = vi.hoisted(() => ({ options: [] as uPlot.Options[] }));
+/* uPlot draws once per microtask: `drawn` records the x range each draw shows, "auto" for a fit to the data. */
+const charts = vi.hoisted(() => ({ options: [] as uPlot.Options[], drawn: [] as unknown[] }));
 
 const descriptor = {
   plot_id: "position",
@@ -45,18 +46,20 @@ const descriptor = {
   y: ["y"],
 } as DocumentViewPlot;
 
+const cartesian: PlotCartesianFrame = {
+  mode: "faceted",
+  series: [{ x: [1000, 1000.25, 1000.5], y: [1000, 1000.25, 1000.5] }],
+  point_count: 3,
+  signature: "position",
+};
+
 const payload: PlotPayload = {
   stream: "readings",
   x_key: "x",
   max_points: 100,
   generated_at: "2026-01-01T00:00:00Z",
   series: [{ key: "position", label: "Position", raw_points: 3, downsampled: false, points: [] }],
-  cartesian: {
-    mode: "faceted",
-    series: [{ x: [1000, 1000.25, 1000.5], y: [1000, 1000.25, 1000.5] }],
-    point_count: 3,
-    signature: "position",
-  },
+  cartesian,
 };
 
 /* === Types === */
@@ -72,6 +75,7 @@ function stubChartSize() {
   onTestFinished(() => {
     cleanup();
     charts.options.length = 0;
+    charts.drawn.length = 0;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -86,15 +90,35 @@ vi.mock("uplot", () => ({
     static paths = {};
     over = document.createElement("div");
     series: uPlot.Series[];
+    pendingX: unknown;
     constructor(options: uPlot.Options) {
       charts.options.push(options);
       this.series = options.series;
+      this.draw("auto");
+    }
+    draw(x: unknown) {
+      if (this.pendingX === undefined) {
+        queueMicrotask(() => {
+          charts.drawn.push(this.pendingX);
+          this.pendingX = undefined;
+        });
+      }
+      this.pendingX = x;
     }
     setSize() {}
     setSeries(index: number, options: uPlot.Series) {
       Object.assign(this.series[index], options);
     }
-    setData() {}
+    setData(_data: uPlot.AlignedData, resetScales?: boolean) {
+      if (resetScales !== false) {
+        this.draw("auto");
+      }
+    }
+    setScale(key: string, range: { min: number; max: number }) {
+      if (key === "x") {
+        this.draw(range);
+      }
+    }
     destroy() {}
   },
 }));
@@ -228,13 +252,13 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
     payload: {
       ...payload,
       series,
-      cartesian: { ...payload.cartesian!, point_count: 36, series: series.map(() => payload.cartesian!.series[0]) },
+      cartesian: { ...cartesian, point_count: 36, series: series.map(() => cartesian.series[0]) },
       summaries: series.map((trace) => ({ series_id: trace.key, count: 3, min: 1000, max: 1000.5, mean: 1000.25 })),
     },
   });
   for (const viewportMode of ["live", "fit"] as const) {
     const { container: host } = render(TimeSeriesPlot, { plot, viewportMode, actions: settingsAction });
-    const card = host.querySelector("article.plot-card")!;
+    const card = host.querySelector("article.plot-card") as HTMLElement;
     assert.equal(host.querySelectorAll("article").length, 1);
     assert.ok(card.classList.contains("border"));
     const [header, chart, description, statistics] = Array.from(card.children);
@@ -243,11 +267,11 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
     assert.ok(chart.querySelector(".min-h-60"));
     assert.equal(description.tagName, "P");
     assert.equal(description.textContent, plot.description);
-    const table = statistics.querySelector('table[aria-label="Trace Statistics"]')!;
+    const table = statistics.querySelector('table[aria-label="Trace Statistics"]') as HTMLTableElement;
     assert.equal(table.querySelectorAll("tbody tr").length, 12);
     assert.equal(card.querySelectorAll('[data-slot="data-table"], input, select, tfoot').length, 0);
     assert.equal(statistics.querySelectorAll("h1, h2, h3, h4, h5, h6, .border").length, 0);
-    const toggle = table.querySelector("tbody button")!;
+    const toggle = table.querySelector("tbody button") as HTMLButtonElement;
     await fireEvent.click(toggle);
     assert.equal(toggle.getAttribute("aria-pressed"), "false");
     assert.ok(toggle.querySelector('[data-trace-hidden="true"]'));
@@ -255,6 +279,41 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
     assert.equal(toggle.getAttribute("aria-pressed"), "true");
     assert.equal(table.querySelectorAll("tbody tr").length, 12);
   }
+});
+
+test("Live Revisions Redraw One Chart Only Inside the Selected Window", async () => {
+  stubChartSize();
+  vi.useFakeTimers();
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const revision = (latest: number) =>
+    documentPlotSpec({
+      plot: { ...descriptor, plot_type: "time_series" },
+      payload: {
+        ...payload,
+        window_s: 60,
+        cartesian: {
+          mode: "aligned",
+          series: [{ x: [latest - 90, latest - 30, latest], y: [1, 2, 3] }],
+          point_count: 3,
+          signature: `${latest}`,
+        },
+      },
+    });
+  const { rerender } = render(TimeSeriesPlot, { plot: revision(1000), viewportMode: "live" });
+  await act(() => vi.dynamicImportSettled());
+  for (const latest of [1001, 1002]) {
+    await rerender({ plot: revision(latest) });
+    await vi.advanceTimersByTimeAsync(16);
+  }
+  assert.equal(charts.options.length, 1);
+  assert.deepEqual(
+    charts.drawn,
+    [1000, 1001, 1002].map((latest) => ({ min: latest - 60, max: latest })),
+  );
 });
 
 test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside Their Card", async () => {
@@ -294,9 +353,9 @@ test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside 
         liveStates: { [plot.plot_id]: state },
         viewportMode,
       });
-      const card = host.querySelector("article.plot-card")!;
+      const card = host.querySelector("article.plot-card") as HTMLElement;
       assert.ok(card.classList.contains("border"));
-      const table = card.querySelector('table[aria-label="Histogram Statistics"]')!;
+      const table = card.querySelector('table[aria-label="Histogram Statistics"]') as HTMLTableElement;
       assert.equal(host.querySelectorAll("article").length, 1);
       assert.equal(host.querySelectorAll("table").length, 1);
       assert.equal(table.querySelectorAll("tbody tr").length, count);

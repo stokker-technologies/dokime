@@ -42,6 +42,8 @@ use crate::{
     streams::{ExecutionTime, SampleScope},
 };
 use dokime_operations::Resources;
+use dokime_operations::host::evidence::archive;
+use dokime_operations::host::reports;
 use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::host::executions::ExecutionCommandPhase;
@@ -427,9 +429,9 @@ fn launch(
         .await;
         // Settle Every Admitted Execution Even If a Worker Failed to Join
         let mut result = result;
-        for execution in observed {
+        for execution in &observed {
             // A Failed Worker's Binding Drains Before Its Streams Close.
-            if let Err(error) = host.settled(&execution).await {
+            if let Err(error) = host.settled(execution).await {
                 result = Err(error);
             }
             let context = host.inner.context.get().and_then(Weak::upgrade);
@@ -438,9 +440,9 @@ fn launch(
                 None => None,
             };
             let settled = (|| -> Result<()> {
-                let cut = host.inner.store.cut(&execution)?;
+                let cut = host.inner.store.cut(execution)?;
                 if cut.state == ExecutionState::Open {
-                    host.inner.store.close_streams(&execution)?;
+                    host.inner.store.close_streams(execution)?;
                     host.inner.store.close(
                         &execution,
                         Termination::Interrupted,
@@ -452,16 +454,37 @@ fn launch(
                         },
                     )?;
                 }
-                if host.inner.store.cut(&execution)?.state == ExecutionState::Closed {
-                    host.inner.store.seal(&execution, clock::date(host.inner.settings.clock.now_ns()).into())?;
+                if host.inner.store.cut(execution)?.state == ExecutionState::Closed {
+                    host.inner.store.seal(execution, clock::date(host.inner.settings.clock.now_ns()).into())?;
                 }
                 Ok(())
             })();
             if let Err(error) = settled {
                 result = Err(error);
             }
-            if let Err(error) = host.finish_progress(&execution, result.as_ref().err().map(ToString::to_string)) {
+            if let Err(error) = host.finish_progress(execution, result.as_ref().err().map(ToString::to_string)) {
                 result = Err(error);
+            }
+        }
+        // Every Termination Freezes Its Reports, Then Its Evidence Archives; Download and Export Only Deliver Them.
+        if let Some(context) = host.inner.context.get().and_then(Weak::upgrade) {
+            let sealed = observed
+                .iter()
+                .filter(|execution| host.inner.store.cut(execution).is_ok_and(|cut| cut.state == ExecutionState::Sealed))
+                .collect::<Vec<_>>();
+            for execution in &sealed {
+                if !context.host.shutting_down()
+                    && let Err(error) = reports::create::freeze(&context, execution).await
+                {
+                    tracing::warn!(%execution, %error, "Freeze Report: Download Creates It on Demand");
+                }
+            }
+            for execution in &sealed {
+                if !context.host.shutting_down()
+                    && let Err(error) = archive::freeze(&context, execution).await
+                {
+                    tracing::warn!(%execution, %error, "Freeze Evidence: Export Creates It on Demand");
+                }
             }
         }
         let _ = send.send(result);
@@ -518,6 +541,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
             .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Host Context Before Running".into()))?,
         store: host.inner.store.clone(),
         execution: execution.clone(),
+        capturing_executions: Vec::new(),
         step: String::new(),
         operation: String::new(),
         attempt: Arc::new(AtomicU32::new(0)),

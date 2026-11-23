@@ -113,6 +113,7 @@ fn client_edits_settings() -> Result<(), Box<dyn Error>> {
                     default: Some(SettingValue {
                         value: Some(setting_value::Value::Flag(true)),
                     }),
+                    ..Default::default()
                 }],
             };
             let catalog =

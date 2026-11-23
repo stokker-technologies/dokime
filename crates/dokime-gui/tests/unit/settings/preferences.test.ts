@@ -418,6 +418,8 @@ test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
             default: { value: { case: "number", value: 1000 } },
             minimum: { value: { case: "number", value: 1000 } },
             maximum: { value: { case: "number", value: 10000 } },
+            choices: [],
+            required: false,
           },
         },
       ],

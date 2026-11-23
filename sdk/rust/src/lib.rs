@@ -22,7 +22,6 @@ pub mod client;
 mod configuration;
 mod context;
 mod data;
-mod error;
 pub mod operations;
 mod payload;
 pub mod templates;
@@ -34,6 +33,7 @@ pub mod plugin;
 pub mod prelude;
 mod prompt;
 mod record;
+mod resource;
 mod stream;
 mod suite;
 mod template;
@@ -43,6 +43,8 @@ mod transfers;
 /* === Re-Exports === */
 
 pub use ::harmos::plugin::Lane;
+pub use ::harmos::untyped;
+pub use ::harmos::{Error, Result};
 pub use client::{
     Attribution, Case, Client, ConnectionSettings, Cycle, Execution, Outcome, Progress, ProgressStream, connect, connect_with,
 };
@@ -51,7 +53,6 @@ use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row};
 pub use dokime_protocol::builders;
-pub use error::{Error, Result};
 pub use exports::*;
 pub use payload::Payload;
 

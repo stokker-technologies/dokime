@@ -20,13 +20,12 @@ const GUI_LOG_BYTES = 262_144;
 const GUI_LOG_EVENTS = 256;
 const LEVELS = { trace: 0, debug: 1, info: 2, warning: 3, error: 4 };
 export type TraceLevel = "trace" | Severity;
-export type TraceSelection = { cycleId: string | null; executionId: string | null };
-export type TracePage = { epoch: string; records: HubRecord[]; dropped: bigint; nextSequence: bigint };
+export type TracePage = { epoch: string; records: HubRecord[]; dropped: bigint };
 export class NativeTraceHistoryExpired extends Error {}
 
 export async function openTraceStream(
   session: SessionIdentity,
-  request: TraceSelection & { minLevel: TraceLevel; afterSequence: bigint; epoch?: string },
+  minLevel: TraceLevel,
 ): Promise<AsyncIterable<TracePage> & { cancel: () => Promise<void> }> {
   let cancelled = false;
   let reader: Awaited<ReturnType<typeof rpc.statusTraceEventsWatch>> | undefined;
@@ -51,7 +50,7 @@ export async function openTraceStream(
           throw new Error("Read Trace: Snapshot Changed Between Pages");
         at = position;
         if (page === 0 && reply.events.length) dropped = reply.events[0].sequence - 1n;
-        yield projectTracePage(reply.events, position, dropped, request);
+        yield projectTracePage(reply.events, position, dropped, minLevel);
         if (!reply.nextPageToken) break;
         if (reply.nextPageToken === token || page + 1 === NATIVE_MAX_PAGES)
           throw new Error("Read Trace: Snapshot Pagination Did Not Finish");
@@ -70,7 +69,7 @@ export async function openTraceStream(
           if (cancelled || !session.isCurrent()) return;
           const position = batch.resolvedAt;
           if (!position?.history?.store || !position.history.epoch) throw new Error("Watch Trace: Missing History Position");
-          yield projectTracePage(batch.events, position, dropped, request);
+          yield projectTracePage(batch.events, position, dropped, minLevel);
         }
       } catch (error) {
         traceFailure(error);
@@ -85,25 +84,12 @@ export async function openTraceStream(
   };
 }
 
-function projectTracePage(
-  events: Wire<Event>[],
-  at: Wire<Position>,
-  dropped: bigint,
-  selection: TraceSelection & { minLevel: TraceLevel },
-): TracePage {
+function projectTracePage(events: Wire<Event>[], at: Wire<Position>, dropped: bigint, minLevel: TraceLevel): TracePage {
   return {
     epoch: JSON.stringify(at.history),
-    nextSequence: at.sequence,
     dropped,
     records: events
-      .filter((event) => {
-        const level = logLevel(event.level);
-        return (
-          LEVELS[level] >= LEVELS[selection.minLevel] &&
-          (!selection.executionId || event.fields.execution_id === selection.executionId) &&
-          (!selection.cycleId || event.fields.cycle_id === selection.cycleId)
-        );
-      })
+      .filter((event) => LEVELS[logLevel(event.level)] >= LEVELS[minLevel])
       .map((event) => ({
         record_id: `trace-${event.sequence}`,
         record_type: "log",

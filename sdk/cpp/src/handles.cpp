@@ -31,6 +31,8 @@ using dokime::client::host::PLUGIN_STATE_UNAVAILABLE;
 using dokime::client::host::PluginPlacement;
 using dokime::client::host::PluginValue;
 using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
+using harmos::OperationError;
+using harmos::model::Failure;
 using std::invalid_argument;
 using std::lock_guard;
 using std::make_shared;
@@ -104,11 +106,11 @@ shared_ptr<grpc::ClientContext> ClientState::context() const {
   lock_guard lock(contexts_mutex);
   if (closed) {
     Failure failure;
-    failure.classification = "Cancelled";
-    failure.code = "client_closed";
-    failure.message = "The Client Is Closed";
-    failure.action = "Connect a New Client";
-    throw Error(move(failure));
+    failure.set_classification(harmos::CLASSIFICATION_CANCELLED);
+    failure.set_code("client_closed");
+    failure.set_message("The Client Is Closed");
+    failure.set_action("Connect a New Client");
+    throw OperationError(move(failure));
   }
   auto context = make_shared<grpc::ClientContext>();
   if (!access_key.empty())
@@ -318,7 +320,6 @@ void Client::close() {
         registration->listener->close();
         registration->listener.reset();
       }
-      registration->plugin.reset();
     } catch (...) {
       if (!cleanup_failure)
         cleanup_failure = std::current_exception();
@@ -331,6 +332,14 @@ void Client::close() {
         registration->listener.reset();
       }
     }
+    try {
+      if (registration->plugin)
+        registration->plugin->plugin_->close();
+    } catch (...) {
+      if (!cleanup_failure)
+        cleanup_failure = std::current_exception();
+    }
+    registration->plugin.reset();
   }
   state_->closed = true;
   state_->prompt_worker.request_stop();
@@ -375,7 +384,7 @@ void Client::on_prompt(std::function<PromptAnswer(const PromptQuestion &)> handl
       std::set<string> answered;
       while (const auto frame = watch.next()) {
         if (frame->has_resync_required())
-          throw Error(detail::project_failure(frame->resync_required()));
+          throw OperationError(frame->resync_required());
         for (const auto &view : frame->prompts()) {
           const auto &prompt = view.prompt();
           std::function<PromptAnswer(const PromptQuestion &)> handler;
@@ -402,8 +411,8 @@ void Client::on_prompt(std::function<PromptAnswer(const PromptQuestion &)> handl
           answered.insert(prompt.prompt_id());
         }
       }
-    } catch (const Error &error) {
-      if (!stop.stop_requested() || error.failure.classification != "Cancelled")
+    } catch (const OperationError &error) {
+      if (!stop.stop_requested() || error.value.classification() != harmos::CLASSIFICATION_CANCELLED)
         state->prompt_failure = std::current_exception();
     } catch (...) {
       state->prompt_failure = std::current_exception();
@@ -658,7 +667,7 @@ void Cycle::seal(optional<string> request_id) {
   auto watch = state_->client->transport->cycles.watch(selection, {}, {}, watching);
   while (const auto frame = watch.next()) {
     if (frame->has_resync_required())
-      throw Error(detail::project_failure(frame->resync_required()));
+      throw OperationError(frame->resync_required());
     for (const auto &summary : frame->cycles()) {
       if (summary.cycle_id() != identifier())
         continue;
@@ -869,7 +878,7 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
     RegisteredPlugin registered(registration);
     auto ready = [&] {
       if (registration->entry.has_failure())
-        throw Error(detail::project_failure(registration->entry.failure()));
+        throw OperationError(registration->entry.failure());
       const auto state = registration->entry.state();
       if (state != PLUGIN_STATE_READY && state != PLUGIN_STATE_CONNECTING)
         throw runtime_error("Register Plugin: Enable the Plugin and Resolve Its Activation Failure");
@@ -909,6 +918,12 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
       cleanup_failure = std::current_exception();
     }
     registration->listener.reset();
+    try {
+      registration->plugin->plugin_->close();
+    } catch (...) {
+      if (!cleanup_failure)
+        cleanup_failure = std::current_exception();
+    }
     registration->plugin.reset();
     client_->registrations.erase(identifier);
     if (cleanup_failure)
@@ -978,9 +993,9 @@ void RegisteredPlugin::unregister() {
     client::PluginsDeleteOptions options;
     options.context = state_->client->context();
     state_->client->transport->plugins.delete_(identifier(), state_->entry.revision(), options);
-  } catch (const Error &error) {
-    const auto status = error.failure.details.find("grpc_status");
-    if (status == error.failure.details.end() || status->second != "5")
+  } catch (const OperationError &error) {
+    const auto status = error.value.details().find("grpc_status");
+    if (status == error.value.details().end() || status->second != "5")
       throw;
   }
   if (state_->listener) {
@@ -997,6 +1012,8 @@ void RegisteredPlugin::unregister() {
       ++binding;
   }
   state_->client->registrations.erase(identifier());
+  if (state_->plugin)
+    state_->plugin->plugin_->close();
   state_->plugin.reset();
   state_->detached = true;
 }
@@ -1006,31 +1023,40 @@ void RegisteredPlugin::wait() {
   state_->listener->wait();
 }
 void Plugin::serve() {
-  if (detail::configuration::environment("HARMOS_HOST_ENDPOINT") || detail::configuration::environment("HARMOS_LAUNCH_TOKEN")) {
-    compose().run();
+  auto serve = [&] {
+    if (detail::configuration::environment("HARMOS_HOST_ENDPOINT") || detail::configuration::environment("HARMOS_LAUNCH_TOKEN")) {
+      compose().run();
+      return;
+    }
+    const auto values = detail::configuration::load();
+    const auto remote =
+        detail::configuration::environment("DOKIME_REMOTE").value_or(values.contains("DOKIME_REMOTE") ? values.at("DOKIME_REMOTE") : "");
+    if (remote.empty()) {
+      compose().run("127.0.0.1:0");
+      return;
+    }
+    ConnectionSettings settings;
+    settings.remote = remote;
+    auto client = connect(settings);
+    // The Blocking Entry Borrows Its Author Until the Registered Listener Completes.
+    auto registered = client.plugins().register_owned(shared_ptr<Plugin>(this,
+                                                                         [](Plugin *) {
+                                                                         }),
+                                                      {}, {});
+    registered.wait();
+    client.close();
+  };
+  try {
+    serve();
+  } catch (...) {
+    plugin_->close();
     ShutdownDefaultEventEngine();
-    return;
+    throw;
   }
-  const auto values = detail::configuration::load();
-  const auto remote =
-      detail::configuration::environment("DOKIME_REMOTE").value_or(values.contains("DOKIME_REMOTE") ? values.at("DOKIME_REMOTE") : "");
-  if (remote.empty()) {
-    compose().run("127.0.0.1:0");
-    ShutdownDefaultEventEngine();
-    return;
-  }
-  ConnectionSettings settings;
-  settings.remote = remote;
-  auto client = connect(settings);
-  // The Blocking Entry Borrows Its Author Until the Registered Listener Completes.
-  auto registered = client.plugins().register_owned(shared_ptr<Plugin>(this,
-                                                                       [](Plugin *) {
-                                                                       }),
-                                                    {}, {});
-  registered.wait();
-  client.close();
+  plugin_->close();
   ShutdownDefaultEventEngine();
 }
+
 } // namespace dokime
 
 /* === Private Functions === */

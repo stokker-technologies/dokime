@@ -154,7 +154,7 @@ export function liveCartesianXRange(
 }
 
 /**
- * Follows the run along a time axis.
+ * The x window a live run follows, or `null` where the axis fits its data.
  *
  * Only a time axis follows: the live window is seconds, and applied to a
  * position axis it would pin an xy plot to a span its own data decides. The
@@ -162,29 +162,26 @@ export function liveCartesianXRange(
  * explicit range one ulp wide gives uPlot an increment its tick loop cannot
  * advance by, and that loop pushes splits until the array overflows.
  */
-export function setLiveXScale(plot: uPlot, range: PlotViewportRange | null, xScale: DocumentAxisScale, timeAxis: boolean): void {
-  if (!timeAxis || !range || !isUsableSpan(range.min, range.max)) {
-    return;
+export function liveXWindow(range: PlotViewportRange | null, xScale: DocumentAxisScale, timeAxis: boolean): PlotViewportRange | null {
+  if (!timeAxis || !range || !isUsableSpan(range.min, range.max) || (xScale === "log" && range.min <= 0)) {
+    return null;
   }
-  if (xScale === "log" && range.min <= 0) {
-    return;
-  }
-  plot.setScale("x", range);
+  return range;
 }
 
 /**
- * Re-pins a held viewport over fresh data: the axes are auto-ranged first so
- * an axis the drag left alone keeps ranging with the data, then each held
- * axis is set back, and an unheld x axis follows the run on a live surface.
+ * Applies a frame and its viewport in one uPlot commit, so no draw shows the
+ * frame at its auto-fitted x range: a held axis stays pinned, an unheld x
+ * follows the `live` window or else fits the data, and an unheld y keeps
+ * ranging with the data.
  */
-export function applyHeldViewport(plot: uPlot, held: HeldViewport, data: uPlot.AlignedData, followX: () => void): void {
-  plot.setData(data, true);
-  if (held.x) {
-    plot.setScale("x", held.x);
-  } else {
-    followX();
+export function applyFrame(plot: uPlot, data: uPlot.AlignedData, held: HeldViewport | null, live: PlotViewportRange | null): void {
+  const x = held?.x ?? live;
+  plot.setData(data, !x);
+  if (x) {
+    plot.setScale("x", x);
   }
-  if (held.y) {
+  if (held?.y) {
     plot.setScale("y", held.y);
   }
 }

@@ -74,6 +74,9 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             super::support::answer(&host, &identifier, prompt)?;
             cycle.wait().await?;
             let before = host.execution(&identifier)?;
+            // Sealing Froze the Default Report; a Preview of a Named Document Is Separate.
+            let frozen = host.reports(&identifier)?;
+            assert_eq!(frozen.len(), 1);
             host.shutdown().await?;
             drop(host);
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
@@ -108,7 +111,7 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             let file = preview.file.clone().unwrap();
             assert_eq!(preview.report.as_ref().unwrap().origin, ReportOrigin::Current as i32);
             let store = Store::open(root.path())?;
-            assert!(store.reports(&identifier)?.is_empty());
+            assert_eq!(store.reports(&identifier)?, frozen);
             assert_eq!(store.read(&identifier)?, before);
             assert!(
                 reports
@@ -123,7 +126,7 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
                     .await
                     .is_err()
             );
-            assert!(store.reports(&identifier)?.is_empty());
+            assert_eq!(store.reports(&identifier)?, frozen);
             // Publish From Durable Metadata and File Bytes After Restart
             process.close().await?;
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
@@ -143,7 +146,7 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
                 .await?;
             assert_eq!(replay, preview);
             let current = executions.get_with(identifier.clone(), ExecutionsGetOptions { at: None, ..Default::default() }).await?;
-            assert_eq!(current.execution.unwrap().report.unwrap().state, ReportState::Pending as i32);
+            assert_eq!(current.execution.unwrap().report.unwrap().state, ReportState::Ready as i32);
             let request = ReportsPublishRequest {
                 name: file.metadata.as_ref().unwrap().id.clone(),
                 subject: Some(subject.clone()),
@@ -166,7 +169,7 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
                     .await
                     .is_err()
             );
-            assert!(store.reports(&identifier)?.is_empty());
+            assert_eq!(store.reports(&identifier)?, frozen);
             let metadata = reports
                 .publish_with(
                     request.name.clone(),
@@ -178,7 +181,7 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
                     },
                 )
                 .await?;
-            let published = store.reports(&identifier)?;
+            let published = store.reports(&identifier)?.into_iter().filter(|report| !frozen.contains(report)).collect::<Vec<_>>();
             assert_eq!(published.len(), 1);
             assert_eq!(published[0].document.as_ref(), Some(&document));
             assert_eq!(published[0].identifier, metadata.report.as_ref().unwrap().identifier);
@@ -227,7 +230,7 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             let fetched = reports.get(subject, published[0].identifier.clone()).await?;
             assert_eq!(fetched.report.as_ref().unwrap().identifier, published[0].identifier);
             assert_eq!(fetched.file.unwrap().sha256, file.sha256);
-            assert_eq!(Store::open(root.path())?.reports(&identifier)?, published);
+            assert_eq!(Store::open(root.path())?.reports(&identifier)?.len(), 2);
             process.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })

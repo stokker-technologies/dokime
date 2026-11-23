@@ -132,7 +132,7 @@ impl Store {
             let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
             let column = FieldPath::from(format!("values.{}", window.field).as_str());
             for row in 0..batch.num_rows() {
-                if let Some(value) = crate::scalar::number(&column.value(&batch, row)?).filter(|value| value.is_finite()) {
+                if let Some(value) = crate::scalar::number(&column.value(&batch, row)?) {
                     read(positions.value(row), times.value(row), value)?;
                 }
             }

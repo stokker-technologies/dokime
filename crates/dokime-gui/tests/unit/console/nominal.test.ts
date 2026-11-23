@@ -17,12 +17,10 @@ import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
 import type { HubRecord } from "@/lib/types";
-import type { TracePage } from "@/lib/api/native-logs";
+import type { TraceLevel, TracePage } from "@/lib/api/native-logs";
 import { fixedRowWindow } from "@/lib/row-window";
 import {
   type ConsoleBuffer,
-  type ConsolePage,
-  consoleBufferKey,
   consoleRecordsStore,
   createConsoleRecordsStore,
   mergeConsoleRecords,
@@ -31,16 +29,16 @@ import {
 } from "@/shell/console-buffer";
 import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, FOLLOW_SLACK_PX } from "@/shell/console-follow";
 import { observeConsoleRecords } from "@/shell/console-records";
+import { consoleRecordScope, recordsAfter } from "@/shell/console-view-model";
 
 /* === Re-Exports === */
 
 /* === Constants === */
 
-/* The keys the drawer resolves on the cycle page and on an execution page
-   outside the cycle route, where the scope falls back to the instance. */
-const CYCLE_PAGE = consoleBufferKey({ cycleId: "cycle-1", executionId: null, level: "info" });
+/* The instance trace keeps one ring per level. */
+const INFO = "info";
 
-const EXECUTION_PAGE = consoleBufferKey({ cycleId: null, executionId: null, level: "info" });
+const DEBUG = "debug";
 
 /* A 200 px viewport over 100 rows of 22 px scrolls to 2,000 px at its bottom. */
 const BOTTOM = 2_000;
@@ -78,10 +76,10 @@ function record(sequence: number): HubRecord {
   } as unknown as HubRecord;
 }
 
-function page(from: number, to: number, epoch = "epoch-1"): ConsolePage {
+function page(from: number, to: number, epoch = "epoch-1"): TracePage {
   const records: HubRecord[] = [];
   for (let sequence = from; sequence <= to; sequence += 1) records.push(record(sequence));
-  return { dropped: 0n, epoch, nextSequence: BigInt(to), records };
+  return { dropped: 0n, epoch, records };
 }
 
 function ids(buffer: ConsoleBuffer | undefined) {
@@ -131,8 +129,8 @@ function stream() {
   };
 }
 
-function ConsoleFixture(selection = { cycleId: "cycle-1", executionId: null as string | null, enabled: true, level: "info" as const }) {
-  return observeConsoleRecords(fixture.session.identity, selection);
+function ConsoleFixture(level: TraceLevel = INFO) {
+  return observeConsoleRecords(fixture.session.identity, level);
 }
 
 /* === Entry Point === */
@@ -168,46 +166,45 @@ test("Stream Reconnect", async () => {
   first.push({ page: page(1, 2) });
   first.push({ failure: { kind: "grpc", detail: { code: 4, message: "operation deadline", details: [] } } });
   await vi.advanceTimersByTimeAsync(0);
-  const failed = buffer(consoleRecordsStore, CYCLE_PAGE);
+  const failed = buffer(consoleRecordsStore, INFO);
   assert.deepEqual(ids(failed), ["trace-1", "trace-2"]);
   assert.equal(fixture.notifyError.mock.calls[0][0].reason, "DEADLINE_EXCEEDED");
   assert.ok(failed.error?.includes("operation deadline"));
   await vi.advanceTimersToNextTimerAsync();
   assert.equal(fixture.open.mock.calls.length, 2);
-  assert.equal(fixture.open.mock.calls[1][1].afterSequence, 2n);
-  assert.equal(fixture.open.mock.calls[1][1].epoch, "epoch-1");
+  assert.equal(fixture.open.mock.calls[1][1], INFO);
   assert.equal(vi.getTimerCount(), 1);
   await vi.advanceTimersByTimeAsync(1_000);
   assert.equal(fixture.open.mock.calls.length, 2);
   await vi.advanceTimersToNextTimerAsync();
-  next.push({ page: { dropped: 0n, epoch: "epoch-1", nextSequence: 2n, records: [] } });
+  next.push({ page: { dropped: 0n, epoch: "epoch-1", records: [] } });
   await vi.advanceTimersByTimeAsync(0);
-  assert.equal(buffer(consoleRecordsStore, CYCLE_PAGE).error, null);
+  assert.equal(buffer(consoleRecordsStore, INFO).error, null);
   next.push({ page: page(2, 3) });
   await vi.advanceTimersByTimeAsync(0);
-  assert.deepEqual(ids(buffer(consoleRecordsStore, CYCLE_PAGE)), ["trace-1", "trace-2", "trace-3"]);
-  assert.equal(buffer(consoleRecordsStore, CYCLE_PAGE).error, null);
+  assert.deepEqual(ids(buffer(consoleRecordsStore, INFO)), ["trace-1", "trace-2", "trace-3"]);
+  assert.equal(buffer(consoleRecordsStore, INFO).error, null);
   unmount();
   await vi.advanceTimersByTimeAsync(0);
   assert.ok(next.cancel.mock.calls.length > 0);
   assert.equal(vi.getTimerCount(), 0);
 });
 
-test("Cursor Recovery", async () => {
+test("History Recovery", async () => {
   consoleRecordsStore.getState().bindSession("1");
-  consoleRecordsStore.getState().receive(CYCLE_PAGE, page(1, 2), 4n);
+  consoleRecordsStore.getState().receive(INFO, { ...page(1, 2), dropped: 4n });
   const replay = stream();
   fixture.open
     .mockRejectedValueOnce({ kind: "grpc", detail: { code: 11, message: "expired cursor", details: [] } })
     .mockResolvedValueOnce(replay);
   const unmount = ConsoleFixture();
+  await vi.advanceTimersByTimeAsync(0);
+  assert.ok(buffer(consoleRecordsStore, INFO).error?.includes("Trace history expired"));
   await vi.advanceTimersToNextTimerAsync();
-  assert.equal(fixture.open.mock.calls[1][1].afterSequence, 0n);
-  assert.equal(fixture.open.mock.calls[1][1].epoch, undefined);
   replay.push({ page: page(1, 1, "epoch-2") });
   await vi.advanceTimersByTimeAsync(0);
-  assert.deepEqual(ids(buffer(consoleRecordsStore, CYCLE_PAGE)), ["trace-1"]);
-  assert.equal(buffer(consoleRecordsStore, CYCLE_PAGE).dropped, 0n);
+  assert.deepEqual(ids(buffer(consoleRecordsStore, INFO)), ["trace-1"]);
+  assert.equal(buffer(consoleRecordsStore, INFO).dropped, 0n);
   unmount();
   await vi.advanceTimersByTimeAsync(0);
 });
@@ -229,12 +226,22 @@ test("Scope Cancellation", async () => {
   assert.equal(consoleRecordsStore.getState().buffers.size, 0);
 
   fixture.open.mockRejectedValueOnce({ kind: "grpc", detail: { code: 7, message: "trace permission", details: [] } });
-  const close = ConsoleFixture({ cycleId: "cycle-1", executionId: "execution-1", enabled: true, level: "info" });
+  const close = ConsoleFixture(DEBUG);
   await vi.advanceTimersByTimeAsync(0);
-  const key = consoleBufferKey({ cycleId: "cycle-1", executionId: "execution-1", level: "info" });
-  assert.ok(buffer(consoleRecordsStore, key).error?.includes("trace permission"));
+  assert.ok(buffer(consoleRecordsStore, DEBUG).error?.includes("trace permission"));
   assert.equal(vi.getTimerCount(), 0);
   close();
+});
+
+test("Scope Widening", () => {
+  // Cycle and Execution Read the Records Keyed Like the Document's Own Query
+  assert.deepEqual(consoleRecordScope("execution", "cycle-1", "execution-1"), { cycleId: "cycle-1", executionId: "execution-1" });
+  assert.deepEqual(consoleRecordScope("cycle", "cycle-1", "execution-1"), { cycleId: "cycle-1" });
+
+  // A Scope the Route Cannot Fill Widens, Down to the Instance's Trace
+  assert.deepEqual(consoleRecordScope("execution", "cycle-1", null), { cycleId: "cycle-1" });
+  assert.equal(consoleRecordScope("cycle", null, null), null);
+  assert.equal(consoleRecordScope("instance", "cycle-1", "execution-1"), null);
 });
 
 test("Tail Follow", () => {
@@ -275,49 +282,44 @@ test("Tail Follow", () => {
 });
 
 test("Record Buffers", () => {
-  // Records Survive a Move to Another Route and Back
-  const routes = sessionStore();
-  routes.getState().receive(CYCLE_PAGE, page(1, 3), 0n);
-  routes.getState().receive(EXECUTION_PAGE, page(1, 5), 0n);
-  const back = buffer(routes, CYCLE_PAGE);
-  assert.deepEqual(ids(back), ["trace-1", "trace-2", "trace-3"]);
-  assert.equal(back.afterSequence, 3n, "the cycle stream resumes where it stopped");
-  assert.equal(buffer(routes, EXECUTION_PAGE).records.length, 5);
+  // Records Survive a Move to Another Level and Back
+  const levels = sessionStore();
+  levels.getState().receive(INFO, page(1, 3));
+  levels.getState().receive(DEBUG, page(1, 5));
+  assert.deepEqual(ids(buffer(levels, INFO)), ["trace-1", "trace-2", "trace-3"]);
+  assert.equal(buffer(levels, DEBUG).records.length, 5);
 
   // The Filter and the Rows Outlive the Drawer's Subscription
   const drawer = sessionStore();
   drawer.getState().setFilter("charger");
-  drawer.getState().receive(CYCLE_PAGE, page(1, 2), 0n);
+  drawer.getState().receive(INFO, page(1, 2));
   drawer.getState().bindSession("1");
   assert.equal(drawer.getState().filter, "charger");
-  assert.equal(buffer(drawer, CYCLE_PAGE).records.length, 2);
+  assert.equal(buffer(drawer, INFO).records.length, 2);
 
   // A Replayed Page Merges Without Duplicating Rows
   const replay = sessionStore();
-  replay.getState().receive(CYCLE_PAGE, page(1, 4), 0n);
-  replay.getState().rewind(CYCLE_PAGE);
-  replay.getState().receive(CYCLE_PAGE, page(3, 6), 0n);
-  assert.deepEqual(ids(buffer(replay, CYCLE_PAGE)), ["trace-1", "trace-2", "trace-3", "trace-4", "trace-5", "trace-6"]);
+  replay.getState().receive(INFO, page(1, 4));
+  replay.getState().receive(INFO, page(3, 6));
+  assert.deepEqual(ids(buffer(replay, INFO)), ["trace-1", "trace-2", "trace-3", "trace-4", "trace-5", "trace-6"]);
 
   // A Page from Another Epoch Replaces the Rows
   const epochs = sessionStore();
-  epochs.getState().receive(CYCLE_PAGE, page(1, 4), 0n);
-  epochs.getState().receive(CYCLE_PAGE, page(1, 2, "epoch-2"), 0n);
-  assert.deepEqual(ids(buffer(epochs, CYCLE_PAGE)), ["trace-1", "trace-2"]);
+  epochs.getState().receive(INFO, page(1, 4));
+  epochs.getState().receive(INFO, page(1, 2, "epoch-2"));
+  assert.deepEqual(ids(buffer(epochs, INFO)), ["trace-1", "trace-2"]);
 
   // A New Native Session Starts with No Rows
   const sessions = sessionStore();
-  sessions.getState().receive(CYCLE_PAGE, page(1, 2), 0n);
+  sessions.getState().receive(INFO, page(1, 2));
   sessions.getState().bindSession("2");
   assert.equal(sessions.getState().buffers.size, 0);
 
-  // Clearing Empties the Rows and Keeps the Cursor
-  const clearing = sessionStore();
-  clearing.getState().receive(CYCLE_PAGE, page(1, 3), 0n);
-  clearing.getState().clear(CYCLE_PAGE);
-  const cleared = buffer(clearing, CYCLE_PAGE);
-  assert.equal(cleared.records.length, 0);
-  assert.equal(cleared.afterSequence, 3n);
+  // Clearing Hides the Rows Held, Also When a Replay Brings Them Back
+  const held = [record(1), record(2), record(3)];
+  assert.deepEqual(recordsAfter(held, "trace-2"), [record(3)]);
+  assert.deepEqual(recordsAfter(held, undefined), held);
+  assert.deepEqual(recordsAfter(held, "trace-0"), held, "a marker that left the ring hides nothing newer");
 
   // An Out-Of-Order Merge Restores Sequence Order
   const merged = mergeConsoleRecords([record(2), record(5)], [record(1), record(3)]);
@@ -328,22 +330,20 @@ test("Record Buffers", () => {
 });
 
 test("Buffer Retention", () => {
-  // Each Scope's Rows Stay Within the Ring Limit
+  // Each Level's Rows Stay Within the Ring Limit
   const ring = sessionStore();
-  ring.getState().receive(CYCLE_PAGE, page(1, RETAINED_RECORDS), 0n);
-  ring.getState().receive(CYCLE_PAGE, page(RETAINED_RECORDS + 1, RETAINED_RECORDS + 10), 0n);
-  const held = buffer(ring, CYCLE_PAGE);
+  ring.getState().receive(INFO, page(1, RETAINED_RECORDS));
+  ring.getState().receive(INFO, page(RETAINED_RECORDS + 1, RETAINED_RECORDS + 10));
+  const held = buffer(ring, INFO);
   assert.equal(held.records.length, RETAINED_RECORDS);
   assert.equal(held.records.at(-1)?.record_id, `trace-${RETAINED_RECORDS + 10}`);
   assert.equal(held.records[0].record_id, "trace-11");
 
-  // Only the Most Recently Read Scopes Are Kept
-  const scopes = sessionStore();
-  for (let index = 0; index <= RETAINED_BUFFERS; index += 1) {
-    const key = consoleBufferKey({ cycleId: `cycle-${index}`, executionId: null, level: "info" });
-    scopes.getState().receive(key, page(1, 1), 0n);
-  }
-  const keys = [...scopes.getState().buffers.keys()];
+  // Only the Most Recently Read Levels Are Kept
+  const recent = sessionStore();
+  const order = ["trace", "debug", "info", "warning", "error"].slice(0, RETAINED_BUFFERS + 1);
+  for (const level of order) recent.getState().receive(level, page(1, 1));
+  const keys = [...recent.getState().buffers.keys()];
   assert.equal(keys.length, RETAINED_BUFFERS);
-  assert.ok(!keys.includes(consoleBufferKey({ cycleId: "cycle-0", executionId: null, level: "info" })));
+  assert.ok(!keys.includes("trace"));
 });

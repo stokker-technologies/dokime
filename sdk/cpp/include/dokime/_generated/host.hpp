@@ -199,18 +199,6 @@ struct HostPluginsStateGetOptions {
 struct HostPluginsStatePutOptions {
   std::optional<::harmos::OperationPolicy> policy;
 };
-struct HostTimeGetOptions {
-  std::optional<::harmos::OperationPolicy> policy;
-};
-struct HostTimeSleepOptions {
-  std::optional<::harmos::OperationPolicy> policy;
-};
-struct HostTimeResource {
-  Context context;
-  HostTimeResource(Context context_value) : context(context_value) {}
-  ::google::protobuf::Timestamp get(HostTimeGetOptions options = {});
-  ::harmos::host::v1::TimeSleepResponse sleep(const ::google::protobuf::Duration &duration, HostTimeSleepOptions options = {});
-};
 struct HostSecretsResource {
   Context context;
   HostSecretsResource(Context context_value) : context(context_value) {}
@@ -366,6 +354,5 @@ struct HostRoot {
   HostPluginsResource plugins;
   HostPromptsResource prompts;
   HostSecretsResource secrets;
-  HostTimeResource time;
 };
 } // namespace dokime::templates

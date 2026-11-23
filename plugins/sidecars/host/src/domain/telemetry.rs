@@ -317,15 +317,14 @@ pub struct WifiNetworkName {
     pub wifi_security: String,
 }
 
-/// One Channel of the Adapter's Full Band Plan, Including Zero Occupancy.
+/// One Channel of the Adapter's Full Band Plan With the Number of Networks Occupying It, Including Zero.
 #[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
 pub struct WifiChannels {
     pub sample_index: i64,
     pub wifi_band: String,
     pub wifi_channel: i64,
-    pub network_count: i64,
-    pub occupancy: f64,
+    pub occupancy: i64,
 }
 
 /// The Signal Strength of Each Scanned Network Where the Driver Reports It.
@@ -707,8 +706,7 @@ impl WifiChannels {
         Column::new("sample_index", "Sample Index", ""),
         Column::new("wifi_band", "Wi-Fi Band", ""),
         Column::new("wifi_channel", "Wi-Fi Channel", ""),
-        Column::new("network_count", "Primary Channel Networks", ""),
-        Column::new("occupancy", "Overlap-Weighted Occupancy", ""),
+        Column::new("occupancy", "Networks on Channel", ""),
     ];
 }
 

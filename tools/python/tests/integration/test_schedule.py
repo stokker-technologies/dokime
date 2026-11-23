@@ -47,6 +47,29 @@ from dokime_tools.test import archive, execution, lanes, policy, report, run, sc
 
 
 class ScheduleTests(unittest.TestCase):
+    def test_wheel_install_preserves_unchanged_native_dependencies(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            directory = Path(temporary_directory.name).resolve()
+            output = directory / "python"
+            output.mkdir()
+            wheel = output / "dokime_sdk-1.0.0-py3-none-any.whl"
+            wheel.touch()
+            with (
+                patch.object(archive.paths, "output", return_value=directory),
+                patch.object(archive.subprocess, "run") as install,
+            ):
+                archive.install_wheels(directory, "dev")
+
+            command = install.call_args_list[0].args[0]
+            self.assertIn("--no-deps", command)
+            self.assertNotIn("--reinstall", command)
+            self.assertEqual(command[command.index("--reinstall-package") + 1], "dokime-sdk")
+            self.assertIn(str(directory / "python" / wheel.name), command)
+            self.assertNotIn("protobuf", command)
+        finally:
+            temporary_directory.cleanup()
+
     def test_layer_archive_keeps_runtime_inputs_without_other_layers(self) -> None:
         kinds = {
             "dokime": "lib",
@@ -93,11 +116,14 @@ class ScheduleTests(unittest.TestCase):
                     }
                     packed = archive.location(directory, "dev")
                     packed.parent.mkdir(parents=True)
-                    with tarfile.open(packed, "w:zst") as output:
+                    output = tarfile.open(packed, "w:zst")
+                    try:
                         for name, data in files.items():
                             member = tarfile.TarInfo(name)
                             member.size = len(data)
                             output.addfile(member, io.BytesIO(data))
+                    finally:
+                        output.close()
 
                     expected_ids = set()
                     for expected_ids_identity, expected_ids_entry in binaries.items():
@@ -197,9 +223,12 @@ class ScheduleTests(unittest.TestCase):
                 "    shared = pathlib.Path(sys.argv[sys.argv.index('--archive-directory') + 1])\n"
                 "    assert (shared / 'ready').read_text() == 'extracted'\n"
                 "    (root / sys.argv[1]).write_text(str(shared))\n"
-                "with socket.create_connection(('127.0.0.1', int(os.environ['DOKIME_GRAPH_PORT']))) as peer:\n"
+                "peer = socket.create_connection(('127.0.0.1', int(os.environ['DOKIME_GRAPH_PORT'])))\n"
+                "try:\n"
                 "    peer.sendall(b'ready')\n"
                 "    assert peer.recv(1) == b'1'\n"
+                "finally:\n"
+                "    peer.close()\n"
                 "print(sys.argv[1])\n"
                 "sys.exit(7 if sys.argv[1] == 'system-rust' else 0)\n",
                 encoding="utf-8",

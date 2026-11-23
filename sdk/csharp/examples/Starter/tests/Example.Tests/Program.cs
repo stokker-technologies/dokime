@@ -13,13 +13,14 @@ using Example.Plugin;
 
 /* === Entry Point === */
 
-var description = new ExamplePlugin().Describe();
+var plugin = new ExamplePlugin();
+var description = plugin.Describe();
 var suite = description.Suites.Single();
 var template = suite.Templates.Single();
 if (suite.Identifier != "example.capture" || template.Identifier != "example.capture.confirmation"
   || template.Steps.Single() != "example.capture.confirmation.confirm"
   || template.Criteria.Single() != "example.capture.confirmation.confirmed"
-  || template.Records.Single() != "example.capture.confirmation.confirmation"
+  || plugin.Records.Single().Identifier != "confirmation"
   || !description.Operations.Any(operation => operation.Identifier == "example.echo"))
 {
   throw new InvalidOperationException("Describe Plugin: Restore the Authored Capture Suite and Echo Operation");

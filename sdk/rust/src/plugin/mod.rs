@@ -34,8 +34,8 @@ include!("host_exports.rs");
 // Standard Library Imports
 use std::{
     any::{Any, TypeId},
-    collections::HashSet,
-    env,
+    collections::{HashMap, HashSet},
+    env, error,
     marker::PhantomData,
     sync::Arc,
 };
@@ -54,10 +54,11 @@ use crate::host::Request;
 use crate::message::Wire;
 use crate::operation::{self, Operation};
 use crate::operations;
+use crate::resource::{Resource, Resources};
 use crate::stream::{self, Sampler};
 use crate::template::validate_names;
 use crate::testing::Selected;
-use crate::{Declarations, Error, Lane, Message, Result};
+use crate::{Declarations, Error, Lane, Message, Payload, RecordContract, Result};
 use crate::{PromptDefinitions, RecordContracts, Suites};
 use crate::{authoring, client, configuration};
 
@@ -83,12 +84,15 @@ struct Assembly {
     version: String,
     label: String,
     state: Arc<dyn Any + Send + Sync>,
+    failure: Option<Arc<dyn Fn(&(dyn error::Error + 'static)) -> Option<Error> + Send + Sync>>,
     requirements: Vec<&'static str>,
     samplers: Vec<Sampler>,
     collections: bool,
     dependencies: Vec<DependencyRegistration>,
     suites: Vec<Suite>,
+    records: Vec<RecordContract>,
     settings: Vec<SettingDeclaration>,
+    resources: Resources,
     secrets: Vec<SecretDeclaration>,
     lanes: Vec<Lane>,
     registrations: Vec<stream::Registration>,
@@ -174,12 +178,15 @@ impl Plugin {
                 label: authoring::type_label::<T>(),
                 version,
                 state: Arc::new(()),
+                failure: None,
                 requirements: Vec::new(),
                 samplers: Vec::new(),
                 collections: false,
                 dependencies: Vec::new(),
                 suites: Vec::new(),
+                records: Vec::new(),
                 settings: Vec::new(),
+                resources: Resources::default(),
                 secrets: Vec::new(),
                 lanes: Vec::new(),
                 registrations: Vec::new(),
@@ -233,8 +240,17 @@ impl Plugin {
         self.assembly.label = label.into();
         self
     }
+    pub fn failure(mut self, mapper: impl Fn(&(dyn error::Error + 'static)) -> Option<Error> + Send + Sync + 'static) -> Self {
+        self.assembly.failure = Some(Arc::new(mapper));
+        self
+    }
     pub fn state<T: Send + Sync + 'static>(mut self, state: T) -> Self {
         self.assembly.state = Arc::new(state);
+        self
+    }
+    pub fn record<T: Payload>(mut self, record: Record<T>) -> Self {
+        self.assembly.records.push(record.definition);
+        self.assembly.dependencies.push(Box::new(|registrar| registrar.register(plugin::Descriptor::<T::Message>::new())));
         self
     }
     pub fn suite(mut self, suite: Suite) -> Self {
@@ -249,6 +265,12 @@ impl Plugin {
         match operation.registration() {
             Ok(registration) => self.assembly.registrations.push(registration),
             Err(error) => self.assembly.errors.push(error.to_string()),
+        }
+        self
+    }
+    pub fn resource<T: Resource>(mut self) -> Self {
+        if let Err(error) = self.assembly.resources.register::<T>() {
+            self.assembly.errors.push(error.to_string());
         }
         self
     }
@@ -267,9 +289,7 @@ impl Plugin {
     /// Feed Several Streams From One Measurement per Tick, Only While One of Them Has a Listener.
     pub fn collection(mut self, collection: Collection) -> Self {
         self.assembly.collections = true;
-        self.assembly
-            .registrations
-            .push(Box::new(move |plugin, _, _| plugin.register(|registrar| registrar.register(collection)).map_err(Error::from)));
+        self.assembly.registrations.push(Box::new(move |plugin, _, _| plugin.register(|registrar| registrar.register(collection))));
         self
     }
     pub fn observer(mut self, observer: Observer) -> Self {
@@ -333,12 +353,15 @@ impl Plugin {
             version,
             label: _,
             state,
+            failure,
             requirements: _,
             samplers: _,
             collections: _,
             dependencies,
             suites,
+            records: plugin_records,
             settings,
+            resources,
             secrets,
             lanes,
             registrations,
@@ -355,10 +378,21 @@ impl Plugin {
             }
             Ok(())
         })?;
+        if let Some(mapper) = failure {
+            inner = inner.failure_mapper(move |error| mapper(error));
+        }
         for lane in lanes {
             inner = inner.lane(lane);
         }
+        let mut record_bindings = HashMap::new();
         let mut records = Vec::new();
+        for mut record in plugin_records {
+            let metadata = record.metadata.as_mut().expect("Record Metadata");
+            let local = metadata.identifier.clone();
+            metadata.identifier = authoring::build_identifier(&identifier, &local, false);
+            record_bindings.insert(local, metadata.identifier.clone());
+            records.push(record);
+        }
         let mut prompts = Vec::new();
         for suite in &suites {
             for template in &suite.templates {
@@ -398,7 +432,9 @@ impl Plugin {
         if !secrets.is_empty() {
             inner = inner.register(|registrar| registrar.register(plugin::Contribution(Wire(SecretsDeclarations { secrets }))))?;
         }
-        let executions = Executions::new(state, secret_names);
+        let mut executions = Executions::new(state, secret_names);
+        executions.resources = Arc::new(resources);
+        executions.records = Arc::new(record_bindings);
         let mut definitions = Vec::new();
         for mut suite in suites {
             for template in suite.templates {
@@ -429,11 +465,11 @@ impl Plugin {
         Ok(inner)
     }
     pub fn declarations(self) -> Result<Declarations> {
-        self.into_harmos()?.declarations().map_err(Error::from)
+        self.into_harmos()?.declarations()
     }
     pub fn run(self) -> Result<()> {
         if env::var_os("HARMOS_HOST_ENDPOINT").is_some() || env::var_os("HARMOS_LAUNCH_TOKEN").is_some() {
-            return self.into_harmos()?.run().map_err(Error::from);
+            return self.into_harmos()?.run();
         }
         let values = configuration::load()?;
         let configured = env::var_os("DOKIME_REMOTE")
@@ -492,9 +528,16 @@ where
             operation::wire(format!("{identifier}.{name}"), Visibility::Protected, async move |transport: &plugin::Context, (): ()| {
                 let _cleanup = (name == "finalize").then(|| Finalize(executions.clone()));
                 let context = operations::Context::invocation(transport, &executions)?;
-                handler(&context).await
+                if name == "initialize" {
+                    executions.resources.activate();
+                }
+                let result = handler(&context).await;
+                if name == "finalize" || result.is_err() && name == "initialize" {
+                    executions.resources.close().await?;
+                }
+                result
             });
-        plugin.register(|registrar| registrar.register(operation)).map_err(Error::from)
+        plugin.register(|registrar| registrar.register(operation))
     })
 }
 

@@ -427,6 +427,8 @@ impl Setting {
             default: Some(self.default_value()),
             minimum: minimum.map(|value| SettingValue { value: Some(value) }),
             maximum: maximum.map(|value| SettingValue { value: Some(value) }),
+            choices: Vec::new(),
+            required: false,
         }
     }
 

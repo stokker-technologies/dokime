@@ -121,9 +121,6 @@ class Expression:
     def detail(self, name: str) -> Self:
         return self._transform(TransformExpression(detail=name))
 
-    def time_between(self, record: str) -> Self:
-        return self._transform(TransformExpression(time_between=record))
-
     def at(self, record_type: str) -> Self:
         return self._transform(TransformExpression(at=AtExpression(record_type=record_type)))
 

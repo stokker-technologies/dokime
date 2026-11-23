@@ -158,7 +158,10 @@ def install_wheels(directory: Path, profile: str) -> None:
                 "install",
                 "--python",
                 sys.executable,
-                "--reinstall",
+                # The Prepared Tooling Environment Owns Dependency Selection, Including Local Library Sources.
+                "--no-deps",
+                # Refresh Built Wheels Without Replacing Unchanged Native Dependencies in Use by a Host.
+                *[argument for name in names for argument in ("--reinstall-package", name)],
                 "--no-cache",
                 *map(str, wheels),
             ],

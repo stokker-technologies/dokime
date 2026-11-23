@@ -116,7 +116,7 @@ impl<T: Message> Stream<T> {
         self.producer = Some(Box::new(move |stream, executions| {
             stream.publish_on(async move |transport: &plugin::Context, publisher| {
                 let context = Context::publication(transport, &executions)?;
-                handler(&context, publisher).await.map_err(::harmos::Error::from)
+                handler(&context, publisher).await
             })
         }));
         self
@@ -129,7 +129,7 @@ impl<T: Message> Stream<T> {
                 Some(producer) => producer(stream, executions),
                 None => stream,
             };
-            plugin.register(|registrar| registrar.register(stream)).map_err(Error::from)
+            plugin.register(|registrar| registrar.register(stream))
         })
     }
 }
@@ -184,7 +184,7 @@ impl Observer {
                     } else {
                         Context::invocation(transport, &executions)?
                     };
-                    action.execute(&context).await.map_err(::harmos::Error::from)
+                    action.execute(&context).await
                 })
             }),
             configure: Vec::new(),
@@ -248,7 +248,7 @@ impl Observer {
                     } else {
                         Context::invocation(transport, &executions)?
                     };
-                    handler(&context, window).await.map_err(::harmos::Error::from)
+                    handler(&context, window).await
                 })
             }),
             configure: Vec::new(),
@@ -292,7 +292,7 @@ impl Observer {
             for configure in self.configure {
                 observer = configure(observer);
             }
-            plugin.register(|registrar| registrar.register(observer)).map_err(Error::from)
+            plugin.register(|registrar| registrar.register(observer))
         })
     }
 }

@@ -17,7 +17,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
 # isort: split
@@ -157,62 +156,11 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
                 raise ValueError(f"Stage Host Fixtures: Run build:product --profile {profile} or Download Its build-cli Artifact: {source}")
             shutil.copy2(source, output / source.name)
 
-        # Reuse the Reference Host for This Pinned Revision, Platform and Profile.
-        manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-        library = manifest["workspace"]["dependencies"]["harmos"]
-        installation = root / "target/reference-host" / paths.target() / profile / library["rev"]
-        reference = installation / "bin" / f"harmos-conformance{extension}"
-        if not reference.is_file():
-            subprocess.run(
-                [
-                    "cargo",
-                    "install",
-                    "--git",
-                    library["git"],
-                    "--rev",
-                    library["rev"],
-                    "--locked",
-                    "--profile",
-                    profile,
-                    "--root",
-                    str(installation),
-                    "--target-dir",
-                    str(root / "target"),
-                    "--bin",
-                    "harmos-conformance",
-                    "harmos-conformance",
-                ],
-                cwd=root,
-                env=cargo.compiler_environment(profile),
-                check=True,
-                creationflags=spawn_flags(),
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-            )
+        # Build Both Conformance Fixtures From the Resolved Library Source.
+        source = _library_source(root)
+        reference = _reference(root, source, profile)
         shutil.copy2(reference, output / reference.name)
-
-        # Stage the Python Fixture From the Same Locked Source as the Reference Host.
-        metadata = subprocess.run(
-            ["cargo", "metadata", "--locked", "--format-version", "1"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=True,
-            creationflags=spawn_flags(),
-        )
-        package = next(
-            (
-                package
-                for package in json.loads(metadata.stdout)["packages"]
-                if package["name"] == "harmos" and (package.get("source") or "").rsplit("#", 1)[-1].startswith(library["rev"])
-            ),
-            None,
-        )
-        if package is None:
-            raise ValueError("Stage Python Conformance Fixture: Resolve the Pinned Harmos Package")
-        source = Path(package["manifest_path"]).parents[2] / "sdk/python/tests/fixtures/conformance"
-        sync_output(source, output / "python/conformance")
+        sync_output(source / "sdk/python/tests/fixtures/conformance", output / "python/conformance")
 
     # Publish the C# Fixture With Its Runtime and Local SDK Package.
     if "csharp" in languages:
@@ -309,7 +257,61 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
         archive.stamp(root, profile, files, record["metadata"])
 
 
+def prepare_reference(profile: str) -> Path:
+    """Build the Reference Host Used by Both SDK and Shared Integration Fixtures."""
+    root = configuration.ROOT
+    source = _library_source(root)
+    return _reference(root, source, profile)
+
+
 # === Private Functions === #
+
+
+def _library_source(root: Path) -> Path:
+    metadata = subprocess.run(
+        ["cargo", "metadata", "--locked", "--format-version", "1"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+        creationflags=spawn_flags(),
+    )
+    packages = [package for package in json.loads(metadata.stdout)["packages"] if package["name"] == "harmos"]
+    if len(packages) != 1:
+        raise ValueError("Prepare Reference Host: Resolve Exactly One Harmos Package in the Workspace")
+    return Path(packages[0]["manifest_path"]).parents[2]
+
+
+def _reference(root: Path, source: Path, profile: str) -> Path:
+    subprocess.run(
+        [
+            "cargo",
+            "install",
+            "--path",
+            str(source / "tools/conformance"),
+            "--locked",
+            *(["--debug"] if profile == "dev" else ["--profile", profile]),
+            "--force",
+            "--root",
+            str(root / "target/reference-host"),
+            "--bin",
+            "harmos-conformance",
+            "--jobs",
+            os.environ.get("CARGO_BUILD_JOBS", "6"),
+            "--target-dir",
+            str(root / "target"),
+        ],
+        cwd=root,
+        env=cargo.compiler_environment(profile),
+        check=True,
+        creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+    extension = ".exe" if os.name == "nt" else ""
+    return root / "target/reference-host/bin" / f"harmos-conformance{extension}"
+
 
 # === Entry Point === #
 
@@ -323,7 +325,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--export", action="store_true", help="Export the Declared CI Artifact")
     parser.add_argument("--fixture", choices=RUST_FIXTURES, help="Build and Stage Only One Rust Fixture")
+    parser.add_argument("--reference-only", action="store_true", help="Build Only the Shared Reference Host")
     options = parser.parse_args()
-    build(options.profile, options.language, options.fixture)
+    if options.reference_only:
+        prepare_reference(options.profile)
+    else:
+        build(options.profile, options.language, options.fixture)
     if options.export:
         transport.send(options.profile)

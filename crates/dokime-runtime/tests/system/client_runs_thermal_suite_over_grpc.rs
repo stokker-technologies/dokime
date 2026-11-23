@@ -391,7 +391,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 .unwrap();
             assert_eq!(statistics.count, raw.len() as u64);
 
-            // Prepared Report Metadata Identifies Its Exact Frozen Bytes Without Publishing.
+            // Download Delivers the Report Frozen at Seal, Byte for Byte.
             let reports =
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                     .reports
@@ -432,7 +432,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             assert_eq!(Sha256::digest(&html).as_slice(), file.sha256);
             assert_eq!(
                 client.executions.get(execution_id.clone()).await?.execution.unwrap().report.unwrap().state,
-                ReportState::Pending as i32
+                ReportState::Ready as i32
             );
 
             // Concurrent Executions Retain Their Own Questions and Record Identities.

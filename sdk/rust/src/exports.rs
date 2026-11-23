@@ -177,6 +177,7 @@ pub use harmos_protocol::model::ListFileProductionsResponse;
 pub use harmos_protocol::model::MessageSettings;
 pub use harmos_protocol::model::OperationContract;
 pub use harmos_protocol::model::OperationPolicy;
+pub use harmos_protocol::model::OperationRetry;
 pub use harmos_protocol::model::PageRequest;
 pub use harmos_protocol::model::Position;
 pub use harmos_protocol::model::Protobuf;

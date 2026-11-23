@@ -24,62 +24,144 @@ reach shared plugin state through `ctx.plugin`.
 registration below its identifier: `LayoutSuite` / `TrackingTestTemplate.status`
 in `ExamplePlugin` registers `example.layout.tracking.status`. Explicit local
 identifiers follow the same rule; `example.status` stays `example.status`.
-`uses_streams`, typed peer operation references and qualified document queries
+`uses_streams` and qualified document queries
 keep their identifiers as written.
 
-## Public Peer Operations
+## Operation Calls
 
-Create `Operation(identifier, Request, Response, Visibility.PUBLIC)` at module
-scope from the callee's generated message types, or import a typed reference
-published by its package. Make the reference available before constructing the
-plugin. Own and peer operations use the same bound call:
+Operation declarations use the library's `Operation` contract. Host-clock waits
+and reads delegate to the library context; the SDK converts durations and timestamps.
+
+Call operations by identifier with an optional dict using protobuf's standard JSON
+mapping. The host owns JSON conversion, schema validation, operation admission and
+failure wording. Unknown fields are rejected.
 
 ```python
-from peer_package.operations import increment
-
-
-@step("Increment")
-async def increment_peer(self, ctx):
-    result = await ctx.operation(increment)(41)
+@step("Measure")
+async def measure(self, ctx):
+    reply = await ctx.operation("example.measure", {"channel": 1}, policy=None)
 ```
 
-The SDK freezes requirements automatically from handler references, including
-helpers, closures, referenced module/class members and reference collections.
-Authors declare no requirements. Conflicting contracts fail at construction.
-An operation constructed or supplied only after activation requires rebuilding
-and registering the plugin with its typed reference available beforehand.
-The callee must expose the operation as Public. The host preserves execution
-scope and applies the callee's lane, policy, deadline and cancellation. A bound
-call accepts the existing optional `policy=` override for that call alone.
+An omitted request sends an empty object. Replies are dicts. No peer binding or
+request declaration is required. Catch `dokime_sdk.operations.OperationError` and read `error.kind`, `error.code`,
+`error.message`, `error.action`, `error.operation` and `error.retry`; `error.to_dict()`
+returns the same structured evidence, including host retry decisions. The callee's operation policy applies unless the call supplies
+an override.
 
-Catch `dokime_sdk.operations.FailureError` around a bound call and inspect
-`error.failure.classification`, `code`, `message`, `action`, `operation`, `plugin`
-and `cause`. These are product failure values, including cancellation and timeout
-classifications; the library's exception does not escape a bound peer call.
+Declare `failure = remote_failure` on the plugin class to map an exception to an
+`OperationError` or return `None`. The library applies this mapper once at its
+invocation boundary. Unmapped exceptions become permanent failures containing
+the exception text and the handler's operation identity.
 
-Read a decorated function's public contract with `declaration(increment)` from
-`dokime_sdk.operations`. It returns the immutable `Operation` with its identifier,
-request and response Python types, visibility and policy. Publish that value for
-peer consumers to pass to `ctx.operation(...)`.
+## Standard Logging
 
-## Declaration Builders
+Use `log = logging.getLogger(__name__)` and ordinary synchronous `log.debug(...)`,
+`log.info(...)`, `log.warning(...)` or `log.error(...)` calls. While a handler runs,
+records flush to execution evidence before awaited SDK host calls and on return.
+Outside execution scopes, records are written to plugin stderr for host diagnostics.
+
+## Secrets and Resources
+
+Declare resource classes in `resources`, settings classes in `settings`, and secret
+names in `secrets`. Handlers look up resources and settings by type without importing
+the plugin class. Secrets return UTF-8 text and name the recovery action when missing.
 
 ```python
-Parameter.text("serial", "Serial").required().build()
-Parameter.list("channels", "Channels", int).default([1, 2]).items(1, 8).build()
-Parameter.choice("mode", "Mode", ["fast", "slow"]).default("fast").build()
+from datetime import timedelta
+from dokime_sdk.operations import Context, Resource, Secret, Setting, Settings
+
+
+class ConnectionSettings(Settings):
+    api_address: str = Setting.text("Remote API Address", default="127.0.0.1:30059")
+    dll_timeout: timedelta = Setting.duration("DLL Host Timeout", default=timedelta(seconds=5), max=timedelta(seconds=30))
+
+
+class RemoteApi(Resource):
+    async def open(self, ctx: Context) -> None:
+        address = ctx.settings(ConnectionSettings).api_address
+        token = await ctx.secret("api_token")
+        self.remote = await Remote.connect(address, token)
+
+    async def close(self) -> None:
+        await self.remote.close()
+
+
+class ConnectionPlugin(Plugin):
+    resources = (RemoteApi,)
+    settings = (ConnectionSettings,)
+    secrets = (Secret("api_token", "Remote API Token"),)
+```
+
+Use `api = await ctx.resource(RemoteApi)` and
+`timeout = ctx.settings(ConnectionSettings).dll_timeout`. A resource opens lazily
+under a lock, once per activation. Resources close in reverse opening order when
+activation ends, including failed initialization or finalization. An unsuccessful
+`open` owns the cleanup of its partially initialized state.
+
+Settings are synchronous, read-only activation snapshots loaded before initialization
+and refreshed on Retry or restart. Field names are the host setting names, so names
+across declared settings classes must be unique. `Setting.flag`, `integer`, `number`,
+`text`, and `duration` use the library's typed defaults and inclusive numeric/duration
+bounds. `choices=(...)` and `required=True` project into the library declaration and are enforced by the host.
+
+## Declarations
+
+```python
+class ConnectionTestTemplate(TestTemplate):
+    serial = Parameter.text("Serial", required=True)
+    channels = Parameter.list("Channels", int, default=[1, 2], min_items=1, max_items=8)
+    mode = Parameter.text("Mode", choices=("fast", "slow"), default="fast")
+
+    @step("Connect")
+    async def connect(self, ctx):
+        serial = ctx.parameter(ConnectionTestTemplate.serial)
+
+
 reading = record(int, identifier="reading")
 Section("Readings").repeat(reading.field(), order_by=reading.field().max()).traceability()
 time_series(field("measurement.samples", "value")).markers("reading")
 ```
 
 Import these authoring values from `dokime_sdk.templates`. Document record fields
-require an explicit record identifier; template binding qualifies local record
-references and markers. Observer and window payloads preserve proto3 optional
-field presence, including explicit zero values; interval storage adoption remains
-pending. Execution observers inherit execution resources for admitted child calls,
-including record publication. Typed stream subscription remains unavailable
-in the product context adapter.
+require an explicit record identifier; the plugin qualifies record references and markers. Observer and window payloads preserve proto3 optional field presence, including explicit zero values.
+Observers are plugin-owned classes. The library starts a fresh instance when sampling demand
+begins and calls its optional `close()` when the last sampling scope stops. Templates select
+classes in `uses_streams`; optional observer `plots` are placed explicitly in template documents.
+An observer uses an operation context and may publish plugin records to the call's capturing executions.
+
+```python
+from dokime_sdk.operations import Context
+from dokime_sdk.templates import Observer, TestTemplate
+
+
+class Temperature(Observer[float]):
+    row = float
+    interval_ms = 100
+
+    def sample(self, ctx: Context) -> float:
+        return 21.5
+
+
+class Capture(TestTemplate):
+    uses_streams = (Temperature,)
+
+
+class MeasurementsPlugin(Plugin):
+    observers = (Temperature,)
+```
+
+The thermal example observer starts each sampling period at 23 °C and approaches
+84 °C with each granted sample, retaining its simulated temperature between calls.
+
+For window sampling, declare `columns` on the observer and implement
+`sample(self, ctx, window)`. Plugin publishers use `@stream` on plugin methods.
+Typed subscriptions use `await ctx.subscribe(declaration, max_item_bytes=...)`.
+
+
+Use `ended.time_since(began)` for elapsed-time document expressions between record
+declarations. Binding qualifies both identifiers in the expression. Reference
+lines and bands use the existing `plot.reference_line(...)` and
+`plot.reference_band(...)` builders and are placed explicitly in sections.
 
 Stop releases execution-scoped host waits normally. The current step finishes,
 criteria evaluate, cleanup runs and the execution seals with `Termination.STOPPED`,
@@ -92,20 +174,37 @@ while not ctx.stop_requested:
 
 Cancel still aborts active work.
 
+Handler exceptions become Permanent failures carrying their identity and exception text.
+Declare a plugin-level failure mapper for application exceptions:
+
+```python
+from dokime_sdk.operations import OperationError
+
+
+def remote_failure(error: Exception) -> OperationError | None:
+    if isinstance(error, ConnectionError):
+        return OperationError("transient", message=str(error), action="Reconnect the Device")
+    return None
+
+
+class ExamplePlugin(Plugin):
+    failure = remote_failure
+```
+
+Structured `OperationError` values retain their classification and recovery action.
+Declare shared records with `records = (EVENT,)`, where `EVENT = record(int, identifier="event")`.
+Templates and observers write the same contract with `await ctx.record(EVENT, value)`.
+An observer write reaches every execution capturing that call and no other execution.
+
 Setting bounds are inclusive and use the default's value type. The library
 validates defaults at host admission and every saved write:
 
 ```python
-from dokime_sdk.operations import SettingDeclaration, SettingValue
+from dokime_sdk.operations import Setting, Settings
 
-sample_count = SettingDeclaration(
-    "sample_count",
-    "Sample Count",
-    "Samples per Capture",
-    SettingValue(integer=10),
-    minimum=SettingValue(integer=0),
-    maximum=SettingValue(integer=100),
-)
+
+class CaptureSettings(Settings):
+    sample_count: int = Setting.integer("Sample Count", default=10, min=0, max=100, description="Samples per Capture")
 ```
 
 ## Starter

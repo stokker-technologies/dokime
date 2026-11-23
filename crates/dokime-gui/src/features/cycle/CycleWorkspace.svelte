@@ -380,7 +380,7 @@
   {@const cycle = plan.test_cycle}
   {@const description = typeof cycle.metadata.description === "string" ? cycle.metadata.description : ""}
   <div class="grid min-h-0">
-    <CycleEvidencePane {context} {cycleId} {plan} prompts={cyclePrompts} {snapshot}>
+    <CycleEvidencePane {context} {cycleId} hasExecutions={executions.length > 0} {plan} prompts={cyclePrompts} {snapshot}>
       {#snippet pageActions()}
         <NodeActionCluster
           {commands}

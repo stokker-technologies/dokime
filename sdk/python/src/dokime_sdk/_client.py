@@ -22,20 +22,21 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 import harmos
 from grpc import StatusCode
 from grpc.aio import AioRpcError
+from harmos import CLASSIFICATION_PERMANENT, CLASSIFICATION_REFUSED, OperationError
+from harmos._wire.model.v1.failure_pb2 import Failure
 from harmos.plugin import Endpoint
 
 # Local Imports
 import dokime_sdk._generated.client
 
 from ._authoring import _Template
-from ._context import BoundOperation
-from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
 from ._evidence import RecordsQuery, SamplesQuery
 from ._generated import client_types
 from ._generated.shared import MapValue
 from ._payloads import Payload
 from ._schemas import FrozenSchemaCache
 from ._transfers import download, publish_artifact, verify_archive
+from ._transport import call, chain, invalid, refused, transport_error
 from ._values import Artifact, Note, Outcome, Progress, PromptAnswer, PromptQuestion, ResultStatus, Scalar, Termination, decode, encode
 from ._wire.model.v1.evidence_pb2 import ArtifactScope
 from ._wire.model.v1.metadata_pb2 import Metadata
@@ -44,7 +45,6 @@ from ._wire.model.v1.metadata_pb2 import Metadata
 if TYPE_CHECKING:
     from ._authoring import Record, Stream, TestTemplate
     from ._plugin import Plugin
-    from .operations import Operation
 
 # === Public Exports === #
 
@@ -95,9 +95,6 @@ class Client:
         )
         return Cycle._bind(self, reply.cycle)
 
-    def operation[Q: Payload, R: Payload](self, operation: "Operation[Q, R]") -> "BoundOperation[Q, R]":
-        return BoundOperation(self._transport, operation)
-
     def on_prompt(self, handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None) -> None:
         if self._close_task is not None:
             raise ValueError("Observe Prompts: Connect a New Client After Close")
@@ -111,7 +108,7 @@ class Client:
         try:
             async for frame in watch:
                 if frame.HasField("resync_required"):
-                    raise SdkError(project_failure(frame.resync_required))
+                    raise OperationError(frame.resync_required)
                 for view in frame.prompts:
                     prompt = view.prompt
                     handler = self._prompt_handler
@@ -175,12 +172,12 @@ class Client:
                 failures.append(_cleanup_failure(close_result))
         self._closed = True
         if failures:
-            raise SdkError(
+            raise OperationError(
                 Failure(
-                    "Refused",
-                    "cleanup_failed",
-                    "Client Cleanup Failed",
-                    "Resolve Each Cleanup Failure and Retry Close",
+                    classification=CLASSIFICATION_REFUSED,
+                    code="cleanup_failed",
+                    message="Client Cleanup Failed",
+                    action="Resolve Each Cleanup Failure and Retry Close",
                     cause=chain(failures),
                 )
             )
@@ -220,7 +217,7 @@ class Plugins:
                 ),
                 identity,
             )
-            entry = RegisteredPlugin._bind(self._client, reply.entry, endpoint, label=plugin._label)
+            entry = RegisteredPlugin._bind(self._client, reply.entry, endpoint, label=plugin._label, owner=plugin)
             self._owned[entry.identifier] = entry
             entry._check_failure(identity)
             if entry.state != "Ready":
@@ -257,7 +254,7 @@ class Plugins:
                     await entry._release()
                 else:
                     await endpoint.stop()
-            except (SdkError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
+            except (OperationError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
                 error.add_note(f"Registration Cleanup Failed: {cleanup}")
             raise
 
@@ -283,13 +280,20 @@ class RegisteredPlugin:
     _unregister_id: str
     _detached: bool
     _label: str | None
+    _owner: "Plugin | None"
 
     def __init__(self) -> None:
         raise TypeError("Obtain a Plugin Through client.plugins")
 
     @classmethod
     def _bind(
-        cls, client: Client, entry: client_types.host.PluginEntry, endpoint: Endpoint | None = None, *, label: str | None = None
+        cls,
+        client: Client,
+        entry: client_types.host.PluginEntry,
+        endpoint: Endpoint | None = None,
+        *,
+        label: str | None = None,
+        owner: "Plugin | None" = None,
     ) -> "RegisteredPlugin":
         self = object.__new__(cls)
         self._client = client
@@ -300,6 +304,7 @@ class RegisteredPlugin:
         self._unregister_id = _identity(None)
         self._detached = False
         self._label = label
+        self._owner = owner
 
         return self
 
@@ -321,7 +326,10 @@ class RegisteredPlugin:
 
     def _check_failure(self, request_id: str) -> None:
         if self._entry.HasField("failure"):
-            raise SdkError(project_failure(self._entry.failure), request_id=request_id)
+            failure = OperationError(self._entry.failure)
+            if request_id is not None:
+                failure.value.details["request_id"] = request_id
+            raise failure
         if self.state in ("Unavailable", "Offline", "Stopped", "Stopping"):
             raise refused(
                 "plugins.register",
@@ -347,9 +355,14 @@ class RegisteredPlugin:
         await self._release()
 
     async def _release(self) -> None:
-        if self._endpoint is not None:
-            await self._endpoint.stop()
-            self._endpoint = None
+        try:
+            if self._endpoint is not None:
+                await self._endpoint.stop()
+                self._endpoint = None
+        finally:
+            if self._owner is not None:
+                await self._owner._close_resources()
+                self._owner = None
         self._client.plugins._owned.pop(self.identifier, None)
         for template, bindings in list(self._client.plugins._bindings.items()):
             self._client.plugins._bindings[template] = [binding for binding in bindings if binding[0] != self.identifier]
@@ -775,11 +788,17 @@ class Execution:
 
 
 def _cleanup_failure(error: BaseException) -> Failure:
-    if isinstance(error, SdkError):
-        return error.failure
+    if isinstance(error, OperationError):
+        return error.value
     if isinstance(error, AioRpcError):
-        return transport_error("client.close", error).failure
-    return Failure("Permanent", type(error).__name__, str(error), "Resolve the Cleanup Failure and Close Again", "client.close")
+        return transport_error("client.close", error).value
+    return Failure(
+        classification=CLASSIFICATION_PERMANENT,
+        code=type(error).__name__,
+        message=str(error),
+        action="Resolve the Cleanup Failure and Close Again",
+        operation="client.close",
+    )
 
 
 def _identity(request_id: str | None) -> str:

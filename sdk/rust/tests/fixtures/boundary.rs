@@ -170,6 +170,7 @@ fn main() -> Result<()> {
             default: Some(SettingValue {
                 value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 3600, nanos: 0 })),
             }),
+            ..Default::default()
         })
         .setting(SettingDeclaration {
             minimum: None,
@@ -180,6 +181,7 @@ fn main() -> Result<()> {
             default: Some(SettingValue {
                 value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 10_000_000 })),
             }),
+            ..Default::default()
         })
         .suite(
             Suite::of::<()>()

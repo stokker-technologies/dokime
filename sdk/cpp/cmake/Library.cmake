@@ -136,7 +136,7 @@ if(MSVC)
 else()
   set(DOKIME_CXX_WARNINGS -Wall -Wextra -Werror)
 endif()
-add_library(dokime_plugin STATIC src/plugin.cpp src/context.cpp src/operations.cpp src/configuration.cpp src/errors.cpp
+add_library(dokime_plugin STATIC src/plugin.cpp src/context.cpp src/operations.cpp src/configuration.cpp src/transport.cpp
   src/transfers.cpp src/generated/host.cpp)
 add_library(Dokime::Plugin ALIAS dokime_plugin)
 set_target_properties(dokime_plugin PROPERTIES EXPORT_NAME Plugin)

@@ -46,10 +46,7 @@
 </script>
 
 <script lang="ts">
-  import { DropdownMenu } from "bits-ui";
-  import { Ellipsis } from "lucide-svelte";
   import { observeRuntime } from "../app/live/runtime-stream";
-  import { buttonVariants } from "../components/ui/button-variants";
   import { createRecordsQuery } from "../features/cycle/live-document.svelte";
   import NewCycleDialog from "../features/cycles-home/NewCycleDialog.svelte";
   import ActiveCyclePicker from "../features/library/ActiveCyclePicker.svelte";
@@ -61,7 +58,7 @@
   import ConsoleDrawer from "./ConsoleDrawer.svelte";
   import { consoleAttentionCount } from "./console-view-model";
   import MenuBar from "./MenuBar.svelte";
-  import { currentPageChrome } from "./page-chrome.svelte";
+  import { pageActionsSlot, pageTitle } from "./page-chrome.svelte";
   import PanelHeader from "./PanelHeader.svelte";
   import { cycleIdOfPathname } from "./route-scope";
   import Sidebar from "./Sidebar.svelte";
@@ -70,7 +67,6 @@
   let props: DesktopShellProps = $props();
   let creating = $state(false);
   const session = $derived(props.session);
-  const nativeChrome = $derived(currentPageChrome());
   const cycleId = $derived(cycleIdOfPathname(props.pathname));
   const executionId = $derived(props.selection.executionId ?? null);
   const records = createRecordsQuery(
@@ -117,25 +113,10 @@
 <svelte:window onkeydown={leaveFocus} />
 <AppShellLayout>
   {#snippet header()}
-    <PanelHeader
-      title={props.focus.focused ? "" : (nativeChrome?.title ?? props.title)}
-      onBack={props.focus.focused ? undefined : props.back}
-    >
+    <PanelHeader title={props.focus.focused ? "" : (pageTitle() ?? props.title)} onBack={props.focus.focused ? undefined : props.back}>
       {#snippet actions()}
-        {@render (nativeChrome?.actions ?? props.actions)?.()}
-        {@const overflow = nativeChrome?.overflow}
-        {#if overflow}
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger aria-label="Page Actions" class={buttonVariants({ size: "icon", variant: "ghost" })}>
-              <Ellipsis />
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content align="end" class="z-50 min-w-32 rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-border">
-                {@render overflow()}
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
-        {/if}
+        {@render props.actions?.()}
+        <div class="contents" {@attach pageActionsSlot}></div>
       {/snippet}
     </PanelHeader>
   {/snippet}
@@ -180,7 +161,7 @@
     />
   {/snippet}
   {#snippet console()}
-    <ConsoleDrawer identity={session.identity} {cycleId} {executionId} />
+    <ConsoleDrawer {session} {cycleId} {executionId} />
   {/snippet}
   {#snippet statusBar()}
     <StatusBar

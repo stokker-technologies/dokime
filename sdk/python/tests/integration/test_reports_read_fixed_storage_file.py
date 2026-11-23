@@ -23,7 +23,6 @@ from grpc.aio import ServicerContext
 
 # Local Imports
 from dokime_sdk._connection import connect
-from dokime_sdk._errors import SdkError
 from dokime_sdk._generated.client_types import ReportsCreateResponse
 from dokime_sdk._transfers import download_report
 from dokime_sdk._wire.host.v1.files_pb2 import (
@@ -36,6 +35,7 @@ from dokime_sdk._wire.host.v1.files_pb2 import (
     FilesWatchResponse,
 )
 from dokime_sdk._wire.host.v1.reports_pb2 import ReportsCreateRequest, ReportsGetRequest, ReportsPublishRequest
+from dokime_sdk.operations import OperationError
 
 # Type Checking Imports
 
@@ -104,7 +104,7 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(offsets, [0, 2, 4, 6])
         for value in ("identity", "corrupt", "gap"):
             mode[0] = value
-            with self.assertRaises(SdkError):
+            with self.assertRaises(OperationError):
                 await download_report(client._transport, "execution", document="evidence", max_bytes=2)
         self.assertEqual(published, [])
 

@@ -16,7 +16,7 @@ import json
 import tempfile
 import tomllib
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -224,6 +224,14 @@ class ChangedPathsTests(unittest.TestCase):
             )
             self.assertEqual(archive.call_args.args[-1], ["-E", "binary_id(=example::integration)", "--", "--exact", "save"])
             execute.assert_not_called()
+
+    def test_changed_paths_reject_filtersets_before_launching_cargo(self) -> None:
+        output = io.StringIO()
+        with patch.object(focused, "changed") as execute, redirect_stderr(output), self.assertRaises(SystemExit) as failure:
+            tasks.main(["test", "--changed", "Cargo.toml", "--filterset", "test(record)"])
+        self.assertEqual(failure.exception.code, 2)
+        self.assertIn("Remove Explicit Package, Target, Feature and Filter Selectors", output.getvalue())
+        execute.assert_not_called()
 
     def test_filterset_reaches_source_and_archived_story_selection(self) -> None:
         expression = "not (test(native_one) or test(native_two))"

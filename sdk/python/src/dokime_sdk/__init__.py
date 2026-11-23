@@ -1,5 +1,5 @@
 # @generated from the product public-home inventory; do not edit.
-from . import _authoring, _client, _connection, _context, _errors, _plugin, _values
+from . import _authoring, _client, _connection, _context, _plugin, _values
 
 Suite = _authoring.Suite
 Lane = _plugin.Lane
@@ -16,8 +16,6 @@ RegisteredPlugin = _client.RegisteredPlugin
 connect = _connection.connect
 StreamRow = _context.StreamRow
 Gap = _context.Gap
-Failure = _errors.Failure
-SdkError = _errors.SdkError
 Artifact = _values.Artifact
 Note = _values.Note
 Outcome = _values.Outcome

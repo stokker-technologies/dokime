@@ -14,26 +14,29 @@
 # Standard Library Imports
 import argparse
 import hashlib
+import json
 import runpy
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
 import tomllib
 import urllib.request
+from dataclasses import replace
 from pathlib import Path
 
 # isort: split
 
 # Third Party Imports
-from harmos_tools.build.resources import sdk
+from google.protobuf.descriptor_pb2 import FileDescriptorSet
+from harmos_tools.build.resources import cpp, csharp, descriptor, rust, sdk
 from harmos_tools.build.resources.configuration import Configuration
 
 # isort: split
 
 # Local Imports
 from dokime_tools.build import cargo
+from dokime_tools.package.staging import sync_output
 from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
@@ -81,44 +84,24 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
 
 
 def inputs(root: Path) -> Path:
-    """Resolve Library Inputs at the Workspace Pin and Stage Current Product Sources."""
-    manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-    dependency = manifest["workspace"]["dependencies"]["harmos"]
-    # The Pinned Git Archive Is the Same Source the C++ Dependency Downloads; No Tool Is Required.
-    source = f"{dependency['git'].removesuffix('.git')}/archive/{dependency['rev']}.tar.gz"
+    """Stage Protocol Sources From the Library Cargo Resolved for the Product Build: Its Pin or a Local Patch."""
+    metadata = subprocess.run(
+        ["cargo", "metadata", "--locked", "--format-version", "1"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        creationflags=spawn_flags(),
+    )
+    packages = json.loads(metadata.stdout)["packages"]
+    protocol = next((Path(package["manifest_path"]) for package in packages if package["name"] == "harmos-protocol"), None)
+    if protocol is None:
+        raise ValueError("Stage Library Protocol: Depend on harmos-protocol Through the Workspace")
+    # The Crate Lives at crates/harmos-protocol; Its Repository Owns proto/harmos.
+    library = protocol.parents[2] / "proto/harmos"
     output = root / "target/protocol"
-    stamp = output / ".revision"
-    if not stamp.is_file() or stamp.read_text(encoding="utf-8") != source:
-        if output.exists():
-            shutil.rmtree(output)
-        response = urllib.request.urlopen(source)
-        files = tarfile.open(fileobj=response, mode="r|gz")
-        exported = 0
-        try:
-            for member in files:
-                relative = Path(*Path(member.name).parts[1:])
-                if not member.isfile() or relative.suffix != ".proto" or not relative.is_relative_to("proto"):
-                    continue
-                contents = files.extractfile(member)
-                if contents is None:
-                    raise ValueError("Export Library Protocol: Download a Complete Library Archive")
-                destination = output / relative.relative_to("proto")
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    destination.write_bytes(contents.read())
-                finally:
-                    contents.close()
-                exported += 1
-        finally:
-            files.close()
-            response.close()
-        if not exported:
-            raise ValueError(f"Export Library Protocol: Pin a Library Revision Whose Archive Contains proto/ ({source})")
-        stamp.write_text(source, encoding="utf-8")
-    product = output / "dokime"
-    if product.exists():
-        shutil.rmtree(product)
-    shutil.copytree(root / "proto/dokime", product)
+    sync_output(library, output / "harmos")
+    sync_output(root / "proto/dokime", output / "dokime")
     return output
 
 
@@ -205,6 +188,42 @@ def configuration(root: Path) -> Configuration:
     )
 
 
+def host_resources(root: Path, descriptors: Path, configuration: Configuration, *, exclude: set[str]) -> None:
+    """Keep Dependencies While Omitting Resources Already Owned by the Library."""
+    library = FileDescriptorSet.FromString(descriptors.read_bytes())
+    configuration = replace(configuration, library=library)
+    methods = [method for method in descriptor.table(library) if method["face"] == "context"]
+    methods = [
+        {**method, "surface": False, "fields": [], "payload_field": None}
+        if f"{method['package']}.{method['service']}" in exclude
+        else method
+        for method in methods
+    ]
+    rust.host(root, methods, configuration=configuration)
+    csharp.host(
+        root,
+        methods,
+        configuration=configuration,
+        namespace="Dokime.Plugins",
+        target=root / "sdk/csharp/src/Dokime/Generated/Host.g.cs",
+    )
+    names = cpp.exports(root, library, configuration=configuration)
+    cpp.host(root, methods, names, configuration=configuration)
+    subprocess.run(
+        [
+            "rustfmt",
+            "--edition",
+            "2024",
+            "--config-path",
+            str(configuration.rustfmt or root / "rustfmt.toml"),
+            str(root / "sdk/rust/src/plugin/host.rs"),
+            str(root / "sdk/rust/src/plugin/host_exports.rs"),
+        ],
+        check=True,
+        creationflags=spawn_flags(),
+    )
+
+
 def generate(*, check: bool = False, root: Path, descriptors: Path, configuration: Configuration, language: str | None = None) -> None:
     """Publish Shared Projections Except the SDK-Owned Python Barrels."""
     output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
@@ -215,9 +234,10 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
             "import sys\n"
             "from pathlib import Path\n"
             "from harmos_tools.build.resources import sdk\n"
-            "from dokime_tools.build.protocol import configuration\n"
+            "from dokime_tools.build.protocol import configuration, host_resources\n"
             "root, output, descriptors = map(Path, sys.argv[1:])\n"
             "sdk.generate(root=output, descriptors=descriptors, configuration=configuration(root))\n"
+            "host_resources(output, descriptors, configuration(root), exclude={'harmos.plugin.v1.Time'})\n"
             "runpy.run_path(str(root / 'sdk/cpp/tools/generate.py'))['project'](output)\n"
         )
         subprocess.run(

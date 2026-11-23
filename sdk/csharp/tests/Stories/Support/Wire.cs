@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Collections;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Harmos;
-using Harmos.Plugins;
 
 namespace Stories.Support;
 
@@ -18,7 +16,7 @@ internal sealed class Wire(CallInvoker calls)
       .GetProperty("Descriptor")!.GetValue(null)!;
 
   internal sealed record Description(string Id, Timestamp StartedAt, Declarations Declarations);
-  internal sealed record Child(string Operation, ByteString Payload);
+  internal sealed record Child(string Operation, ByteString Payload, string Json, ByteString Fingerprint);
 
   private static MessageDescriptor Descriptor(string name)
   {
@@ -79,7 +77,8 @@ internal sealed class Wire(CallInvoker calls)
       var nested = Field<IMessage?>(frame, "child");
       if (nested is not null)
       {
-        var payload = child?.Invoke(new Child(Field<string>(nested, "operation"), Field<ByteString>(nested, "payload")))
+        var payload = child?.Invoke(new Child(Field<string>(nested, "operation"), Field<ByteString>(nested, "payload"),
+            Field<string>(nested, "json"), Field<ByteString>(nested, "fingerprint")))
             ?? throw new InvalidOperationException("Invoke: Unexpected Child Call");
         var response = Frame("ChildResponse", ("call", Field<ulong>(nested, "call")), ("payload", payload));
         await call.RequestStream.WriteAsync(Frame("InstanceInvokeRequest", ("child", response)).ToByteString());
@@ -90,7 +89,7 @@ internal sealed class Wire(CallInvoker calls)
       await call.RequestStream.CompleteAsync();
       var failure = Field<Failure?>(terminal, "failure");
       if (failure is not null)
-        throw new PluginFailureException(failure);
+        throw new OperationException(failure);
       return (T)new T().Descriptor.Parser.ParseFrom(Field<ByteString>(terminal, "payload"));
     }
     throw new InvalidOperationException("Invoke: Missing Unary Operation Response");

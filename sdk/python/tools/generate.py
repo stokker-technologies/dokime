@@ -11,7 +11,6 @@
 # === Imports === #
 
 # Standard Library Imports
-
 import argparse
 import hashlib
 import json
@@ -38,28 +37,24 @@ ROOT_EXPORTS = {
     "_client": ["Case", "Cases", "Client", "Cycle", "Cycles", "Execution", "Executions", "Plugins", "RegisteredPlugin"],
     "_connection": ["connect"],
     "_context": ["StreamRow", "Gap"],
-    "_errors": ["Failure", "SdkError"],
     "_values": ["Artifact", "Note", "Outcome", "Progress", "PromptAnswer", "PromptQuestion", "ResultStatus", "Scalar"],
 }
 
 PUBLIC_HOMES = {
     "": frozenset(name for names in ROOT_EXPORTS.values() for name in names),
-    # SDK Surface Specification S3 Defers SettingGroup Until Its Metadata Contract Is Agreed.
     "operations": frozenset(
         [
-            "BoundOperation",
             "Context",
-            "FailureError",
-            "Operation",
+            "OperationError",
             "OperationPolicy",
             "Payload",
             "RetryPolicy",
-            "SecretDeclaration",
-            "SettingDeclaration",
-            "SettingValue",
+            "Resource",
+            "Secret",
+            "Setting",
+            "Settings",
             "StreamSubscription",
             "Visibility",
-            "declaration",
             "operation",
         ]
     ),
@@ -95,7 +90,6 @@ PUBLIC_HOMES = {
             "Materialization",
             "MirrorCapture",
             "Parameter",
-            "ParameterDefinition",
             "Plot",
             "PlotStyle",
             "Prompt",
@@ -109,7 +103,6 @@ PUBLIC_HOMES = {
             "SampleRow",
             "SamplesQuery",
             "Section",
-            "Severity",
             "Statistics",
             "Stream",
             "StreamCapture",
@@ -128,7 +121,7 @@ PUBLIC_HOMES = {
             "heat_strip",
             "histogram",
             "materialize",
-            "observer",
+            "Observer",
             "pie",
             "plot_card",
             "prompt",
@@ -138,7 +131,6 @@ PUBLIC_HOMES = {
             "stream",
             "time_series",
             "trajectory",
-            "window_observer",
             "xy",
         ]
     ),

@@ -14,6 +14,8 @@
 mod access_credentials;
 mod clock;
 pub(crate) mod composition;
+#[cfg(test)]
+mod record_fanout;
 mod root_claim;
 mod state;
 mod status;
@@ -329,6 +331,8 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     };
     let context = Arc::new(Context {
         administration,
+        reports: Arc::default(),
+        archives: Arc::default(),
         host: Arc::new(state),
         settings: settings.clone(),
         operations: runtime.operations.clone(),

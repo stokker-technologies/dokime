@@ -1,7 +1,7 @@
 // @generated from protocol descriptors; do not edit.
 #pragma once
 #include "detail/client.hpp"
-#include "dokime/errors.hpp"
+#include "dokime/detail/transport.hpp"
 #include "dokime/messages.hpp"
 #include "harmos/client_transport.hpp"
 #include "harmos/messages.hpp"

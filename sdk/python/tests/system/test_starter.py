@@ -29,7 +29,7 @@ from dokime_tools.test import policy
 
 # Third Party Imports
 from starter_project.plugin import ExamplePlugin
-from starter_project.plugin.suites.capture.confirmation import ConfirmationTestTemplate
+from starter_project.plugin.suites.capture.confirmation import CONFIRMATION, ConfirmationTestTemplate
 
 # Local Imports
 from dokime_sdk import Client, PromptAnswer, PromptQuestion, ResultStatus
@@ -80,7 +80,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(sealed)
         outcome = await execution.seal()
         self.assertEqual(outcome.status, ResultStatus.PASSED)
-        self.assertTrue(await execution.records(ConfirmationTestTemplate.confirmation).last())
+        self.assertTrue(await execution.records(CONFIRMATION).last())
         await cycle.seal()
 
         # Validate the Retained Evidence Archive Without Authored-Prose Assertions.
@@ -93,7 +93,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
             self.assertEqual(
                 json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
-                "record:example.capture.confirmation.confirmation",
+                "record:example.confirmation",
             )
             self.assertEqual(await cycle.report(), archive.read("report.html"))
             self.assertEqual(sha256(evidence).digest(), sha256(await cycle.evidence()).digest())
@@ -260,7 +260,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
             self.assertEqual(
                 json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
-                "record:example.capture.confirmation.confirmation",
+                "record:example.confirmation",
             )
             self.assertEqual(archive.read("report.html"), await cycle.report())
             for name in archive.namelist():

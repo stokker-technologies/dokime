@@ -167,7 +167,7 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
     activeCycle,
     hasOpenCycles: true,
     onChangeCycle: () => {},
-    onNewCycle: () => {},
+    onCycleCreated: () => {},
     onOpenChange: boundary.closed,
     openCycle: () => {},
     open: true,

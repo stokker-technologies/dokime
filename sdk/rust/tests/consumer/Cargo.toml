@@ -69,8 +69,6 @@ path = "../fixtures/plugin.rs"
 [dependencies]
 # Local
 dokime = { path = "../.." }
-prost-types = { version = "0.14.4" }
-tonic = { version = "0.14.8", features = ["transport"] }
 
 # Git
 
@@ -81,6 +79,7 @@ tonic = { version = "0.14.8", features = ["transport"] }
 # Utilities
 
 # Serialization
+prost-types = { version = "0.14.4" }
 
 # Configuration
 
@@ -94,6 +93,7 @@ tonic = { version = "0.14.8", features = ["transport"] }
 tokio = { version = "1.50.0", features = ["macros", "sync", "rt-multi-thread", "net", "time"] }
 
 # Networking
+tonic = { version = "0.14.8", features = ["transport"] }
 
 # Storage
 
@@ -111,8 +111,8 @@ dokime-protocol = { path = "../../../../crates/dokime-protocol" }
 dokime-runtime = { path = "../../../../crates/dokime-runtime" }
 
 # Git
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "37729ccb3c9a05ebf71b9e7700bedc3f42cd0dda" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "37729ccb3c9a05ebf71b9e7700bedc3f42cd0dda", default-features = false, features = [
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "ded8e21b98915d57996488018cae1c574eb4b45a" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "ded8e21b98915d57996488018cae1c574eb4b45a", default-features = false, features = [
   "grpc",
 ] }
 

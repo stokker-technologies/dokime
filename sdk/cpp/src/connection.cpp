@@ -31,6 +31,8 @@ using grpc::CreateCustomChannel;
 using grpc::InsecureChannelCredentials;
 using grpc::SslCredentials;
 using grpc::SslCredentialsOptions;
+using harmos::OperationError;
+using harmos::model::Failure;
 using std::invalid_argument;
 using std::make_shared;
 using std::move;
@@ -167,36 +169,40 @@ Client connect(ConnectionSettings settings) {
       if (!channel->WaitForConnected(deadline))
         throw runtime_error("Check the Host Listener; the Connection Budget Expired");
       return Client(move(state));
-    } catch (const Error &error) {
-      auto failure = error.failure;
-      failure.details["connection_endpoint"] = endpoint;
+    } catch (const OperationError &error) {
+      auto failure = error.value;
+      (*failure.mutable_details())["connection_endpoint"] = endpoint;
       failures.push_back(move(failure));
     } catch (const std::exception &error) {
       Failure failure;
-      failure.classification = dynamic_cast<const invalid_argument *>(&error) ? "Refused" : "Timed Out";
-      failure.code = "connection_failed";
-      failure.message = error.what();
-      failure.action = "Check the Host Listener or Export a New Pairing";
-      failure.operation = "connect";
-      failure.details["connection_endpoint"] = endpoint;
+      failure.set_classification(dynamic_cast<const invalid_argument *>(&error) ? harmos::CLASSIFICATION_REFUSED
+                                                                                : harmos::CLASSIFICATION_TIMED_OUT);
+      failure.set_code("connection_failed");
+      failure.set_message(error.what());
+      failure.set_action("Check the Host Listener or Export a New Pairing");
+      failure.set_operation("connect");
+      (*failure.mutable_details())["connection_endpoint"] = endpoint;
       failures.push_back(move(failure));
     }
   }
   Failure failure;
-  failure.classification = failures.front().classification;
-  failure.code = "connection_failed";
-  failure.action = "Check the Host Listener or Export a New Pairing";
-  failure.operation = "connect";
+  failure.set_classification(failures.front().classification());
+  failure.set_code("connection_failed");
+  failure.set_action("Check the Host Listener or Export a New Pairing");
+  failure.set_operation("connect");
   for (const auto &cause : failures) {
-    failure.message += cause.details.at("connection_endpoint") + ": " + cause.message + "; ";
-    if (cause.classification != failure.classification)
-      failure.classification = "Transient";
+    failure.set_message(failure.message() + cause.details().at("connection_endpoint") + ": " + cause.message() + "; ");
+    if (cause.classification() != failure.classification())
+      failure.set_classification(harmos::CLASSIFICATION_TRANSIENT);
   }
-  std::shared_ptr<const Failure> chain;
-  for (auto cause = failures.rbegin(); cause != failures.rend(); ++cause)
-    chain = detail::append_failure(*cause, move(chain));
-  failure.cause = move(chain);
-  throw Error(move(failure));
+  auto *tail = &failure;
+  for (const auto &cause : failures) {
+    *tail->mutable_cause() = cause;
+    tail = tail->mutable_cause();
+    while (tail->has_cause())
+      tail = tail->mutable_cause();
+  }
+  throw OperationError(move(failure));
 }
 } // namespace dokime
 
