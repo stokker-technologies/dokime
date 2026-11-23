@@ -490,8 +490,12 @@ impl Context {
 
     // Streams Belong to the Plugin: Select the One Frozen Case Stream Named by the Identifier.
     fn stream(&self, local: &str) -> Result<String> {
+        let streams = &self.test_case()?.streams;
+        if streams.iter().any(|stream| stream == local) {
+            return Ok(local.into());
+        }
         let suffix = format!(".{local}");
-        let mut streams = self.test_case()?.streams.iter().filter(|stream| *stream == local || stream.ends_with(&suffix));
+        let mut streams = streams.iter().filter(|stream| stream.ends_with(&suffix));
         match (streams.next(), streams.next()) {
             (Some(stream), None) => Ok(stream.clone()),
             (Some(_), Some(_)) => Err(Error::Invalid(format!("Read Statistics: Name the Qualified Stream of {local}"))),

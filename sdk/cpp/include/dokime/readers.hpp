@@ -12,6 +12,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+#include <algorithm>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -242,9 +243,12 @@ SamplesQuery<T> Execution::samples(const templates::Stream<T> &stream, const std
                                        between) {
   // Streams Belong to the Plugin: Select the One Frozen Case Stream Named by the Declaration.
   const auto local = templates::build_identifier(stream.name, stream.identifier);
+  const auto &streams = state_->detail.origin().plugin_run().test_case().streams();
   std::optional<std::string> identity;
-  for (const auto &candidate : state_->detail.origin().plugin_run().test_case().streams()) {
-    if (candidate != local && !candidate.ends_with("." + local))
+  if (std::find(streams.begin(), streams.end(), local) != streams.end())
+    identity = local;
+  for (const auto &candidate : streams) {
+    if (identity == local || !candidate.ends_with("." + local))
       continue;
     if (identity)
       throw std::invalid_argument("Read Samples: Name the Qualified Stream of " + local);
