@@ -84,15 +84,18 @@ function plotStream() {
   const messages: NativePlotStreamMessage[] = [];
   let wake: (() => void) | undefined;
   let ended = false;
+  const end = () => {
+    ended = true;
+    wake?.();
+  };
   return {
     push(message: NativePlotStreamMessage) {
       messages.push(message);
       wake?.();
     },
-    cancel: async () => {
-      ended = true;
-      wake?.();
-    },
+    /** The Host Ends The Watch. */
+    end,
+    cancel: vi.fn(async () => end()),
     async *[Symbol.asyncIterator]() {
       while (!ended) {
         const message = messages.shift();
@@ -108,15 +111,20 @@ function plotStream() {
   };
 }
 
-function frame(plot_id: string, revision: number, kind: "snapshot" | "replace") {
+function frame(plot_id: string, revision: number, kind: "snapshot" | "replace", x = [0, 1]) {
   const payload = {
     stream: "pulse",
     x_key: "timestamp",
     generated_at: "2026-11-01T00:00:00Z",
     max_points: 100,
     window_s: 300,
-    series: [{ key: "trace-0", label: "Trace", points: [], raw_points: 2, downsampled: false }],
-    cartesian: { mode: "aligned", series: [{ x: [0, 1], y: [revision, revision] }], point_count: 2, signature: `${plot_id}-${revision}` },
+    series: [{ key: "trace-0", label: "Trace", points: [], raw_points: x.length, downsampled: false }],
+    cartesian: {
+      mode: "aligned",
+      series: [{ x, y: x.map(() => revision) }],
+      point_count: x.length,
+      signature: `${plot_id}-${revision}`,
+    },
   } as unknown as PlotPayload;
   return {
     kind,
@@ -240,5 +248,117 @@ test("A Live Revision Rebuilds Only Its Own Plot", async () => {
     spec.mock.calls.map(([input]) => input.plot.plot_id),
     ["alpha"],
   );
+  probe.unmount();
+});
+
+// Scrolling Back Draws A Retained Frame At Once; Only The Host Makes A Plot Stale.
+test("Scrolling Back Redraws the Last Frame at Once and Labels Only Real Staleness", async () => {
+  vi.useFakeTimers();
+  let observe: IntersectionObserverCallback = () => {};
+  const panels = new Set<Element>();
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        observe = callback;
+      }
+      observe(target: Element) {
+        panels.add(target);
+      }
+      unobserve(target: Element) {
+        panels.delete(target);
+      }
+    },
+  );
+  let page: DocumentVisibilityState = "visible";
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => page });
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
+  onTestFinished(() => {
+    Reflect.deleteProperty(document, "visibilityState");
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  const { session } = connect();
+  // Plot Kinds Watch Separately, So Each Plot Owns One Watch.
+  const plots = (["alpha", "beta"] as const).map(
+    (plot_id): DocumentViewPlot => ({
+      plot_id,
+      title: plot_id,
+      stream: "pulse",
+      plot_type: plot_id === "alpha" ? "time_series" : "xy",
+      style: "line",
+      x_scale: "linear",
+      y_scale: "linear",
+      x: "timestamp",
+      y: ["trace-0"],
+      fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    }),
+  );
+  serve([documentCard({ identifier: "plots", label: "Plots" }, "plots", { plots })]);
+  const watches: { plots: string[]; stream: ReturnType<typeof plotStream> }[] = [];
+  backend.watch.mockImplementation(async (_identity, requests: { plotId: string }[]) => {
+    const stream = plotStream();
+    watches.push({ plots: requests.map((request) => request.plotId), stream });
+    return stream;
+  });
+  const watch = (plot: string) => watches.findLast((entry) => entry.plots.includes(plot))?.stream;
+  const desktop = { session, plotPalette: ["#123456"], reportDefaults: BUILT_IN_REPORT_DEFAULTS };
+  const probe = render(LiveSurfaceProbe, { session, plotWindow: createPlotWindow(), desktop });
+  const shown = (plot: string) => probe.container.querySelector(`[data-plot-viewport="${plot}"]`)?.textContent?.replace(/\s+/g, " ");
+  // Settling Runs Pending Work Without Letting Any Time Pass.
+  const settle = async () => {
+    await tick();
+    await vi.advanceTimersByTimeAsync(0);
+  };
+  const scroll = async (visible: Record<string, boolean>) => {
+    const entries = [...panels].flatMap((target) => {
+      const plot = (target as HTMLElement).dataset.plotViewport ?? "";
+      return plot in visible ? [{ target, isIntersecting: visible[plot] } as IntersectionObserverEntry] : [];
+    });
+    observe(entries, {} as IntersectionObserver);
+    await settle();
+  };
+  const turnPage = async (state: DocumentVisibilityState) => {
+    page = state;
+    document.dispatchEvent(new Event("visibilitychange"));
+    await settle();
+  };
+  await vi.waitFor(() => assert.equal(panels.size, 2));
+  await scroll({ alpha: true, beta: true });
+  assert.equal(watches.length, 2);
+  assert.match(shown("alpha") ?? "", /Loading Plot/, "a plot without any frame yet is loading");
+
+  watch("alpha")?.push({ updates: [frame("alpha", 1, "snapshot")] });
+  watch("beta")?.push({ updates: [frame("beta", 1, "snapshot", [])] });
+  await vi.advanceTimersByTimeAsync(20);
+  assert.match(shown("alpha") ?? "", /2 Points/);
+  assert.match(shown("beta") ?? "", /Waiting for Samples/);
+
+  // Scrolling Away Closes Alpha's Watch; The Page Leaving The Screen Closes Every Watch.
+  await scroll({ alpha: false });
+  assert.equal(watch("alpha")?.cancel.mock.calls.length, 1, "an off-screen plot holds no watch");
+  await turnPage("hidden");
+  assert.equal(watch("beta")?.cancel.mock.calls.length, 1, "a hidden page holds no watch");
+  await turnPage("visible");
+  assert.equal(watches.length, 3, "the shown plot reopens its watch");
+  assert.match(shown("beta") ?? "", /Waiting for Samples/, "a routine reopen is not staleness");
+
+  // The Returning Plot Draws Its Retained Frame Before Its Reopened Watch Sends Anything.
+  const spec = vi.mocked(documentPlotSpec);
+  spec.mockClear();
+  await scroll({ alpha: true });
+  assert.equal(watches.length, 4, "the returning plot reopens its watch");
+  assert.match(shown("alpha") ?? "", /2 Points/, "the retained frame is drawn with no time elapsed");
+  assert.doesNotMatch(shown("alpha") ?? "", /Loading|Stale/);
+  assert.deepEqual(new Set(spec.mock.calls.map(([input]) => input.plot.plot_id)), new Set(["alpha"]), "only the returning plot rebuilds");
+
+  // A Watch The Host Ends Leaves Its Plot Stale.
+  watch("beta")?.push({ updates: [frame("beta", 1, "snapshot", [])] });
+  await vi.advanceTimersByTimeAsync(20);
+  watch("beta")?.end();
+  await settle();
+  assert.match(shown("beta") ?? "", /Stream Stale/);
   probe.unmount();
 });

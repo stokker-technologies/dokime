@@ -215,31 +215,16 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
       }
       groups.clear();
     }
+    // A Paused Watch Keeps Every Retained Frame And Its Status For The Plot's Return.
     if (!enabled || !testCycleId || selectedPlots.length === 0) {
       onRefreshChange?.({ refreshing: false, updatedAt: null });
-      commit((current) => {
-        if (!testCycleId || requestPlots.length === 0) {
-          return {};
-        }
-        return Object.fromEntries(
-          requestPlots.map((plot) => {
-            const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
-            return [plot.plot_id, currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot];
-          }),
-        );
-      });
+      commit((current) =>
+        testCycleId ? Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, current[plot.plot_id] ?? emptyLivePlotState()])) : {},
+      );
       return;
     }
     if (!requestVisible) {
       onRefreshChange?.({ refreshing: false });
-      commit((current) =>
-        Object.fromEntries(
-          selectedPlots.map((plot) => {
-            const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
-            return [plot.plot_id, currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot];
-          }),
-        ),
-      );
       return;
     }
 
@@ -308,7 +293,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
         }
       };
 
-      // A new watch numbers its frames from its own origin.
+      // A new watch numbers its frames from its own origin; a retained frame stays live until the host says otherwise.
       commit((current) => ({
         ...current,
         ...Object.fromEntries(
@@ -320,7 +305,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
                 ...currentPlot,
                 revision: 0,
                 error: null,
-                status: currentPlot.payload ? "stale" : "loading",
+                status: currentPlot.payload ? "live" : "loading",
                 summaryInFlight: summaryInFlight("requested"),
               },
             ];

@@ -50,17 +50,16 @@
               : state.status === "error"
                 ? STREAM_ERROR
                 : spec.stateLabel;
+    // A State Text Shows Only When Nothing Is Drawn, So It Never Claims Visible Samples.
     const detail =
-      state.status === "reconnecting" && state.payload
-        ? "The last samples remain visible while the plot stream reopens."
-        : (state.error ??
-          (state.status === "waiting"
-            ? "The plot is subscribed; its first frame is still being read."
-            : state.status === "loading"
-              ? "Waiting for the first plot payload."
-              : state.status === "stale"
-                ? "The last samples remain visible while the plot stream reconnects."
-                : spec.stateDetail));
+      state.error ??
+      (state.status === "waiting"
+        ? "The plot is subscribed; its first frame is still being read."
+        : state.status === "loading"
+          ? "Waiting for the first plot payload."
+          : state.status === "stale"
+            ? "The plot stream ended before samples arrived."
+            : spec.stateDetail);
     // Frame sizes and compaction counts are transport diagnostics, not plot
     // context; they stay out of what an operator reads under a title.
     return {
@@ -213,13 +212,14 @@
 
 <div bind:this={root} class="min-w-0" data-plot-viewport={descriptor.plot_id}>
   {#if plot && (mounted || eager)}
+    {@const shown = plot}
     <div bind:this={panel} class={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
       {#if onPlotSettingsChange}
         <PlotSettingsDialog plot={descriptor} defaults={reportDefaults} onSubmit={submit}>
           {#snippet children(
             actions,
           )}
-            <PlotDispatcher plot={plot!} {resetKey} {viewportMode} {actions} />
+            <PlotDispatcher plot={shown} {resetKey} {viewportMode} {actions} />
           {/snippet}
         </PlotSettingsDialog>
       {:else}
