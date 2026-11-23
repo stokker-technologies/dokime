@@ -141,9 +141,7 @@ impl Store {
         self.evaluated_batches(window, &[field.into()], |batch| {
             for row in 0..batch.num_rows() {
                 let value = FieldPath::from(format!("values.{field}").as_str()).value(&batch, row)?;
-                if matches!(value, ScalarValue::Missing | ScalarValue::Null)
-                    || scalar::number(&value).is_some_and(|value| !value.is_finite())
-                {
+                if matches!(value, ScalarValue::Missing | ScalarValue::Null) {
                     continue;
                 }
                 if !groups.iter().any(|v| v.compare(&value).is_ok_and(|o| o.is_eq())) {

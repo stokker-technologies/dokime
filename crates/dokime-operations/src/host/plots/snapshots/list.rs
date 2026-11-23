@@ -1360,7 +1360,7 @@ mod tests {
         let (_root, store) = readings(&[("value", Type::Double), ("lost", Type::Double), ("cell", Type::Uint64)]);
 
         // Lose the Target Between Finite Readings and Sample It at Status Events
-        let values = [1.0, f64::NAN, 2.0, f64::INFINITY, 3.0, f64::NEG_INFINITY, 4.0];
+        let values = [1.0, f64::NAN, 2.0, f64::INFINITY, 3.0, f64::NEG_INFINITY, 4.0, 5.0];
         for (index, value) in values.into_iter().enumerate() {
             let source_ns = index as i64 * 1_000_000_000;
             let row = Tracking {
@@ -1429,25 +1429,32 @@ mod tests {
                 series_by: Some("value".into()),
                 ..request(PlotKind::TimeSeries, "value")
             },
+            PlotRequest {
+                max_points: Some(4),
+                ..request(PlotKind::TimeSeries, "value")
+            },
         ] {
             payloads.push(snapshots_at(&reader, &cut, vec![request], 1000, 0, "epoch").await.unwrap().remove(0).payload.unwrap());
         }
-        let [series, lost, histogram, lost_histogram, sampled, heat_strip, grouped] = payloads.try_into().unwrap();
+        let [series, lost, histogram, lost_histogram, sampled, heat_strip, grouped, bucketed] = payloads.try_into().unwrap();
 
         // Check Time Series Serve and Summarize Only Finite Samples
         let number = |value: f64| Some(Value { kind: Some(value::Kind::Number(value)) });
         let summary = &series.summaries[0];
-        assert_eq!((summary.count, &summary.min, &summary.max, &summary.median), (4, &number(1.0), &number(4.0), &number(2.5)));
+        assert_eq!((summary.count, &summary.min, &summary.max, &summary.median), (5, &number(1.0), &number(5.0), &number(3.0)));
         let ys = |payload: &PlotPayload| {
             payload.frame.as_ref().unwrap().series.iter().flat_map(|column| &column.y).map(|y| y.value).collect::<Vec<_>>()
         };
-        assert_eq!(ys(&series), [Some(1.0), Some(2.0), Some(3.0), Some(4.0)]);
+        assert_eq!(ys(&series), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), Some(5.0)]);
+        assert_eq!((bucketed.summaries[0].count, bucketed.bucket_width_s.is_some(), ys(&bucketed)), (5, true, vec![Some(1.0), Some(5.0)]));
         assert_eq!((lost.summaries[0].count, &lost.summaries[0].min), (0, &None));
         assert!(ys(&lost).is_empty());
-        assert_eq!((grouped.series.len(), ys(&grouped)), (4, ys(&series)));
+        assert_eq!((grouped.series.len(), ys(&grouped)), (5, ys(&series)));
+        let percentile = store.document_value(&cut, &FieldReference::new("readings").field("value").percentile(75.0)).unwrap();
+        assert_eq!(Some(percentile), number(4.0));
 
         // Check Histograms of Streams and of Status Events Bin Only Finite Samples
-        for (payload, count, median) in [(&histogram, 4, number(2.5)), (&sampled, 2, number(3.0)), (&lost_histogram, 0, None)] {
+        for (payload, count, median) in [(&histogram, 5, number(3.0)), (&sampled, 4, number(2.0)), (&lost_histogram, 0, None)] {
             let Some(plot_analysis_result::Kind::Histogram(analysis)) = payload.analysis.clone().and_then(|analysis| analysis.result?.kind)
             else {
                 panic!("expected a histogram");
@@ -1458,7 +1465,7 @@ mod tests {
         }
 
         // Check Heat Strip Cells Show No Value for Nonfinite Samples
-        assert_eq!(ys(&heat_strip), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), None, None, None]);
+        assert_eq!(ys(&heat_strip), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), None, None, None, Some(5.0)]);
     }
 
     #[test]
