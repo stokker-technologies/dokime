@@ -191,6 +191,10 @@ debug = false
 [profile.dev.package.sha2]
 opt-level = 3
 
+# Evidence Archives Store Telemetry Files As-Is, So Their CRC-32 Covers Every Byte.
+[profile.dev.package.crc32fast]
+opt-level = 3
+
 # === Patches === #
 
 # === Other === #
