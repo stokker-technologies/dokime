@@ -42,17 +42,7 @@ jobs:
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
         bootstrap: ${{ matrix.bootstrap }}
-    - name: Restore C++ Dependencies
-      id: cpp_dependencies
-      if: matrix.language == 'cpp'
-      uses: ./.github/actions/cpp-cache
     - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
-    - name: Save C++ Dependencies
-      if: always() && matrix.language == 'cpp'
-      uses: ./.github/actions/cpp-cache
-      with:
-        operation: save
-        restored-key: ${{ steps.cpp_dependencies.outputs.restored-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
         != 'true' && steps.setup.outputs.cargo_downloads-path != ''
@@ -88,7 +78,7 @@ jobs:
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       COMPILER_CACHE_MODE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      MISE_ENABLE_TOOLS: cmake,dotnet,ninja,pipx:clang-format,aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv,aqua:EmbarkStudios/cargo-deny,aqua:rustsec/rustsec/cargo-audit
+      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv,aqua:EmbarkStudios/cargo-deny,aqua:rustsec/rustsec/cargo-audit
       CI_PROFILE: ${{ inputs.profile }}
       CI_PLATFORM: ${{ matrix.platform }}
       CI_CACHE_PROFILE: test

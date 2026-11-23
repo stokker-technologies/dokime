@@ -27,7 +27,7 @@ from unittest.mock import patch
 # isort: split
 
 # Local Imports
-from dokime_tools.ci import impact, required
+from dokime_tools.ci import impact, matrices, required
 from dokime_tools.test import policy
 
 # Type Checking Imports
@@ -170,6 +170,15 @@ class ImpactTests(unittest.TestCase):
                         self.assertTrue(result["build_product"])
                     if "build-tests-" in archive:
                         self.assertTrue(result["build_tests"])
+
+    def test_unshipped_sdks_contribute_no_matrix_rows(self) -> None:
+        for language, path in (("csharp", "sdk/csharp/src/Dokime/Client.cs"), ("cpp", "sdk/cpp/vcpkg.json")):
+            for event in ("review", "nightly", "full"):
+                with self.subTest(language=language, event=event):
+                    result = impact.plan(impact.classify([path]), event)
+                    rows = result["check_matrix"]["include"] + result["test_matrix"]["include"]
+                    self.assertLessEqual({row["language"] for row in rows}, impact.LANGUAGES)
+                    self.assertEqual(result["test"], event != "review" or language in matrices.SDK_LANGUAGES)
 
     def test_diff_decoder_keeps_deletions_and_both_rename_sides(self) -> None:
         paths = impact.diff_paths(b"R100\0sdk/python/old.py\0sdk/cpp/new.cpp\0D\0README.md\0A\0file with space.py\0")

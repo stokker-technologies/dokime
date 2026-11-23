@@ -10,10 +10,6 @@ name: Validation / Build Tests
         description: Build Profile
         type: string
         default: dev
-      fixture-language:
-        description: Build One Independent SDK Fixture Instead of the Tests Archive
-        type: string
-        default: ''
       bench:
         description: Build Native Benchmarks Instead of the Tests Archive
         type: boolean
@@ -33,7 +29,7 @@ env:
   GIT_CONFIG_VALUE_0: 'true'
 jobs:
   build_tests:
-    if: inputs.fixture-language == '' && !inputs.bench
+    if: '!inputs.bench'
     name: Build / Tests (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ matrix.minutes }}
@@ -115,7 +111,7 @@ jobs:
         key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
         path: ${{ steps.setup.outputs.sccache-path }}
     env:
-      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,cmake,dotnet,ninja,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       COMPILER_CACHE_MODE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
@@ -191,7 +187,7 @@ jobs:
         key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
         path: ${{ steps.setup.outputs.sccache-path }}
     env:
-      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,cmake,dotnet,ninja,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       DOKIME_HOST_FIXTURE_LANGUAGE: ${{ inputs.channel == 'nightly' && 'none' || 'rust' }}
       CI_TRANSPORT: 'true'
       CI_OUTPUTS: ${{ matrix.outputs }}
@@ -210,79 +206,3 @@ jobs:
           minutes: 120
           inputs: ''
           outputs: '[{"archive":"target/ci/build-bench-windows.tar.zst","paths":["target/build/bench/{target}"]}]'
-  build_fixture:
-    if: inputs.fixture-language != ''
-    name: Build / SDK / ${{ inputs.fixture-language == 'csharp' && 'C#' || inputs.fixture-language == 'cpp' && 'C++' || inputs.fixture-language == 'python' && 'Python' || 'Rust' }} / Fixtures (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-22.04
-        - platform: windows
-          runner: windows-latest
-    env:
-      # The C# and C++ SDKs resolve the pinned library through Cargo; installing Rust here once keeps parallel cargo and rustfmt calls from racing rustup.
-      MISE_ENABLE_TOOLS: ${{ inputs.fixture-language == 'cpp' && 'cmake,ninja,python,rust,uv' || inputs.fixture-language == 'csharp' && 'dotnet,python,rust,uv' || inputs.fixture-language == 'python' && 'python,uv' || 'python,rust,protoc,uv,sccache' }}
-      CI_TRANSPORT: 'true'
-      CI_OUTPUTS: >-
-        [{"archive":"target/ci/build-host-${{ inputs.fixture-language }}-{profile}-${{ matrix.platform }}.tar.zst","paths":["${{ inputs.fixture-language == 'python' && 'target/build/{profile}/any/python' || 'target/build/{profile}/{target}/fixtures/host' }}"]}]
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - uses: ./.github/actions/setup
-      with:
-        platform: ${{ matrix.platform }}
-        prepare-arguments: --without-frontend
-    - name: Install the .NET SDK
-      if: inputs.fixture-language == 'csharp'
-      run: mise -C sdk/csharp install dotnet
-    - name: Select GCC 12 for the C++ SDK
-      # The Library Uses std::atomic<std::shared_ptr>, Which GCC 11's Default Standard Library Lacks.
-      if: inputs.fixture-language == 'cpp' && matrix.platform == 'unix'
-      run: |
-        echo "CC=gcc-12" >> "$GITHUB_ENV"
-        echo "CXX=g++-12" >> "$GITHUB_ENV"
-    - name: Install CMake and Ninja
-      if: inputs.fixture-language == 'cpp'
-      run: mise -C sdk/cpp install cmake ninja
-    - name: Restore Pinned C++ Dependencies
-      id: cpp_dependencies
-      if: inputs.fixture-language == 'cpp'
-      uses: ./.github/actions/cpp-cache
-    - run: mise run build:host-fixtures -- --profile ${{ env.PROFILE }} --language ${{ inputs.fixture-language }} --export
-    - name: Preserve C++ Build Diagnostics
-      if: always() && inputs.fixture-language == 'cpp'
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: diagnostics-host-cpp-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/cp/release/*.log
-        if-no-files-found: ignore
-        retention-days: 7
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-host-${{ inputs.fixture-language }}-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-host-${{ inputs.fixture-language }}-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-    - name: Upload the C++ SDK Package
-      if: inputs.fixture-language == 'cpp'
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-sdk-cpp-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: |
-          target/cp/release/dokime-cpp-*.tar.gz
-          target/cp/release/dokime-cpp-*.tar.gz.sha256
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-    - name: Save Pinned C++ Dependencies
-      if: always() && inputs.fixture-language == 'cpp'
-      uses: ./.github/actions/cpp-cache
-      with:
-        operation: save
-        restored-key: ${{ steps.cpp_dependencies.outputs.restored-key }}

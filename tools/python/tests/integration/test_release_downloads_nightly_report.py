@@ -28,6 +28,7 @@ from unittest import mock
 
 # Local Imports
 from dokime_tools import policy
+from dokime_tools.ci.matrices import SDK_LANGUAGES
 from dokime_tools.release import reports
 from dokime_tools.test import desktop_bench
 
@@ -50,7 +51,7 @@ class NightlyReportTests(unittest.TestCase):
         try:
             root = Path(temporary.name)
             for platform, multiplier in (("linux-x86_64", 1), ("windows-x86_64", 10)):
-                for language, value in (("rust", 12), ("python", 24), ("csharp", 18), ("cpp", 9)):
+                for language, value in zip(SDK_LANGUAGES, (12, 24, 18, 9)):
                     rows = []
                     for measure, unit in (("round_trip/echo/p50", "ns"), ("throughput/ceiling", "samples/s")):
                         name = f"sdk/{language}/{measure}"

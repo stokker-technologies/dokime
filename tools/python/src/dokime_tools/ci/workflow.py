@@ -29,6 +29,7 @@ from .. import policy
 from ..process import spawn_flags
 from ..release import guard
 from . import bindings, mirror, nightly_freshness, nightly_report, release_mode, required, review, transport
+from .matrices import SDK_LANGUAGES, SDKS
 
 # Type Checking Imports
 
@@ -83,7 +84,7 @@ def main(arguments: list[str] | None = None) -> int:
         destination = os.environ.get("GITHUB_STEP_SUMMARY")
         if destination:
             summary = Path(destination)
-            text = "Execution Host: Rust, Python and C# Equivalence Run on Linux and Windows; C++ Equivalence Runs in Nightly.\n"
+            text = f"Execution Host Equivalence on Linux and Windows: {', '.join(SDKS[language] for language in SDK_LANGUAGES)}\n"
             previous = summary.read_text(encoding="utf-8") if summary.exists() else ""
             summary.write_text(previous + text, encoding="utf-8", newline="\n")
         return 0

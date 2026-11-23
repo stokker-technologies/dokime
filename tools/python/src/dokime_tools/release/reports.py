@@ -27,6 +27,7 @@ from xml.etree import ElementTree
 # Local Imports
 from .. import policy
 from ..build import paths
+from ..ci.matrices import SDK_LANGUAGES, SDKS
 
 # Type Checking Imports
 
@@ -196,7 +197,7 @@ def table(summary: dict, results: dict, url: str, *, documentation: bool | None 
 
 def sdk_comparison(rows: Sequence[dict]) -> str:
     """Compare the Same SDK Measure Across Languages Within Each Native Platform."""
-    languages = {"rust": "Rust", "python": "Python", "csharp": "C#", "cpp": "C++"}
+    languages = {language: SDKS[language] for language in SDK_LANGUAGES}
     platforms = {}
     for row in rows:
         parts = row["name"].split("/", 2)
@@ -236,7 +237,7 @@ def sdk_comparison(rows: Sequence[dict]) -> str:
                     f"#### {title}",
                     "",
                     "| " + " | ".join(languages.values()) + " |",
-                    "|---|---|---|---|",
+                    "|" + "---|" * len(languages),
                     "| " + " | ".join(cells) + " |",
                     "",
                 ]
