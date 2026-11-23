@@ -16,6 +16,7 @@
   let {
     context,
     cycleId,
+    hasExecutions,
     lead,
     pageActions,
     plan,
@@ -24,6 +25,8 @@
   }: {
     context: LiveCycleContext;
     cycleId: string;
+    /** A cycle without executions has no document yet: nothing to read, nothing failed. */
+    hasExecutions: boolean;
     lead: Snippet;
     pageActions: Snippet;
     plan: TestCyclePlan;
@@ -33,7 +36,7 @@
   const session = () => context.session;
   const windowState = storeState(createPlotWindow(), (state) => state);
   const plotWindow = $derived(windowState());
-  const query = createScopedDocumentQuery(session, () => ({ cycleId, executionId: null, enabled: true }));
+  const query = createScopedDocumentQuery(session, () => ({ cycleId, executionId: null, enabled: hasExecutions }));
   const document = $derived(query.data ?? null);
   const readSurface = createLiveDocumentSurface(session, () => ({
     document,
@@ -53,7 +56,7 @@
       hasDocument: document !== null,
       error: query.error,
       failureReason: query.failureReason,
-      pending: query.isPending,
+      pending: hasExecutions && query.isPending,
     }),
   );
   const records = $derived(surface.view.records.filter((record) => !record.scope?.executionId));
