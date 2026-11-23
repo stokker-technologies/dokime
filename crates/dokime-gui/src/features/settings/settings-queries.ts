@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { fetchNativeSettingsFrame } from "@/lib/api/native-settings";
+import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Query Keys === */
 
@@ -28,14 +29,18 @@ export const settingsQueryKeys = {
 
 export function useSettingsFrameQuery(ownerKey?: string, enabled = true) {
   const session = useNativeSessionOptional();
-  return useQuery({
-    enabled: enabled && session !== null,
+  return useQuery(settingsFrameQueryOptions(session?.identity, ownerKey, enabled));
+}
+
+export function settingsFrameQueryOptions(identity: SessionIdentity | undefined, ownerKey?: string, enabled = true) {
+  return {
+    enabled: enabled && identity !== undefined,
     queryFn: () => {
-      if (!session) throw new Error("A connected backend is required.");
-      return fetchNativeSettingsFrame(session.identity);
+      if (!identity) {
+        throw new Error("Connect to a backend before reading its settings.");
+      }
+      return fetchNativeSettingsFrame(identity);
     },
-    queryKey: ownerKey
-      ? [...settingsQueryKeys.frame(session?.identity.generation), ownerKey]
-      : settingsQueryKeys.frame(session?.identity.generation),
-  });
+    queryKey: ownerKey ? [...settingsQueryKeys.frame(identity?.generation), ownerKey] : settingsQueryKeys.frame(identity?.generation),
+  };
 }

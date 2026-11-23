@@ -13,6 +13,7 @@
 
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
 import { Switch } from "@/components/ui/switch";
@@ -24,11 +25,6 @@ import { useUiStore } from "@/stores/ui-store";
 import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
-import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
-import { AboutSection } from "@/features/settings/sections/AboutSection";
-import { BootstrapPaths } from "@/features/settings/sections/BootstrapPaths";
-import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
-import { EngineSection } from "@/features/settings/sections/EngineSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
 import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
@@ -37,9 +33,13 @@ import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { PanelHeader } from "@/shell/PageShell";
 import { usePageChrome } from "@/shell/page-chrome";
 import { ApplicationPreferences } from "./ApplicationPreferences";
-import { useNativeSessionController } from "@/app/native-session/context";
+import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { SvelteMount } from "@/components/SvelteMount";
 import BackendsTable from "./BackendsTable.svelte";
+import AboutSection from "./sections/AboutSection.svelte";
+import { useBrand } from "@/lib/brand-context";
+import DiagnosticsSettings from "./sections/DiagnosticsSettings.svelte";
+import EngineControls from "./sections/EngineSection.svelte";
 
 /* === Types === */
 
@@ -118,6 +118,9 @@ function SectionContent({
   retry: () => void;
   section: SettingsSectionId;
 }) {
+  const session = useNativeSessionOptional();
+  const brand = useBrand();
+  const queryClient = useQueryClient();
   switch (section) {
     case "backends":
       return <SavedBackends />;
@@ -130,17 +133,13 @@ function SectionContent({
     case "secrets":
       return <SecretsSection />;
     case "engine":
-      return <EngineSection />;
+      return <SvelteMount component={EngineControls} props={{ queryClient }} />;
     case "diagnostics":
-      return (
-        <>
-          <BootstrapPaths />
-          <DiagnosticsSection />
-          <StorageSourcesCard />
-        </>
-      );
+      return session ? <SvelteMount component={DiagnosticsSettings} props={{ session }} /> : null;
     case "about":
-      return <AboutSection />;
+      return (
+        <SvelteMount component={AboutSection} props={{ brandLabel: brand.label, backend: session?.snapshot.connection.backend ?? null }} />
+      );
   }
 
   if (loading) {

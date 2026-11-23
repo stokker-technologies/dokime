@@ -7,7 +7,7 @@
   type Props = {
     label: string;
     value: Value;
-    options: readonly { value: Value; label: string }[];
+    options: readonly { value: Value; label: string; disabled?: boolean }[];
     class?: string;
     id?: string;
     disabled?: boolean;
@@ -20,7 +20,7 @@
 
   function choose(next: string) {
     const option = options.find((item) => item.value === next);
-    if (option) {
+    if (option && !option.disabled) {
       onChange(option.value);
     }
   }
@@ -50,8 +50,9 @@
           <Select.Item
             value={option.value}
             label={option.label}
+            disabled={option.disabled}
             data-slot="select-item"
-            class="relative flex w-full cursor-default items-center gap-2 rounded-lg py-1 pr-8 pl-2 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground max-lg:min-h-(--control-height) [[data-density=touch]_&]:min-h-(--control-height)"
+            class="relative flex w-full cursor-default items-center gap-2 rounded-lg py-1 pr-8 pl-2 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-50 max-lg:min-h-(--control-height) [[data-density=touch]_&]:min-h-(--control-height)"
           >
             {option.label}
             {#if value === option.value}
