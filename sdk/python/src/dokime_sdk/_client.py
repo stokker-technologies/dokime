@@ -37,7 +37,20 @@ from ._payloads import Payload
 from ._schemas import FrozenSchemaCache
 from ._transfers import download, publish_artifact, verify_archive
 from ._transport import call, chain, invalid, refused, transport_error
-from ._values import Artifact, Note, Outcome, Progress, PromptAnswer, PromptQuestion, ResultStatus, Scalar, Termination, decode, encode
+from ._values import (
+    Artifact,
+    CatalogTemplate,
+    Note,
+    Outcome,
+    Progress,
+    PromptAnswer,
+    PromptQuestion,
+    ResultStatus,
+    Scalar,
+    Termination,
+    decode,
+    encode,
+)
 from ._wire.model.v1.evidence_pb2 import ArtifactScope
 from ._wire.model.v1.metadata_pb2 import Metadata
 
@@ -383,8 +396,8 @@ class Cases:
         request_id: str | None = None,
     ) -> list["Case"]:
         if isinstance(template, str):
-            if not plugin or not suite:
-                raise ValueError("Materialize Cases: Supply Explicit Plugin and Suite Identities for a String Template")
+            if not suite:
+                raise ValueError("Materialize Cases: Supply the Suite Identity for a String Template")
             selected = template
         else:
             bindings = [
@@ -413,6 +426,14 @@ class Cases:
             identity,
         )
         return [Case._bind(self._client, item.case_id, item.metadata.label, item.suite_id, item.template_id) for item in reply.cases]
+
+    async def templates(self) -> list[CatalogTemplate]:
+        reply = await call("suites.list", self._client._transport.suites.list(""))
+        return [
+            CatalogTemplate(template.metadata.identifier, template.metadata.label, suite.metadata.identifier, not suite.unavailable)
+            for suite in reply.values
+            for template in suite.templates
+        ]
 
     async def get(self, identifier: str, *, cycle: str = "") -> "Case":
         reply = await call("cases.get", self._client._transport.cases.get(identifier, cycle))

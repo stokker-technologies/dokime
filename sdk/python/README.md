@@ -269,6 +269,12 @@ finally:
     await client.close()
 ```
 
+A remote client holds no plugin classes: `await client.cases.templates()` lists the
+host's catalog, and `client.cases.materialize(template.identifier, suite=template.suite)`
+materializes one entry. [`examples/remote/rehearse.py`](examples/remote/rehearse.py)
+runs one execution through a `.pair` file and saves its report and evidence:
+`python rehearse.py lab.pair example.capture.confirmation --answer Yes`.
+
 `execution.start()` and `execution.watch()` also remain available separately.
 Closing a client stops its listeners, retains their host entries and closes its connection.
 Registration waits for Ready and refuses unavailable or offline entries while releasing its listener.

@@ -99,6 +99,14 @@ class Artifact:
 
 
 @dataclass(frozen=True)
+class CatalogTemplate:
+    identifier: str
+    label: str
+    suite: str
+    available: bool
+
+
+@dataclass(frozen=True)
 class PromptQuestion:
     identifier: str
     text: str
