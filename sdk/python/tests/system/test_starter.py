@@ -90,7 +90,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIn("report.html", archive.namelist())
             self.assertIn("executions/01 Confirmation/report.html", archive.namelist())
             self.assertIn("executions/01 Confirmation/data/records.json", archive.namelist())
-            self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
+            self.assertIn("executions/01 Confirmation/telemetry/example-temperature.arrow", archive.namelist())
             self.assertEqual(
                 json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
                 "record:example.confirmation",
@@ -257,7 +257,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIn("report.html", archive.namelist())
             self.assertIn("executions/01 Confirmation/report.html", archive.namelist())
             self.assertIn("executions/01 Confirmation/data/records.json", archive.namelist())
-            self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
+            self.assertIn("executions/01 Confirmation/telemetry/example-temperature.arrow", archive.namelist())
             self.assertEqual(
                 json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
                 "record:example.confirmation",
