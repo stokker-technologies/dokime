@@ -210,6 +210,7 @@ async fn materialize(context: &Context, execution: &str) -> Result<(String, File
     let html = fs::read(&rendered.path).map_err(|source| Error::Invalid(format!("Freeze Report: Read Its Temporary HTML: {source}")))?;
     let document = prepared.document.ok_or_else(|| Error::Invalid("Freeze Report: Capture Its Document".into()))?;
     let report = super::publish::publish(context, execution, &prepared.execution_seal, document, html, &file).await?;
+    context.host.store().retain_ranks(execution)?;
     context.host.signal_change();
     tracing::info!(%execution, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Frozen");
     Ok((report.identifier, file))

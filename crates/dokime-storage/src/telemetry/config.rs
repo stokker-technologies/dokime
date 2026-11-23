@@ -44,8 +44,10 @@ pub struct StorageSettings {
 pub struct PreviewSettings {
     pub bucket_count: NonZeroUsize,
     pub bucket_interval: Duration,
-    /// The Most Value Histogram Bins a Field Keeps; Plots Request at Most This Many.
+    /// The Most Fine Value Bins a Field's Histogram Keeps; a Plot's Bins Rebin Them Within One Fine Width.
     pub histogram_bins: NonZeroUsize,
+    /// The Least Time From One Live Plot Page's Start to the Next; Changes in Between Coalesce Into One Page.
+    pub refresh_interval: Duration,
 }
 
 /* === Enums === */
@@ -71,7 +73,8 @@ pub fn storage_defaults() -> StorageSettings {
         previews: PreviewSettings {
             bucket_count: NonZeroUsize::new(256).unwrap(),
             bucket_interval: Duration::from_millis(1),
-            histogram_bins: NonZeroUsize::new(1024).unwrap(),
+            histogram_bins: NonZeroUsize::new(4096).unwrap(),
+            refresh_interval: Duration::from_millis(200),
         },
     }
 }

@@ -1203,7 +1203,7 @@ mod tests {
             let envelopes = snapshots_at(&reader, &cut, vec![request.clone()], 1000, 0, "epoch").await.unwrap();
             let summary = &envelopes[0].payload.as_ref().unwrap().summaries[0];
             assert_eq!(summary.count, 5);
-            for (actual, expected) in [(&summary.min, 0.0), (&summary.max, 4.0), (&summary.mean, 2.0)] {
+            for (actual, expected) in [(&summary.min, 0.0), (&summary.max, 4.0), (&summary.mean, 2.0), (&summary.median, 2.0)] {
                 assert_eq!(actual.as_ref().unwrap().kind, Some(value::Kind::Number(expected)));
             }
             assert!((summary.std.unwrap() - 2.0_f64.sqrt()).abs() < 1e-12);
@@ -1443,7 +1443,7 @@ mod tests {
         // Check Time Series Serve and Summarize Only Finite Samples
         let number = |value: f64| Some(Value { kind: Some(value::Kind::Number(value)) });
         let summary = &series.summaries[0];
-        // Order Statistics Belong to Explicit Aggregates, So a Refresh Never Ranks the Series.
+        // An Open Execution's Full-History Median Waits for Its Seal.
         assert_eq!((summary.count, &summary.min, &summary.max, &summary.median), (5, &number(1.0), &number(5.0), &None));
         let ys = |payload: &PlotPayload| {
             payload.frame.as_ref().unwrap().series.iter().flat_map(|column| &column.y).map(|y| y.value).collect::<Vec<_>>()
@@ -1457,13 +1457,15 @@ mod tests {
         assert_eq!(Some(percentile), number(4.0));
 
         // Check Histograms of Streams and of Status Events Bin Only Finite Samples
-        for (payload, count) in [(&histogram, 5), (&sampled, 4), (&lost_histogram, 0)] {
+        // A Filtered Selection Ranks Its Own Rows; the Open Stream's Full History Waits for Its Seal.
+        for (payload, count, median) in [(&histogram, 5, None), (&sampled, 4, number(2.0)), (&lost_histogram, 0, None)] {
             let Some(plot_analysis_result::Kind::Histogram(analysis)) = payload.analysis.clone().and_then(|analysis| analysis.result?.kind)
             else {
                 panic!("expected a histogram");
             };
             assert_eq!(analysis.series[0].count, count);
             assert_eq!(analysis.series[0].bins.iter().map(|bin| bin.count).sum::<u64>(), count);
+            assert_eq!(analysis.series[0].statistics.clone().and_then(|statistics| statistics.median), median);
         }
 
         // Check Heat Strip Cells Show No Value for Nonfinite Samples

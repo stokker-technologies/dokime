@@ -464,8 +464,7 @@ mod tests {
         assert_eq!(envelopes[0].diagnostics.as_ref().unwrap().raw_point_count, 4);
         assert_eq!(histogram.series[0].count, 4);
         let bins = histogram.series[0].bins.iter().map(|bin| (bin.lower, bin.upper, bin.count)).collect::<Vec<_>>();
-        // Two Power-of-Two Bins Cover 2 Through 6 Only at Width 4.
-        assert_eq!(bins, vec![(0.0, 4.0, 2), (4.0, 8.0, 2)]);
+        assert_eq!(bins, vec![(2.0, 4.0, 2), (4.0, 6.0, 2)]);
         let frame = envelopes[1].payload.as_ref().unwrap().frame.as_ref().unwrap();
         assert_eq!(frame.time, vec![4.0, 86410.0, 172814.0, 259222.0]);
         assert_eq!(frame.series[0].y.iter().map(|value| value.value).collect::<Vec<_>>(), vec![Some(2.0), Some(4.0), Some(2.0), Some(6.0)]);

@@ -11,9 +11,9 @@
 //
 // A field's statistics advance one value at a time in capture order, so the statistics a writer
 // saves after each chunk, extended with rows still pending, equal one pass over every row. The
-// moments follow the library's scaled population moments, integer sums and means stay exact, and
-// the value histogram keeps exact counts on power-of-two bins: its width is always the narrowest
-// that fits its extremes in its bin budget, so it depends only on the values it holds.
+// moments are the library's mergeable summary, integer sums and means stay exact, and the value
+// histogram keeps exact counts on fine power-of-two bins: their width is always the narrowest that
+// fits the extremes in the histogram's resolution, so it depends only on the values it holds.
 
 /* === Modules === */
 
@@ -22,10 +22,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::collections::VecDeque;
 use std::num::NonZeroU128;
 
 // Third Party Imports
+use harmos_query::Summary;
 use harmos_query::scalar::ExactNumber;
 use serde::{Deserialize, Serialize};
 
@@ -57,32 +58,21 @@ pub(crate) struct Running {
     float: bool,
     /// Exact Integer Total, or None After It Overflowed.
     total: Option<i128>,
-    moments: Moments,
+    moments: Summary,
 }
 
-/// Scaled Population Moments, as the Library Keeps Them, So Extremes Stay Finite.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-struct Moments {
-    count: u64,
-    sum: f64,
-    squares: f64,
-    mean: f64,
-    lowest: f64,
-    highest: f64,
-    scale: f64,
-    deviations: f64,
-}
-
-/// Exact Counts of Finite Values on Bins of Width 2^exponent, at Most `maximum` Bins From the Lowest to the Highest.
+/// Exact Counts of Finite Values on Bins of Width 2^exponent, at Most `resolution` Bins From the Lowest to the Highest.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Grid {
-    maximum: usize,
+    resolution: usize,
     count: u64,
     low: f64,
     high: f64,
     exponent: i32,
-    /// Empty While Every Value Equals `low`.
-    bins: BTreeMap<i128, u64>,
+    /// The Bin Index of `counts[0]`.
+    origin: i128,
+    /// Empty While Every Value Equals `low`; Grows at Either End as the Extremes Widen.
+    counts: VecDeque<u64>,
 }
 
 /// One Histogram Bin's Bounds and Count.
@@ -105,68 +95,6 @@ enum Number {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Default for Moments {
-    fn default() -> Self {
-        Self {
-            count: 0,
-            sum: 0.0,
-            squares: 0.0,
-            mean: 0.0,
-            lowest: f64::INFINITY,
-            highest: f64::NEG_INFINITY,
-            scale: 1.0,
-            deviations: 0.0,
-        }
-    }
-}
-
-impl Moments {
-    fn push(&mut self, value: f64) {
-        let maximum = value.abs().max(if self.count == 0 { 0.0 } else { self.lowest.abs().max(self.highest.abs()) });
-        let count = self.count + 1;
-        let safe = (f64::MAX / count as f64).sqrt() / 2.0;
-        let tiny = maximum > 0.0 && maximum < f64::MIN_POSITIVE.sqrt();
-        let scale = if maximum > safe || tiny { maximum } else { self.scale.max(1.0) };
-        let ratio = self.scale / scale;
-        if self.mean != 0.0 {
-            self.mean *= ratio;
-        }
-        if self.deviations != 0.0 {
-            self.deviations *= ratio * ratio;
-        }
-        self.scale = scale;
-        let scaled = value / scale;
-        let before = self.mean;
-        self.count = count;
-        self.sum += value;
-        self.squares += value * value;
-        self.lowest = self.lowest.min(value);
-        self.highest = self.highest.max(value);
-        self.mean += (scaled - before) / count as f64;
-        self.deviations += (scaled - before) * (scaled - self.mean);
-    }
-
-    fn mean(&self) -> f64 {
-        self.mean * self.scale
-    }
-
-    fn spread(&self) -> f64 {
-        (self.deviations / self.count as f64).max(0.0).sqrt()
-    }
-
-    fn bound(&self) -> f64 {
-        self.lowest.abs().max(self.highest.abs()) / self.scale
-    }
-
-    fn std(&self) -> f64 {
-        if self.count == 0 { 0.0 } else { self.scale * self.spread().min(self.bound()) }
-    }
-
-    fn rms(&self) -> f64 {
-        if self.count == 0 { 0.0 } else { self.scale * self.mean.hypot(self.spread()).min(self.bound()) }
-    }
-}
 
 impl Number {
     fn float(self) -> f64 {
@@ -238,7 +166,9 @@ impl Running {
         let scalar = |value: Option<Number>| value.map_or(ScalarValue::Missing, Number::scalar);
         let (sum, average) = match self.count {
             0 => (ScalarValue::Unsigned(0), ScalarValue::Missing),
-            _ if self.float => (ScalarValue::Float(finite(self.moments.sum)?), ScalarValue::Float(finite(self.moments.mean())?)),
+            _ if self.float => {
+                (ScalarValue::Float(finite(self.moments.sum())?), ScalarValue::Float(finite(self.moments.mean().unwrap_or_default())?))
+            }
             _ => {
                 let total = self.total.ok_or(Error::Data("narrow the selection: its exact integer total overflows"))?;
                 let total = ExactNumber::new(total < 0, total.unsigned_abs(), NonZeroU128::MIN);
@@ -255,31 +185,46 @@ impl Running {
             last: scalar(self.last),
             sum,
             average,
-            standard_deviation: self.moments.std(),
-            rms: self.moments.rms(),
+            standard_deviation: self.moments.std().unwrap_or_default(),
+            rms: self.moments.rms().unwrap_or_default(),
         })
     }
 }
 
 impl Grid {
-    pub(crate) fn new(maximum: usize) -> Self {
+    pub(crate) fn new(resolution: usize) -> Self {
         Self {
             // Bins Align to Zero, So Values of Both Signs Need Two.
-            maximum: maximum.max(2),
+            resolution: resolution.max(2),
             count: 0,
             low: 0.0,
             high: 0.0,
             exponent: 0,
-            bins: BTreeMap::new(),
+            origin: 0,
+            counts: VecDeque::new(),
         }
     }
 
     pub(crate) fn extend(&mut self, values: &Values<'_>, valid: impl Fn(usize) -> bool) {
+        let mut scale = 2f64.powi(-self.exponent);
         match values {
-            Values::Signed(values) => (0..values.len()).filter(|row| valid(*row)).for_each(|row| self.push(values[row] as f64)),
-            Values::Unsigned(values) => (0..values.len()).filter(|row| valid(*row)).for_each(|row| self.push(values[row] as f64)),
-            Values::Float(values) => (0..values.len()).filter(|row| valid(*row)).for_each(|row| self.push(values[row])),
+            Values::Signed(values) => (0..values.len()).filter(|row| valid(*row)).for_each(|row| self.add(values[row] as f64, &mut scale)),
+            Values::Unsigned(values) => {
+                (0..values.len()).filter(|row| valid(*row)).for_each(|row| self.add(values[row] as f64, &mut scale))
+            }
+            Values::Float(values) => (0..values.len()).filter(|row| valid(*row)).for_each(|row| self.add(values[row], &mut scale)),
         }
+    }
+
+    /// Count a Value Inside the Extremes Directly; Any Other Value Takes the Full Push, Which May Widen the Bins.
+    fn add(&mut self, value: f64, scale: &mut f64) {
+        if !self.counts.is_empty() && value >= self.low && value <= self.high {
+            self.count += 1;
+            self.counts[((value * *scale).floor() as i128 - self.origin) as usize] += 1;
+            return;
+        }
+        self.push(value);
+        *scale = 2f64.powi(-self.exponent);
     }
 
     pub(crate) fn push(&mut self, value: f64) {
@@ -291,58 +236,69 @@ impl Grid {
             (self.low, self.high) = (value, value);
             return;
         }
-        if self.bins.is_empty() {
+        if self.counts.is_empty() {
             if value == self.low {
                 return;
             }
             let (low, count) = (self.low, self.count - 1);
             (self.low, self.high) = (low.min(value), low.max(value));
-            self.exponent = narrowest(self.low, self.high, self.maximum);
-            self.bins.insert(key(low, self.exponent), count);
+            self.exponent = narrowest(self.low, self.high, self.resolution);
+            self.origin = key(self.low, self.exponent);
+            self.counts = VecDeque::from(vec![0; (key(self.high, self.exponent) - self.origin + 1) as usize]);
+            self.counts[(key(low, self.exponent) - self.origin) as usize] = count;
         } else if value < self.low || value > self.high {
-            // Only Wider Extremes Can Need Wider Bins.
+            // Only Wider Extremes Can Need Wider Bins; While They Still Fit, the Counts Only Grow at an End.
             (self.low, self.high) = (self.low.min(value), self.high.max(value));
-            self.coarsen(narrowest(self.low, self.high, self.maximum).max(self.exponent));
+            let (lower, upper) = (key(self.low, self.exponent), key(self.high, self.exponent));
+            if upper - lower >= self.resolution as i128 || lower.abs().max(upper.abs()) >= 1 << KEY_BITS {
+                self.coarsen(narrowest(self.low, self.high, self.resolution).max(self.exponent));
+            } else {
+                while self.origin > lower {
+                    self.counts.push_front(0);
+                    self.origin -= 1;
+                }
+                self.counts.resize((upper - self.origin + 1) as usize, 0);
+            }
         }
-        *self.bins.entry(key(value, self.exponent)).or_default() += 1;
+        self.counts[(key(value, self.exponent) - self.origin) as usize] += 1;
     }
 
-    /// Exact Bins From the Lowest to the Highest Value at the Narrowest Power-of-Two Width Within `maximum` Bins.
-    pub(crate) fn bins(&self, maximum: usize) -> Vec<GridBin> {
-        if self.count == 0 {
+    /// Counts in `bins` Equal Bins From the Lowest to the Highest Value. A Value Lands in Its Own Bin, or the One Below
+    /// When It Lies Within One Fine Width Above an Edge, So Integers Spanning at Most the Resolution Land Exactly.
+    pub(crate) fn bins(&self, bins: usize) -> Vec<GridBin> {
+        if self.count == 0 || bins == 0 {
             return Vec::new();
         }
-        // Equal Values Fill One Unit-Wide Bin.
-        if self.bins.is_empty() {
-            return vec![GridBin {
-                lower: self.low,
-                upper: self.low + 1.0,
-                count: self.count,
-            }];
-        }
-        let mut grid = self.clone();
-        grid.coarsen(narrowest(self.low, self.high, maximum.clamp(2, self.maximum)).max(self.exponent));
-        let width = 2f64.powi(grid.exponent);
-        (key(grid.low, grid.exponent)..=key(grid.high, grid.exponent))
+        let width = if self.counts.is_empty() { 1.0 } else { (self.high - self.low) / bins as f64 };
+        let mut output = (0..bins)
             .map(|index| GridBin {
-                lower: index as f64 * width,
-                upper: (index + 1) as f64 * width,
-                count: grid.bins.get(&index).copied().unwrap_or(0),
+                lower: self.low + index as f64 * width,
+                upper: if index + 1 == bins && !self.counts.is_empty() { self.high } else { self.low + (index + 1) as f64 * width },
+                count: 0,
             })
-            .collect()
+            .collect::<Vec<_>>();
+        if self.counts.is_empty() {
+            output[0].count = self.count;
+            return output;
+        }
+        let fine = 2f64.powi(self.exponent);
+        for (offset, count) in self.counts.iter().enumerate().filter(|(_, count)| **count > 0) {
+            let lower = ((self.origin + offset as i128) as f64 * fine).max(self.low);
+            output[(((lower - self.low) / width) as usize).min(bins - 1)].count += count;
+        }
+        output
     }
 
     fn coarsen(&mut self, exponent: i32) {
-        if exponent == self.exponent {
-            return;
-        }
         let shift = (exponent - self.exponent) as u32;
-        let mut bins = BTreeMap::new();
-        for (index, count) in std::mem::take(&mut self.bins) {
-            *bins.entry(index.checked_shr(shift).unwrap_or(if index < 0 { -1 } else { 0 })).or_default() += count;
+        let rekey = |index: i128| index.checked_shr(shift).unwrap_or(if index < 0 { -1 } else { 0 });
+        // Floor Division by a Power of Two Composes, So Old Bins Rekey Inside the New Span.
+        let origin = key(self.low, exponent);
+        let mut counts = VecDeque::from(vec![0; (key(self.high, exponent) - origin + 1) as usize]);
+        for (offset, count) in self.counts.iter().enumerate().filter(|(_, count)| **count > 0) {
+            counts[(rekey(self.origin + offset as i128) - origin) as usize] += count;
         }
-        self.bins = bins;
-        self.exponent = exponent;
+        (self.exponent, self.origin, self.counts) = (exponent, origin, counts);
     }
 }
 
@@ -376,8 +332,8 @@ fn key(value: f64, exponent: i32) -> i128 {
     (value * 2f64.powi(-exponent)).floor() as i128
 }
 
-/// The Narrowest Power-of-Two Width Whose Bins From `low` to `high` Number at Most `maximum` and Have Representable Indices.
-fn narrowest(low: f64, high: f64, maximum: usize) -> i32 {
+/// The Narrowest Power-of-Two Width Whose Bins From `low` to `high` Number at Most `resolution` and Have Representable Indices.
+fn narrowest(low: f64, high: f64, resolution: usize) -> i32 {
     let span = |exponent: i32| {
         let scale = 2f64.powi(-exponent);
         let (lower, upper) = ((low * scale).floor(), (high * scale).floor());
@@ -386,9 +342,9 @@ fn narrowest(low: f64, high: f64, maximum: usize) -> i32 {
     };
     let magnitude = low.abs().max(high.abs());
     let representable = if magnitude > 0.0 { (magnitude.log2().ceil() as i32).saturating_sub(KEY_BITS) } else { -1074 };
-    let fitted = if high > low { (((high - low) / maximum as f64).log2().floor() as i32).saturating_sub(1) } else { 0 };
+    let fitted = if high > low { (((high - low) / resolution as f64).log2().floor() as i32).saturating_sub(1) } else { 0 };
     let mut exponent = fitted.max(representable).max(-1074);
-    while span(exponent).is_none_or(|bins| bins > maximum as f64) {
+    while span(exponent).is_none_or(|bins| bins > resolution as f64) {
         exponent += 1;
     }
     exponent
@@ -416,31 +372,50 @@ mod tests {
             .collect()
     }
 
+    fn grid(resolution: usize, values: &mut dyn Iterator<Item = f64>) -> Grid {
+        let mut grid = Grid::new(resolution);
+        values.for_each(|value| grid.push(value));
+        grid
+    }
+
     #[test]
-    fn histograms_count_every_finite_value_once_on_the_narrowest_fitting_bins_in_any_order() {
+    fn histograms_span_the_data_in_the_requested_bins_within_one_fine_width_in_any_order() {
         let values = values();
         let finite = values.iter().copied().filter(|value| value.is_finite()).collect::<Vec<_>>();
-        let grid = |maximum: usize, ordered: &mut dyn Iterator<Item = &f64>| {
-            let mut grid = Grid::new(maximum);
-            ordered.for_each(|value| grid.push(*value));
-            grid
-        };
-        let forward = grid(1024, &mut values.iter());
-        let backward = grid(1024, &mut values.iter().rev());
-        for maximum in [2, 7, 24, 1024] {
-            let bins = forward.bins(maximum);
-            assert_eq!(bins, backward.bins(maximum));
-            assert_eq!(bins, grid(maximum, &mut values.iter()).bins(maximum));
-            assert!(bins.len() <= maximum);
-            for bin in &bins {
-                assert_eq!(bin.count, finite.iter().filter(|value| (bin.lower..bin.upper).contains(*value)).count() as u64);
+        let (low, high) = (finite.iter().copied().fold(f64::INFINITY, f64::min), finite.iter().copied().fold(f64::NEG_INFINITY, f64::max));
+        let forward = grid(1024, &mut values.iter().copied());
+        let fine = 2f64.powi(forward.exponent);
+        assert!((high - low) / fine > 500.0, "Use About Half the Resolution or More");
+        for bins in [1, 7, 24, 500] {
+            let histogram = forward.bins(bins);
+            assert_eq!(histogram, grid(1024, &mut values.iter().rev().copied()).bins(bins));
+            assert_eq!(histogram.len(), bins);
+            assert_eq!((histogram[0].lower, histogram[bins - 1].upper), (low, high));
+            assert_eq!(histogram.iter().map(|bin| bin.count).sum::<u64>(), finite.len() as u64);
+            // Cumulative Counts Differ Only by Values Within One Fine Width Above an Edge.
+            let mut below = 0;
+            for bin in &histogram[..bins - 1] {
+                below += bin.count;
+                let exact = finite.iter().filter(|value| **value < bin.upper).count() as u64;
+                let near = finite.iter().filter(|value| (bin.upper..bin.upper + fine).contains(*value)).count() as u64;
+                assert!(exact <= below && below <= exact + near, "{below} Outside [{exact}, {}]", exact + near);
             }
-            // Half the Width Would Need More Bins Than the Budget.
-            let half = (bins[0].upper - bins[0].lower) / 2.0;
-            let (low, high) =
-                (finite.iter().copied().fold(f64::INFINITY, f64::min), finite.iter().copied().fold(f64::NEG_INFINITY, f64::max));
-            assert!((high / half).floor() - (low / half).floor() + 1.0 > maximum as f64);
         }
+    }
+
+    #[test]
+    fn integer_histograms_within_the_resolution_are_exact() {
+        let values = (0..3000).map(|index| ((index * 37) % 701) as f64 - 200.0).collect::<Vec<_>>();
+        let histogram = grid(1024, &mut values.iter().copied()).bins(13);
+        for bin in &histogram {
+            let last = std::ptr::eq(bin, histogram.last().unwrap());
+            let exact = values.iter().filter(|value| **value >= bin.lower && (**value < bin.upper || last)).count() as u64;
+            assert_eq!(bin.count, exact);
+        }
+        assert_eq!(grid(8, &mut [5.0, 5.0, 5.0].into_iter()).bins(4)[0].count, 3);
+        // A Ramp Widens Its Extremes With Every Value Yet Matches the Same Values Reversed.
+        let ramp = (0..20_000).map(|index| index as f64 * 0.37).collect::<Vec<_>>();
+        assert_eq!(grid(4096, &mut ramp.iter().copied()), grid(4096, &mut ramp.iter().rev().copied()));
     }
 
     #[test]

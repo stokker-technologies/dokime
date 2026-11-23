@@ -776,9 +776,28 @@ fn live_statistics_equal_one_pass_over_the_same_rows() -> Result<()> {
         (bounds(&reader)?, reader.series_summary(&window)?, reader.histogram_window(window, 24)?, reader.time_series_window(window)?);
     let once = (bounds(&whole)?, whole.series_summary(&window)?, whole.histogram_window(window, 24)?, whole.time_series_window(window)?);
     assert_eq!(incremental, once);
+
+    // An Open Execution's Full-History Median Waits for the Seal; Ranking Its Rows Gives the Exact Median
+    assert_eq!((once.1.median.as_ref(), once.2.statistics.as_ref().unwrap().median.as_ref()), (None, None));
+    let (sealed_root, sealed) = open()?;
+    sealed.sample_batch("execution", &rows)?;
+    sealed.flush_samples()?;
+    sealed.close_streams("execution")?;
+    sealed.close("execution", Termination::Completed, Default::default())?;
+    sealed.seal("execution", Default::default())?;
+    let (reader, _cancellation) = sealed.read_session()?;
+    let median = reader.series_summary(&window)?.median;
+    assert_eq!(reader.histogram_window(window, 24)?.statistics.unwrap().median, median);
+    assert_eq!(reader.numeric_statistics(&window)?.median, median);
+    sealed.retain_ranks("execution")?;
+    drop((reader, sealed));
+    assert_eq!(Store::open(sealed_root.path())?.series_summary(&window)?.median, median);
     Connection::open(whole_root.path().join("execution.sqlite3"))?.execute("DELETE FROM telemetry_previews", [])?;
     let (reader, _cancellation) = whole.read_session()?;
-    assert_eq!((bounds(&reader)?, reader.series_summary(&window)?, reader.histogram_window(window, 24)?), (once.0, once.1, once.2));
+    let (mut summary, mut histogram) = (reader.series_summary(&window)?, reader.histogram_window(window, 24)?);
+    assert_eq!((summary.median.take(), histogram.statistics.as_mut().unwrap().median.take()), (median.clone(), median.clone()));
+    assert_eq!(median, reader.numeric_statistics(&window)?.median);
+    assert_eq!((bounds(&reader)?, summary, histogram), (once.0, once.1, once.2));
 
     // Missing, NaN and Infinite Values Are Missing Measurements Everywhere
     let finite = rows.iter().filter(|row| Reading::decode(row.row.as_slice()).unwrap().value.is_some_and(f64::is_finite)).count();
@@ -1192,8 +1211,7 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     )?;
     assert_eq!(histogram.count, 4);
     let bins = histogram.bins.iter().map(|bin| (bin.lower, bin.upper, bin.count)).collect::<Vec<_>>();
-    // Two Power-of-Two Bins Cover 2 Through 6 Only at Width 4.
-    assert_eq!(bins, vec![(0.0, 4.0, 2), (4.0, 8.0, 2)]);
+    assert_eq!(bins, vec![(2.0, 4.0, 2), (4.0, 6.0, 2)]);
     Ok(())
 }
 
@@ -1626,6 +1644,84 @@ fn sealing_as_not_run_refuses_started_evidence() -> Result<()> {
 }
 
 #[test]
+fn heat_strips_keep_evenly_spaced_instants_within_their_budget() -> Result<()> {
+    #[derive(Clone, PartialEq, Message)]
+    struct HeatRow {
+        #[prost(double, tag = "1")]
+        value: f64,
+
+        #[prost(uint64, tag = "2")]
+        cell: u64,
+
+        #[prost(string, tag = "3")]
+        facet: String,
+    }
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let mut execution = fixture::execution();
+    let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+    catalog.types.as_mut().unwrap().file[0].message_type[0].field =
+        [("value", Type::Double), ("cell", Type::Uint64), ("facet", Type::String)]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (name, kind))| FieldDescriptorProto {
+                name: Some(name.into()),
+                number: Some(index as i32 + 1),
+                label: Some(Label::Optional as i32),
+                r#type: Some(kind as i32),
+                ..Default::default()
+            })
+            .collect();
+    execution.catalog = catalog.encode_to_vec();
+    store.create(&execution)?;
+    store.open_stream("execution", "readings")?;
+
+    // Scan Four Cells Every Second for 500 Seconds, Far More Instants Than Ten Fit
+    let samples = (0..500i64)
+        .flat_map(|second| {
+            (0..4).map(move |cell| Sample {
+                stream: "readings".into(),
+                source_ns: second * 1_000_000_000,
+                row: HeatRow {
+                    value: second as f64,
+                    cell,
+                    facet: "a".into(),
+                }
+                .encode_to_vec(),
+                ..Default::default()
+            })
+        })
+        .collect::<Vec<_>>();
+    store.sample_batch("execution", &samples)?;
+    store.flush_samples()?;
+    let window = NumericWindow {
+        start_ns: 0,
+        end_ns: 499_000_000_000,
+        ..numeric(store.cut("execution")?.frontier)
+    };
+    let request = KindWindow {
+        window,
+        x: Some("cell"),
+        z: None,
+        group: Some("facet"),
+        limit: 40,
+    };
+    let (frame, _, _) = store.heat_strip_window(request, Reduction::Last)?;
+    assert!(frame.point_count <= 40);
+    let seconds = frame.series[0]
+        .instants
+        .iter()
+        .map(|instant| instant.parse::<prost_types::Timestamp>().unwrap().seconds)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    assert_eq!((seconds.first(), seconds.last()), (Some(&0), Some(&499)), "{seconds:?}");
+    assert!((5..=10).contains(&seconds.len()), "{seconds:?}");
+    assert!(seconds.windows(2).all(|pair| pair[1] - pair[0] <= 3 * 499 / 8), "{seconds:?}");
+    Ok(())
+}
+
+#[test]
 fn heat_strip_samples_reduce_only_tied_instants_and_keep_facet_categories() -> Result<()> {
     #[derive(Clone, PartialEq, Message)]
     struct HeatRow {
@@ -1721,7 +1817,8 @@ fn heat_strip_samples_reduce_only_tied_instants_and_keep_facet_categories() -> R
         assert!(frame.series[1].y.iter().all(|v| v.value.is_none()));
         assert_eq!(frame.series[1].instants, [6, 9].map(|seconds| prost_types::Timestamp { seconds, nanos: 0 }.to_string()));
     }
-    assert!(store.heat_strip_window(KindWindow { limit: 7, ..binding() }, Reduction::Last).is_err());
+    // Fewer Cells Than Groups Keep Fewer Instants Instead of Refusing the Strip.
+    assert!(store.heat_strip_window(KindWindow { limit: 7, ..binding() }, Reduction::Last)?.0.point_count <= 7);
     let (frame, count, _) = store.heat_strip_window(
         KindWindow {
             window: NumericWindow {

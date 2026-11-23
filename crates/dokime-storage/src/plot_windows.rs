@@ -28,11 +28,13 @@ use harmos_query::transform::{
 };
 use harmos_query::{Aggregate, TableWriter};
 use prost_types::Timestamp;
+use rusqlite::{OptionalExtension, params};
+use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::scalar::{self, ScalarValue};
 use crate::stream_windows::{self, WindowBins};
-use crate::telemetry::aggregates::{self, NumericSummary};
+use crate::telemetry::aggregates::{NumericSummary, Ranked};
 use crate::telemetry::previews::Bucket;
 use crate::telemetry::summary::{Grid, Running};
 use crate::{Error, NumericBin, NumericWindow, Result, Store};
@@ -58,6 +60,21 @@ use dokime_protocol::model::value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+/// One Window's Moments, Its Exact Median (None While a Live Full History Waits for Its Seal) and What a Plot Draws.
+struct Selected {
+    moments: NumericSummary,
+    median: Option<ScalarValue>,
+    bins: Vec<NumericBin>,
+    grid: Option<Grid>,
+}
+
+/// A Sealed Field's Exact Full-Range Median and Percentiles.
+#[derive(Serialize, Deserialize)]
+struct Ranks {
+    median: ScalarValue,
+    percentiles: BTreeMap<u8, ScalarValue>,
+}
 
 /* === Enums === */
 
@@ -166,29 +183,92 @@ impl Store {
     pub fn numeric_rms(&self, window: &NumericWindow<'_>) -> Result<f64> {
         Ok(self.numeric_summary(*window)?.rms)
     }
-    /// A Series' Moments; Order Statistics Belong to Explicit Aggregates, So Every Plot Refresh Stays Bounded.
+    /// A Series' Moments and Exact Median Over Its Window.
     pub fn series_summary(&self, window: &NumericWindow<'_>) -> Result<PlotSeriesSummary> {
-        series(&self.numeric_summary(*window)?, self.boolean_window(*window)?)
+        series(&self.selected(*window, false, false)?, self.boolean_window(*window)?)
     }
-    /// A Series' Moments and Display Bins: the Field's Incremental Statistics When the Window Selects Every Value,
-    /// Otherwise One Pass Over the Window.
     #[tracing::instrument(name = "plot.preview", skip_all)]
     fn series_window(&self, window: NumericWindow<'_>, boolean: bool) -> Result<(PlotSeriesSummary, Vec<NumericBin>)> {
-        let (moments, bins) = match self.envelope(window)? {
-            Some(mut envelope) => {
+        let selected = self.selected(window, true, false)?;
+        Ok((series(&selected, boolean)?, selected.bins))
+    }
+    /// A Window's Moments, Exact Median and, When Asked, Display Bins or Value Histogram: the Field's Incremental
+    /// Statistics When the Window Selects Every Value, Whose Median Waits for the Seal, Otherwise One Pass Over It.
+    fn selected(&self, window: NumericWindow<'_>, bins: bool, histogram: bool) -> Result<Selected> {
+        if let Some(mut envelope) = self.envelope(window)? {
+            if bins {
                 envelope.fit(window.bins.get())?;
-                (envelope.summary.finish()?, envelope.buckets.values().map(Bucket::bin).collect())
             }
+            return Ok(Selected {
+                moments: envelope.summary.finish()?,
+                median: self.sealed_ranks(window)?.map(|ranks| ranks.median),
+                bins: if bins { envelope.buckets.values().map(Bucket::bin).collect() } else { Vec::new() },
+                grid: histogram.then_some(envelope.histogram),
+            });
+        }
+        let settings = self.storage_settings()?;
+        let mut running = Running::default();
+        let mut ranked = Ranked::new(settings.query_bytes.get());
+        let mut display = bins.then(|| WindowBins::new(&window)).transpose()?;
+        let mut grid = histogram.then(|| Grid::new(settings.previews.histogram_bins.get()));
+        self.numeric_batches(window, |batch, column| {
+            running.extend(&column.values, |row| column.valid(row));
+            ranked.extend(&column.values, |row| column.valid(row))?;
+            if let Some(grid) = &mut grid {
+                grid.extend(&column.values, |row| column.valid(row));
+            }
+            match &mut display {
+                Some(display) => stream_windows::visit(batch, column, |position, time, value| display.push(position, time, value)),
+                None => Ok(()),
+            }
+        })?;
+        Ok(Selected {
+            moments: running.finish()?,
+            median: Some(ranked.finish(&[Aggregate::Median])?.remove(0)),
+            bins: display.map_or_else(Vec::new, WindowBins::finish),
+            grid,
+        })
+    }
+    /// A Sealed Field's Exact Full-Range Ranks, Ranked Once; None While Its Execution Is Open.
+    fn sealed_ranks(&self, window: NumericWindow<'_>) -> Result<Option<Ranks>> {
+        let connection = self.lock()?;
+        let sealed = connection.query_row("SELECT state=2 FROM executions WHERE id=?1", [window.execution], |row| row.get(0)).optional()?;
+        if sealed != Some(true) {
+            return Ok(None);
+        }
+        let key =
+            format!("{}{}:{}/{}:{}", ranks_prefix(window.execution), window.stream.len(), window.stream, window.field.len(), window.field);
+        let ranks = || self.ranks.lock().map_err(|_| Error::Data("restart after the field rank cache failed"));
+        let saved = match ranks()?.get(&key).cloned() {
+            Some(saved) => Some(saved),
+            None => connection.query_row("SELECT payload FROM administration WHERE id=?1", [&key], |row| row.get(0)).optional()?,
+        };
+        drop(connection);
+        let payload = match saved {
+            Some(payload) => payload,
             None => {
-                let (mut running, mut bins) = (Running::default(), WindowBins::new(&window)?);
-                self.numeric_batches(window, |batch, column| {
-                    running.extend(&column.values, |row| column.valid(row));
-                    stream_windows::visit(batch, column, |position, time, value| bins.push(position, time, value))
-                })?;
-                (running.finish()?, bins.finish())
+                let (median, percentiles) = self.numeric_order_statistics(window, &[5, 95, 99])?;
+                postcard::to_allocvec(&Ranks { median, percentiles })?
             }
         };
-        Ok((series(&moments, boolean)?, bins))
+        let decoded = postcard::from_bytes(&payload)?;
+        ranks()?.insert(key, payload);
+        Ok(Some(decoded))
+    }
+    /// Retain a Sealed Execution's Ranked Fields So Reads After a Restart Need Not Rank Them Again.
+    pub fn retain_ranks(&self, execution: &str) -> Result<()> {
+        let prefix = ranks_prefix(execution);
+        let ranks = self.ranks.lock().map_err(|_| Error::Data("restart after the field rank cache failed"))?.clone();
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        for (key, payload) in ranks.iter().filter(|(key, _)| key.starts_with(&prefix)) {
+            transaction.execute(
+                "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                params![key, payload],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
     }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<Statistics> {
@@ -199,7 +279,11 @@ impl Store {
                 ..Default::default()
             });
         }
-        let (median, ranks) = self.numeric_order_statistics(*window, &[5, 95, 99])?;
+        let sealed = if self.envelope(*window)?.is_some() { self.sealed_ranks(*window)? } else { None };
+        let (median, ranks) = match sealed {
+            Some(ranks) => (ranks.median, ranks.percentiles),
+            None => self.numeric_order_statistics(*window, &[5, 95, 99])?,
+        };
         Ok(Statistics {
             count: moments.count,
             min: Some(scalar::wire(&moments.min)?),
@@ -221,25 +305,12 @@ impl Store {
         let count = summary.count;
         Ok((binned(&bins, boolean), summary, count))
     }
-    /// Exact Counts on the Narrowest Power-of-Two Bins Within `bins`, From the Field's Incremental Histogram When the
-    /// Window Selects Every Value, Otherwise From One Pass Over the Window.
+    /// The Window's Values in `bins` Equal Bins From Its Lowest to Its Highest Value, With Its Moments and Median.
     pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
         if bins == 0 {
             return Err(Error::Data("supply at least one histogram bin"));
         }
-        let (summary, grid) = match self.envelope(window)? {
-            Some(envelope) => (envelope.summary.finish()?, envelope.histogram),
-            None => {
-                let (mut running, mut grid) = (Running::default(), Grid::new(bins));
-                self.numeric_batches(window, |_, column| {
-                    running.extend(&column.values, |row| column.valid(row));
-                    grid.extend(&column.values, |row| column.valid(row));
-                    Ok(())
-                })?;
-                (running.finish()?, grid)
-            }
-        };
-        histogram(&summary, &grid, bins)
+        histogram(&self.selected(window, false, true)?, bins)
     }
     pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<PlotBoxSummary> {
         let summary = self.numeric_summary(window)?;
@@ -275,19 +346,9 @@ impl Store {
     }
     fn numeric_order_statistics(&self, window: NumericWindow<'_>, percentiles: &[u8]) -> Result<(ScalarValue, BTreeMap<u8, ScalarValue>)> {
         let statistics = [Aggregate::Median].into_iter().chain(percentiles.iter().copied().map(Aggregate::Percentile)).collect::<Vec<_>>();
-        let field = FieldPath::from(format!("values.{}", window.field).as_str());
-        let mut values = aggregates::rank_values(
-            |push| {
-                self.evaluated_batches(window, &[window.field.into()], |batch| {
-                    for row in 0..batch.num_rows() {
-                        push(field.value(&batch, row)?)?;
-                    }
-                    Ok(true)
-                })
-            },
-            &statistics,
-            self.storage_settings()?.query_bytes.get(),
-        )?;
+        let mut ranked = Ranked::new(self.storage_settings()?.query_bytes.get());
+        self.numeric_batches(window, |_, column| ranked.extend(&column.values, |row| column.valid(row)))?;
+        let mut values = ranked.finish(&statistics)?;
         let median = values.remove(0);
         Ok((median, percentiles.iter().copied().zip(values).collect()))
     }
@@ -312,7 +373,16 @@ impl Store {
 
 /* === Private Functions === */
 
-fn series(moments: &NumericSummary, boolean: bool) -> Result<PlotSeriesSummary> {
+pub(crate) fn ranks_prefix(execution: &str) -> String {
+    format!("field-ranks/{}:{execution}/", execution.len())
+}
+
+fn wired(median: &Option<ScalarValue>) -> Result<Option<Value>> {
+    median.as_ref().filter(|median| !matches!(median, ScalarValue::Missing | ScalarValue::Null)).map(scalar::wire).transpose()
+}
+
+fn series(selected: &Selected, boolean: bool) -> Result<PlotSeriesSummary> {
+    let moments = &selected.moments;
     if boolean || moments.count == 0 {
         return Ok(PlotSeriesSummary {
             count: moments.count,
@@ -324,6 +394,7 @@ fn series(moments: &NumericSummary, boolean: bool) -> Result<PlotSeriesSummary> 
         min: Some(scalar::wire(&moments.min)?),
         max: Some(scalar::wire(&moments.max)?),
         mean: Some(scalar::wire(&moments.average)?),
+        median: wired(&selected.median)?,
         std: Some(moments.standard_deviation),
         rms: Some(moments.rms),
         ..Default::default()
@@ -354,10 +425,11 @@ fn binned(bins: &[NumericBin], boolean: bool) -> PlotColumn {
     }
 }
 
-fn histogram(summary: &NumericSummary, grid: &Grid, bins: usize) -> Result<PlotHistogramSeries> {
-    if summary.count == 0 {
+fn histogram(selected: &Selected, bins: usize) -> Result<PlotHistogramSeries> {
+    let summary = &selected.moments;
+    let Some(grid) = selected.grid.as_ref().filter(|_| summary.count > 0) else {
         return Ok(Default::default());
-    }
+    };
     Ok(PlotHistogramSeries {
         bins: grid
             .bins(bins)
@@ -371,11 +443,11 @@ fn histogram(summary: &NumericSummary, grid: &Grid, bins: usize) -> Result<PlotH
         count: summary.count,
         statistics: Some(PlotHistogramStatistics {
             mean: Some(scalar::wire(&summary.average)?),
+            median: wired(&selected.median)?,
             std: summary.standard_deviation,
             rms: summary.rms,
             min: Some(scalar::wire(&summary.min)?),
             max: Some(scalar::wire(&summary.max)?),
-            ..Default::default()
         }),
         ..Default::default()
     })

@@ -83,6 +83,12 @@ pub(crate) struct Numeric<'a> {
     pub(crate) nulls: Option<NullBuffer>,
 }
 
+/// Values Ranked Exactly by the Library for Medians and Percentiles.
+pub(crate) struct Ranked {
+    accumulator: Accumulator,
+    position: u64,
+}
+
 /// Stored Envelopes Advanced During File Publication; One of an Earlier Layout Is Left As Saved.
 pub(super) struct Statistics {
     settings: PreviewSettings,
@@ -105,6 +111,40 @@ pub(crate) enum Values<'a> {
 impl Numeric<'_> {
     pub(crate) fn valid(&self, row: usize) -> bool {
         self.nulls.as_ref().is_none_or(|nulls| nulls.is_valid(row))
+    }
+}
+
+impl Ranked {
+    pub(crate) fn new(memory_bytes: usize) -> Self {
+        Self {
+            accumulator: Accumulator::with_settings(Agg::Of(Aggregate::Median), QueryAccumulatorSettings { memory_bytes }),
+            position: 0,
+        }
+    }
+
+    pub(crate) fn push(&mut self, value: &ScalarValue) -> Result<()> {
+        self.position += 1;
+        Ok(self.accumulator.push(self.position, value)?)
+    }
+
+    /// Push One Column's Valid Values in Row Order; the Library Treats Nonfinite Values as Missing.
+    pub(crate) fn extend(&mut self, values: &Values<'_>, valid: impl Fn(usize) -> bool) -> Result<()> {
+        match values {
+            Values::Signed(values) => {
+                (0..values.len()).filter(|row| valid(*row)).try_for_each(|row| self.push(&ScalarValue::Signed(values[row])))
+            }
+            Values::Unsigned(values) => {
+                (0..values.len()).filter(|row| valid(*row)).try_for_each(|row| self.push(&ScalarValue::Unsigned(values[row])))
+            }
+            Values::Float(values) => {
+                (0..values.len()).filter(|row| valid(*row)).try_for_each(|row| self.push(&ScalarValue::Float(values[row])))
+            }
+        }
+    }
+
+    pub(crate) fn finish(self, statistics: &[Aggregate]) -> Result<Vec<ScalarValue>> {
+        let _completion = info_span!("plot.order_statistics.finish").entered();
+        Ok(self.accumulator.finish_ranks(statistics, &mut || Ok(()))?)
     }
 }
 
@@ -221,19 +261,11 @@ impl Store {
 pub(crate) fn rank_values(
     read: impl FnOnce(&mut dyn FnMut(ScalarValue) -> Result<()>) -> Result<()>, statistics: &[Aggregate], memory_bytes: usize,
 ) -> Result<Vec<ScalarValue>> {
-    let mut accumulator = Accumulator::with_settings(Agg::Of(Aggregate::Median), QueryAccumulatorSettings { memory_bytes });
-    let mut position = 0;
+    let mut ranked = Ranked::new(memory_bytes);
     let input = info_span!("plot.order_statistics.input").entered();
-    read(&mut |value| {
-        position += 1;
-        accumulator.push(position, &value)?;
-        Ok(())
-    })?;
+    read(&mut |value| ranked.push(&value))?;
     drop(input);
-    let completion = info_span!("plot.order_statistics.finish").entered();
-    let values = accumulator.finish_ranks(statistics, &mut || Ok(()))?;
-    drop(completion);
-    Ok(values)
+    ranked.finish(statistics)
 }
 
 pub(super) fn numeric_fields(batch: &RecordBatch) -> Result<Vec<String>> {

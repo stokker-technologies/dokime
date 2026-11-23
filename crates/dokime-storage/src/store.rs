@@ -65,6 +65,8 @@ const APPLICATION_ID: i32 = 0x444b4e58;
 /* === Type Aliases === */
 
 type StatisticsCache = HashMap<(String, String, String, u64), (u64, StatisticsRead)>;
+/// Sealed Fields' Exact Full-Range Ranks by Execution, Stream and Field.
+pub(crate) type RankCache = HashMap<String, Vec<u8>>;
 
 /* === Structs === */
 
@@ -86,6 +88,8 @@ pub struct Store {
     pub(crate) live_samples: Option<Arc<telemetry::LiveSamples>>,
 
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
+    /// Sealed Ranks Cover Immutable Values, So Unlike Summaries the Host Store Shares Them.
+    pub(crate) ranks: Arc<Mutex<RankCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub(crate) changed: Sender<u64>,
 }
@@ -276,6 +280,7 @@ impl Store {
             sample_reads: None,
             live_samples: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
+            ranks: Arc::default(),
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
         };
@@ -316,6 +321,7 @@ impl Store {
             sample_reads: self.sample_reads.clone(),
             live_samples: self.live_samples.clone(),
             statistics: self.statistics.clone(),
+            ranks: self.ranks.clone(),
             verified: self.verified.clone(),
             changed: self.changed.clone(),
         };

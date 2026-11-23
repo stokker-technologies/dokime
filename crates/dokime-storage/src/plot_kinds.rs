@@ -77,6 +77,13 @@ struct ValueGroup {
     accumulator: Option<Accumulator>,
 }
 
+/// One Heat Strip Playback Instant's Groups by Facet and Cell.
+struct Instant {
+    time: i64,
+    groups: BTreeMap<(String, String), ValueGroup>,
+    bytes: usize,
+}
+
 #[derive(Default)]
 struct CartesianGroup {
     count: u64,
@@ -111,6 +118,53 @@ impl FrameKey {
             Self::Instant(time) => instant(*time),
             Self::Label(label) => label.clone(),
         }
+    }
+}
+
+impl Instant {
+    fn new(time: i64) -> Self {
+        Self { time, groups: BTreeMap::new(), bytes: 0 }
+    }
+}
+
+impl ValueGroup {
+    fn new(row: &Input, aggregate: Option<Aggregate>) -> Result<Self> {
+        Ok(Self {
+            cell: row.x.clone(),
+            facet: row.g.clone(),
+            latest: None,
+            count: 0,
+            accumulator: aggregate.map(|kind| expressions::accumulator(kind, 0.0)).transpose()?,
+        })
+    }
+
+    /// Reduce One Row Into the Group; Heat Strips Keep the Latest or Largest Value of Each Instant.
+    fn absorb(&mut self, row: Input, aggregate: Option<Aggregate>, heat_strip: bool) -> Result<()> {
+        if !row.y.is_finite() {
+            if !missing(&row.scalar) && scalar::number(&row.scalar).is_none() {
+                return Err(Error::Data("Read Heat Strip: Select a Numeric Value Expression"));
+            }
+            return Ok(());
+        }
+        self.count += 1;
+        if let Some(accumulator) = &mut self.accumulator {
+            accumulator.push(row.position, &row.scalar).map_err(|error| Error::Invalid(error.to_string()))?;
+        }
+        let replace = self.latest.as_ref().is_none_or(|previous| {
+            let newer = (row.time, row.position) > (previous.time, previous.position);
+            if heat_strip && aggregate == Some(Aggregate::Max) {
+                let order = compare_cells(&row.scalar, &previous.scalar);
+                order.is_gt() || order.is_eq() && newer
+            } else if heat_strip {
+                newer
+            } else {
+                row.position > previous.position
+            }
+        });
+        if replace {
+            self.latest = Some(row);
+        }
+        Ok(())
     }
 }
 
@@ -199,12 +253,7 @@ impl Store {
             Reduction::Count => Some(Aggregate::Count),
             _ => return Err(Error::Data("Read Heat Strip: Select Last, Max, Mean or Count")),
         };
-        let groups = self.grouped_values(&request, aggregate, true)?;
-        let budget = self.storage_settings()?.query_bytes.get();
-        let bytes = groups.keys().fold(0usize, |bytes, key| bytes.saturating_add(768 + 4 * (key.0.len() + key.1.len())));
-        if bytes > budget {
-            return Err(Error::Data("Read Heat Strip: Narrow the Window or Select Fewer Samples and Cells"));
-        }
+        let groups = self.instant_groups(&request, aggregate)?;
         let mut frame = PlotFrame {
             mode: Some(PlotCartesianMode::Faceted as i32),
             point_count: groups.len() as u64,
@@ -303,49 +352,81 @@ impl Store {
             }
             let key = (serde_json::to_string(&row.g)?, serde_json::to_string(&row.x)?, if heat_strip { row.time } else { 0 });
             if !groups.contains_key(&key) {
-                bytes = bytes.saturating_add(if heat_strip { 768 } else { 512 } + 4 * (key.0.len() + key.1.len()));
+                bytes = bytes.saturating_add(group_bytes(&key.0, &key.1, heat_strip));
                 if groups.len() >= request.limit || bytes > budget {
                     return Err(Error::Data("Read Grouped Plot: Narrow the Window or Select Fewer Cells and Facets"));
                 }
-                groups.insert(
-                    key.clone(),
-                    ValueGroup {
-                        cell: row.x.clone(),
-                        facet: row.g.clone(),
-                        latest: None,
-                        count: 0,
-                        accumulator: aggregate.map(|kind| expressions::accumulator(kind, 0.0)).transpose()?,
-                    },
-                );
+                groups.insert(key.clone(), ValueGroup::new(&row, aggregate)?);
             }
-            let group = groups.get_mut(&key).unwrap();
-            if !row.y.is_finite() {
-                if !missing(&row.scalar) && scalar::number(&row.scalar).is_none() {
-                    return Err(Error::Data("Read Heat Strip: Select a Numeric Value Expression"));
-                }
-                return Ok(());
-            }
-            group.count += 1;
-            if let Some(accumulator) = &mut group.accumulator {
-                accumulator.push(row.position, &row.scalar).map_err(|error| Error::Invalid(error.to_string()))?;
-            }
-            let replace = group.latest.as_ref().is_none_or(|previous| {
-                let newer = (row.time, row.position) > (previous.time, previous.position);
-                if heat_strip && aggregate == Some(Aggregate::Max) {
-                    let order = compare_cells(&row.scalar, &previous.scalar);
-                    order.is_gt() || order.is_eq() && newer
-                } else if heat_strip {
-                    newer
-                } else {
-                    row.position > previous.position
-                }
-            });
-            if replace {
-                group.latest = Some(row);
-            }
-            Ok(())
+            groups.get_mut(&key).unwrap().absorb(row, aggregate, heat_strip)
         })?;
         Ok(groups)
+    }
+    /// Heat Strip Groups at Evenly Spaced Playback Instants Within the Display and Memory Budgets.
+    ///
+    /// The window splits into 2^k intervals, at first finer than any two instants, and the slot at each interval edge
+    /// keeps only the instant closest to it. While the groups outgrow a budget, the intervals double and the kept
+    /// instants take their coarser slots, so the instants at the window's bounds always remain and every instant does
+    /// when all of them fit.
+    fn instant_groups(
+        &self, request: &KindWindow<'_>, aggregate: Option<Aggregate>,
+    ) -> Result<BTreeMap<(String, String, i64), ValueGroup>> {
+        let budget = self.storage_settings()?.query_bytes.get();
+        let (start, span) =
+            (i128::from(request.window.start_ns), (i128::from(request.window.end_ns) - i128::from(request.window.start_ns)).max(0));
+        // Spans Below 2^64 Nanoseconds Times 2^62 Stay Within the Slot Arithmetic.
+        let mut intervals = 1i128 << 61;
+        let mut slots = BTreeMap::<i128, Instant>::new();
+        let (mut groups, mut bytes) = (0usize, 0usize);
+        let slot = |time: i64, intervals: i128| {
+            let slot = if span == 0 { 0 } else { ((i128::from(time) - start) * intervals * 2 + span).div_euclid(2 * span) };
+            (slot, (i128::from(time) - start - slot * span / intervals).abs())
+        };
+        self.kind_values(request, true, |row| {
+            if missing(&row.x) || missing(&row.g) {
+                return Ok(());
+            }
+            let cell = (serde_json::to_string(&row.g)?, serde_json::to_string(&row.x)?);
+            loop {
+                let (index, distance) = slot(row.time, intervals);
+                let (freed, freed_bytes, fresh) = match slots.get(&index) {
+                    Some(kept) if kept.time == row.time => (0, 0, !kept.groups.contains_key(&cell)),
+                    Some(kept) if slot(kept.time, intervals).1 <= distance => return Ok(()),
+                    Some(kept) => (kept.groups.len(), kept.bytes, true),
+                    None => (0, 0, true),
+                };
+                let extra = if fresh { group_bytes(&cell.0, &cell.1, true) } else { 0 };
+                if groups - freed + usize::from(fresh) <= request.limit && bytes - freed_bytes + extra <= budget {
+                    let instant = slots.entry(index).or_insert_with(|| Instant::new(row.time));
+                    if instant.time != row.time {
+                        *instant = Instant::new(row.time);
+                    }
+                    (groups, bytes) = (groups - freed, bytes - freed_bytes);
+                    if fresh {
+                        instant.groups.insert(cell.clone(), ValueGroup::new(&row, aggregate)?);
+                        instant.bytes += extra;
+                        (groups, bytes) = (groups + 1, bytes + extra);
+                    }
+                    return instant.groups.get_mut(&cell).unwrap().absorb(row, aggregate, true);
+                }
+                if intervals == 1 {
+                    return Err(Error::Data("Read Heat Strip: Select Fewer Cells and Facets"));
+                }
+                intervals /= 2;
+                for instant in std::mem::take(&mut slots).into_values() {
+                    let (index, distance) = slot(instant.time, intervals);
+                    if slots.get(&index).is_none_or(|kept| slot(kept.time, intervals).1 > distance) {
+                        slots.insert(index, instant);
+                    }
+                }
+                (groups, bytes) =
+                    slots.values().fold((0, 0), |(groups, bytes), instant| (groups + instant.groups.len(), bytes + instant.bytes));
+            }
+        })?;
+        Ok(slots
+            .into_values()
+            .flat_map(|instant| instant.groups.into_iter().map(move |((facet, cell), group)| ((facet, cell, instant.time), group)))
+            .collect())
     }
     pub fn sigma_window(&self, request: KindWindow<'_>, options: PlotIntervalOptions) -> Result<(PlotSigmaIntervalAnalysis, u64)> {
         if !options.bin_width.is_finite() || options.bin_width <= 0.0 || !options.sigma.is_finite() || options.sigma <= 0.0 {
@@ -913,6 +994,11 @@ fn compare_cell_float(left: &ScalarValue, right: f64) -> Ordering {
     }
     if negative { order.reverse() } else { order }
 }
+/// The Retained Size Charged to One Group Against the Query Budget.
+fn group_bytes(facet: &str, cell: &str, heat_strip: bool) -> usize {
+    (if heat_strip { 768 } else { 512 }) + 4 * (facet.len() + cell.len())
+}
+
 fn value(value: ScalarValue) -> Value {
     scalar::wire(&value).expect("finite plot scalar")
 }
