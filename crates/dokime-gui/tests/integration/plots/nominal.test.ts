@@ -376,6 +376,9 @@ test("Window Selection", async () => {
   assert.equal(slider.getAttribute("aria-valuenow"), "2");
   slider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
   assert.deepEqual(choose.mock.calls, [[6]]);
+  plotWindow.getState().refresh.onChange({ refreshing: true });
+  await tick();
+  assert.equal(view.getByRole("slider").getAttribute("aria-valuenow"), "6", "a refresh status keeps the chosen draft");
   plotWindow.setState({ index: 6, option: plotWindows[6] });
   await tick();
   assert.equal(view.getByRole("slider").getAttribute("aria-valuenow"), "6");

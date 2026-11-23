@@ -11,7 +11,9 @@
 
   const current = $derived(window.state());
   const refresh = $derived(current.refresh);
-  let draft = $derived(current.index);
+  // A Refresh Status Write Leaves The Index And So A Dragged Draft Unchanged.
+  const index = $derived(current.index);
+  let draft = $derived(index);
   const option = $derived(plotWindows[draft] ?? current.option);
   const title = $derived(plotWindowTitle(elapsedUnit));
   const detail = $derived(plotWindowDetail(option, elapsedUnit));

@@ -4,11 +4,13 @@
   import type { ConnectedSession } from "@/app/native-session/session";
   import { createScopedDocumentQuery } from "@/features/cycle/document-query.svelte";
   import { createLiveDocumentSurface } from "@/features/cycle/live-document.svelte";
+  import LiveCycleDocument, { type LiveCycleContext } from "@/features/cycle/LiveCycleDocument.svelte";
   import type { PlotWindow } from "@/features/cycle/plot-window-state";
   import type { Wire } from "@/lib/rpc/canonical";
   import type { HubLiveState } from "@/lib/types";
 
-  let { session, plotWindow }: { session: ConnectedSession; plotWindow: PlotWindow } = $props();
+  // A Desktop Context Also Draws The Document.
+  let { session, plotWindow, desktop }: { session: ConnectedSession; plotWindow: PlotWindow; desktop?: LiveCycleContext } = $props();
   let snapshot = $state.raw<HubLiveState | null>(null);
   let scope = $state.raw<Wire<EvidenceScope>>({ cycleId: "cycle", executionId: "execution" });
   const query = createScopedDocumentQuery(
@@ -54,3 +56,7 @@
     return surface.view.sections;
   }
 </script>
+
+{#if desktop}
+  <LiveCycleDocument context={desktop} {surface} />
+{/if}

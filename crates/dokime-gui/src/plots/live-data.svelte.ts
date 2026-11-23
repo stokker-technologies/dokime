@@ -539,6 +539,8 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
           }
           // A Resync Is the Host's Request to Reopen at Once: Not a Failure, No Back-Off.
           if (resync && active && nativeSession.identity.isCurrent()) {
+            clearScheduledFlush();
+            flush();
             reopenDelayMs = RECONNECT_INITIAL_MS;
             reopen();
             return;
