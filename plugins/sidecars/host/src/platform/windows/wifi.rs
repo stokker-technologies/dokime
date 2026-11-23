@@ -45,8 +45,9 @@ use windows::{
             WlanGetNetworkBssList, WlanOpenHandle, WlanQueryInterface, WlanRegisterNotification, WlanScan, dot11_BSS_type_any,
             wlan_interface_state_ad_hoc_network_formed, wlan_interface_state_associating, wlan_interface_state_authenticating,
             wlan_interface_state_connected, wlan_interface_state_disconnected, wlan_interface_state_disconnecting,
-            wlan_interface_state_discovering, wlan_interface_state_not_ready, wlan_intf_opcode_current_connection, wlan_intf_opcode_rssi,
-            wlan_notification_acm_scan_complete, wlan_notification_acm_scan_fail,
+            wlan_interface_state_discovering, wlan_interface_state_not_ready, wlan_intf_opcode_channel_number,
+            wlan_intf_opcode_current_connection, wlan_intf_opcode_rssi, wlan_notification_acm_scan_complete,
+            wlan_notification_acm_scan_fail,
         },
     },
     core::GUID,
@@ -352,6 +353,26 @@ impl WlanClient {
         Ok(attributes)
     }
 
+    // The Driver's Current Channel Number, Independent of the Scan Cache.
+    fn channel_number(&self, interface: &WifiInterface) -> Option<u32> {
+        let mut data_size = 0;
+        let mut data: *mut c_void = null_mut();
+        let code = unsafe {
+            WlanQueryInterface(self.handle, &interface.guid, wlan_intf_opcode_channel_number, None, &mut data_size, &mut data, None)
+        };
+        if code != 0 || data.is_null() {
+            return None;
+        }
+
+        let bytes = unsafe { slice::from_raw_parts(data.cast::<u8>(), data_size as usize) };
+        let channel = bytes.get(..4).map(|value| u32::from_ne_bytes(value.try_into().expect("four channel bytes")));
+        unsafe {
+            WlanFreeMemory(data);
+        }
+
+        channel
+    }
+
     fn rssi_dbm(&self, interface: &WifiInterface) -> Option<f64> {
         let mut data_size = 0;
         let mut data: *mut c_void = null_mut();
@@ -492,8 +513,9 @@ pub fn active_link(adapter: Option<&str>) -> Result<Option<WifiLink>, String> {
     let query = matches!(state, WifiState::Connected | WifiState::AdHocNetworkFormed | WifiState::Unrecognized(_));
     let connection = query.then(|| client.current_connection(&interface)).transpose();
     let rssi_dbm = query.then(|| client.rssi_dbm(&interface)).flatten();
+    let channel_number = query.then(|| client.channel_number(&interface)).flatten();
     let entries = if matches!(connection, Ok(Some(_))) { client.bss_entries(&interface).unwrap_or_default() } else { Vec::new() };
-    Ok(Some(link_from_readings(&interface, connection, rssi_dbm, &entries)))
+    Ok(Some(link_from_readings(&interface, connection, rssi_dbm, channel_number, &entries)))
 }
 
 /// Every BSS the Driver Reports; With a Window, After an Active Scan That Completes Within It.
@@ -527,7 +549,7 @@ pub fn scan_networks(adapter: Option<&str>, scan_window: Option<Duration>) -> Re
 
 fn link_from_readings(
     interface: &WifiInterface, connection: Result<Option<WLAN_CONNECTION_ATTRIBUTES>, u32>, rssi_dbm: Option<f64>,
-    entries: &[WLAN_BSS_ENTRY],
+    channel_number: Option<u32>, entries: &[WLAN_BSS_ENTRY],
 ) -> WifiLink {
     let mut link = WifiLink {
         probe_error: None,
@@ -563,7 +585,11 @@ fn link_from_readings(
     link.radio = Some(phy_type(association.dot11PhyType));
     link.auth = Some(auth_algorithm(security.dot11AuthAlgorithm));
     link.cipher = Some(cipher_algorithm(security.dot11CipherAlgorithm));
-    link.channel = associated.and_then(|entry| channel_from_frequency(entry.ulChCenterFrequency));
+    // The Cached Scan Entry's Frequency Is Exact, 6 GHz Included; Without One, the Driver's Channel Number Serves for 2.4 and 5 GHz,
+    // Whose Numbers It Cannot Tell Apart From 6 GHz.
+    link.channel = associated
+        .and_then(|entry| channel_from_frequency(entry.ulChCenterFrequency))
+        .or_else(|| channel_number.filter(|channel| (1..=14).contains(channel) || (32..=177).contains(channel)));
     link.signal_percent = Some(f64::from(association.wlanSignalQuality));
     link.rssi_dbm = link.rssi_dbm.or_else(|| {
         let rssi = f64::from(associated?.lRssi);
@@ -785,7 +811,7 @@ mod tests {
     fn wifi_partial_readings() {
         let connected = interface(wlan_interface_state_connected, true, "Wireless Adapter");
         for code in [ERROR_ACCESS_DENIED.0, ERROR_INVALID_STATE.0] {
-            let link = link_from_readings(&connected, Err(code), Some(-52.0), &[]);
+            let link = link_from_readings(&connected, Err(code), Some(-52.0), None, &[]);
             assert_eq!(link.rssi_dbm, Some(-52.0));
             assert_eq!(link.adapter.as_deref(), Some("Wireless Adapter"));
             assert_eq!(link.state, Some(WifiState::Connected));
@@ -795,7 +821,7 @@ mod tests {
             assert!(link.probe_error.unwrap().contains(&code.to_string()));
         }
         let disconnected = interface(wlan_interface_state_disconnected, true, "Wireless Adapter");
-        let link = link_from_readings(&disconnected, Ok(None), None, &[]);
+        let link = link_from_readings(&disconnected, Ok(None), None, None, &[]);
         assert_eq!(link.associated(), Some(false));
         assert!(link.probe_error.is_none());
     }
@@ -815,7 +841,7 @@ mod tests {
             },
             ..connection()
         };
-        let link = link_from_readings(&interface, Ok(Some(attributes)), Some(-61.0), &[]);
+        let link = link_from_readings(&interface, Ok(Some(attributes)), Some(-61.0), None, &[]);
         assert_eq!(link.state.unwrap().as_str(), "unknown_99");
         assert_eq!(link.radio.unwrap().as_str(), "unknown_99");
         assert_eq!(link.auth.unwrap().as_str(), "unknown_-2147483648");
@@ -825,7 +851,7 @@ mod tests {
         assert_eq!(link.tx_phy_mbps, Some(433.3));
         assert_eq!(link.associated(), Some(true));
         assert!(link.probe_error.is_none());
-        let unknown = link_from_readings(&interface, Err(ERROR_INVALID_STATE.0), Some(-61.0), &[]);
+        let unknown = link_from_readings(&interface, Err(ERROR_INVALID_STATE.0), Some(-61.0), None, &[]);
         assert_eq!(unknown.associated(), None);
     }
 
@@ -846,15 +872,31 @@ mod tests {
         };
         for (query, expected) in [(Some(-51.0), -51.0), (None, -67.0), (Some(12.0), -67.0), (Some(-256.0), -67.0), (Some(f64::NAN), -67.0)]
         {
-            let link = link_from_readings(&interface, Ok(Some(attributes)), query, &[unrelated, associated]);
+            let link = link_from_readings(&interface, Ok(Some(attributes)), query, None, &[unrelated, associated]);
             assert_eq!(link.rssi_dbm, Some(expected));
             assert_eq!(link.channel, Some(36));
         }
         let invalid = WLAN_BSS_ENTRY { lRssi: 12, ..associated };
         for entries in [&[][..], &[unrelated][..], &[invalid][..]] {
-            let link = link_from_readings(&interface, Ok(Some(attributes)), None, entries);
+            let link = link_from_readings(&interface, Ok(Some(attributes)), None, None, entries);
             assert_eq!(link.rssi_dbm, None);
             assert_eq!(link.signal_percent, Some(80.0));
+        }
+    }
+
+    #[test]
+    fn wifi_channel_falls_back_to_the_driver_channel_without_a_cached_scan_entry() {
+        let interface = interface(wlan_interface_state_connected, true, "Wireless Adapter");
+        let attributes = connection();
+        let associated = WLAN_BSS_ENTRY {
+            dot11Bssid: attributes.wlanAssociationAttributes.dot11Bssid,
+            ulChCenterFrequency: 5_180_000,
+            ..Default::default()
+        };
+        // The Scan Cache's Exact Frequency Wins; the Driver Number Fills In Only Without It.
+        assert_eq!(link_from_readings(&interface, Ok(Some(attributes)), None, Some(52), &[associated]).channel, Some(36));
+        for (reported, expected) in [(Some(52), Some(52)), (Some(6), Some(6)), (Some(0), None), (Some(200), None), (None, None)] {
+            assert_eq!(link_from_readings(&interface, Ok(Some(attributes)), None, reported, &[]).channel, expected);
         }
     }
 
