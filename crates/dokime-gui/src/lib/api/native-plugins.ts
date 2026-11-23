@@ -9,9 +9,9 @@ import { Channel } from "@tauri-apps/api/core";
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { commands } from "@/lib/desktop/commands";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
-import { required } from "@dokime/plots/lib/rpc/canonical";
-import * as rpc from "@/lib/host/client";
+import type { Wire } from "@/lib/rpc/canonical";
+import { required } from "@/lib/rpc/canonical";
+import { pluginsList, pluginsGet, pluginsDelete, pluginsSet, pluginsRestart } from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Types === */
@@ -21,26 +21,26 @@ export type ManagedPlugin = Wire<PluginEntry>;
 /* === Public Functions === */
 
 export async function listNativePlugins(session: SessionIdentity): Promise<ManagedPlugin[]> {
-  return (await rpc.pluginsList(session, {})).entries;
+  return (await pluginsList(session, {})).entries;
 }
 
 export async function getNativePlugin(session: SessionIdentity, name: string): Promise<ManagedPlugin> {
-  return required((await rpc.pluginsGet(session, { name })).entry, "Get Plugin");
+  return required((await pluginsGet(session, { name })).entry, "Get Plugin");
 }
 
 export async function removeNativePlugin(session: SessionIdentity, name: string): Promise<void> {
   const current = await getNativePlugin(session, name);
-  await rpc.pluginsDelete(session, { name, expectedRevision: current.revision });
+  await pluginsDelete(session, { name, expectedRevision: current.revision });
 }
 
 export async function setNativePluginEnabled(session: SessionIdentity, name: string, enabled: boolean): Promise<ManagedPlugin> {
   const current = await getNativePlugin(session, name);
-  return required((await rpc.pluginsSet(session, { name, value: { enabled }, expectedRevision: current.revision })).entry, "Set Plugin");
+  return required((await pluginsSet(session, { name, value: { enabled }, expectedRevision: current.revision })).entry, "Set Plugin");
 }
 
 export async function restartNativePlugin(session: SessionIdentity, name: string): Promise<void> {
   const current = await getNativePlugin(session, name);
-  await rpc.pluginsRestart(session, { name, expectedRevision: current.revision });
+  await pluginsRestart(session, { name, expectedRevision: current.revision });
 }
 
 export type InstallPluginProgress = { phase: "reading" } | { phase: "uploading"; sent: number; total: number } | { phase: "installing" };
@@ -75,13 +75,16 @@ export async function installNativePlugin(
     typeof source === "object"
       ? await commands.desktopPluginReleaseInstall(session.generation, source.release, progress)
       : await commands.desktopPluginInstallFile(session.generation, source === "drop", progress);
-  if (installId === null) return null;
-  if (!session.isCurrent()) throw new Error("The connection changed while the plugin was being installed.");
+  if (installId === null) {
+    return null;
+  }
+  if (!session.isCurrent()) {
+    throw new Error("The connection changed while the plugin was being installed. Reconnect before installing it again.");
+  }
   return getNativePlugin(session, installId);
 }
 
-export async function listNativeAdmittedPlugins(session: SessionIdentity): Promise<RuntimeInstalledPluginRecord[]> {
-  const entries = await listNativePlugins(session);
+export function admittedPluginRecords(entries: ManagedPlugin[]): RuntimeInstalledPluginRecord[] {
   return entries.map((entry) => {
     const placement = entry.placement?.kind;
     return {

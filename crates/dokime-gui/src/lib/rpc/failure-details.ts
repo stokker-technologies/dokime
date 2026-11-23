@@ -20,9 +20,9 @@ import { fromBinary } from "@bufbuild/protobuf";
 
 // Local Imports
 import type { Failure } from "@generated/host/model";
-import type { RpcError } from "@dokime/document/lib/contracts/rpc";
-import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { RpcError } from "@/lib/contracts/rpc";
+import type { NotificationFailure } from "@/lib/notification-details";
+import type { Wire } from "@/lib/rpc/canonical";
 import { FailureSchema } from "./generated/errors";
 
 /* === Re-Exports === */

@@ -9,11 +9,11 @@
 
 /* === Local Imports === */
 
-import { formatDecimal, formatTitleWord } from "@dokime/plots/lib/format";
-import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
+import { formatDecimal, formatTitleWord } from "@/lib/format";
+import type { NotificationFailure } from "@/lib/notification-details";
 import { formatListRaw, type ParseResult } from "@/lib/parameter-parser";
-import type { ParameterDefinition, SuiteTemplateEntry, TestCycleSelection } from "@dokime/plots/lib/types";
-import { numericValue } from "@dokime/plots/lib/utils";
+import type { ParameterDefinition, SuiteTemplateEntry, TestCycleSelection } from "@/lib/types";
+import { numericValue } from "@/lib/utils";
 
 /* === Types === */
 

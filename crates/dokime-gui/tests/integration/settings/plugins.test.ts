@@ -17,15 +17,17 @@ import assert from "node:assert/strict";
 import { FailureSchema, PluginState, SettingDeclarationSchema } from "@generated/host/model";
 import "fake-indexeddb/auto";
 import { create, toBinary } from "@bufbuild/protobuf";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { fireEvent, render } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { beforeEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import { type InstallPluginProgress, installNativePlugin, getNativePlugin } from "@/lib/api/native-plugins";
-import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
-import { failureOf } from "@dokime/plots/lib/notification-details";
-import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugins/InstalledPluginSettingsForm";
+import { installedPluginDetailsOptions } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { QueryClient } from "@tanstack/svelte-query";
+import type { ConnectedSession } from "@/app/native-session/session";
+import { failureOf } from "@/lib/notification-details";
+import InstalledPluginSettingsForm from "@/features/settings/installed-plugins/InstalledPluginSettingsForm.svelte";
 import { mapNativeRuntimePluginSettings, updateNativePluginSettings } from "@/lib/api/native-settings";
 import type { SettingValues } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 
@@ -216,7 +218,10 @@ test("Failed Entry Retains Its Identity and Secret Availability", async () => {
   });
   fixture.getPlugin.mockResolvedValueOnce({ entry: failed });
   assert.equal(await getNativePlugin(session, "example"), failed);
-  const detail = await getInstalledPluginDetail(session, "example");
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  onTestFinished(() => queryClient.clear());
+  const connected = { identity: session, queryClient } as unknown as ConnectedSession;
+  const detail = await installedPluginDetailsOptions(connected, "example", "fixture").queryFn();
   assert.equal(detail?.status, "failed");
   assert.equal(detail?.plugin_id, failed.name);
   assert.equal(detail?.error, failed.failure.message);
@@ -226,7 +231,6 @@ test("Failed Entry Retains Its Identity and Secret Availability", async () => {
 });
 
 test("Every Setting Kind Saves Through the Form and Reads Back Without Losing Other Edits", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.useFakeTimers();
   const declarations = [
     create(SettingDeclarationSchema, { name: "enabled", title: "Enabled", default: { value: { case: "flag", value: false } } }),
@@ -287,29 +291,28 @@ test("Every Setting Kind Saves Through the Form and Reads Back Without Losing Ot
     return { value: { values: stored }, revision: new Uint8Array([revision]) };
   });
   const initial = mapNativeRuntimePluginSettings(await fixture.settingsList(), { secrets: [] });
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
   const saved: SettingValues[] = [];
-  onTestFinished(async () => {
-    releaseFirstWrite();
-    await act(async () => root.unmount());
-    host.remove();
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
+  let resolveSaved: () => void;
+  const allSaved = new Promise<void>((resolve) => {
+    resolveSaved = resolve;
   });
-  await act(async () =>
-    root.render(
-      createElement(InstalledPluginSettingsForm, {
-        schema: initial.settings,
-        values: initial.values,
-        onSubmit: async (values) => {
-          const result = await updateNativePluginSettings(session, "example", values);
-          saved.push(result.values);
-        },
-      }),
-    ),
-  );
+  const view = render(InstalledPluginSettingsForm, {
+    schema: initial.settings,
+    values: initial.values,
+    onSubmit: async (values) => {
+      const result = await updateNativePluginSettings(session, "example", values);
+      saved.push(result.values);
+      if (saved.length === 5) {
+        resolveSaved();
+      }
+    },
+  });
+  const host = view.container;
+  onTestFinished(() => {
+    releaseFirstWrite();
+    view.unmount();
+    vi.useRealTimers();
+  });
   const edit = async (title: string, value: string) => {
     const label = [...host.querySelectorAll("label")].find(
       (element) => element.textContent === title || element.textContent === `${title} [s]`,
@@ -317,29 +320,29 @@ test("Every Setting Kind Saves Through the Form and Reads Back Without Losing Ot
     assert.ok(label);
     const control = host.querySelector(`#${CSS.escape(label.htmlFor)}`);
     assert.ok(control instanceof HTMLInputElement);
-    const prototype = HTMLInputElement.prototype;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(prototype, "value")?.set?.call(control, value);
-      control.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await fireEvent.input(control, { target: { value } });
   };
   // Reject Bounds Before Any Host Mutation.
   await edit("Gain", "11");
-  await act(async () => vi.runOnlyPendingTimersAsync());
+  await vi.runOnlyPendingTimersAsync();
+  await tick();
   assert.equal(fixture.settingsSet.mock.calls.length, 0);
   assert.ok(host.querySelector('[aria-invalid="true"]'));
 
   // Edit All Rows Before Their Debounces Drain.
   const flag = host.querySelector('[role="switch"]');
   assert.ok(flag instanceof HTMLButtonElement);
-  await act(async () => flag.click());
+  await fireEvent.click(flag);
   await edit("Count", "9007199254740993");
   await edit("Gain", "2.75");
   await edit("Address", "changed");
   await edit("Timeout", "30 min");
-  await act(async () => vi.runOnlyPendingTimersAsync());
+  await vi.runOnlyPendingTimersAsync();
+  await tick();
   assert.equal(fixture.settingsSet.mock.calls.length, 1);
-  await act(async () => releaseFirstWrite());
+  releaseFirstWrite();
+  await allSaved;
+  await tick();
   assert.equal(saved.length, 5);
   assert.equal(host.querySelectorAll("textarea").length, 0);
   assert.equal(host.querySelectorAll('input[type="number"]').length, 2);
@@ -357,11 +360,13 @@ test("Every Setting Kind Saves Through the Form and Reads Back Without Losing Ot
   const refusal = { code: "revision_conflict", message: "fixture_conflict", action: "fixture_reload" };
   fixture.settingsSet.mockRejectedValueOnce(refusal);
   await edit("Address", "refused");
-  await act(async () => vi.runOnlyPendingTimersAsync());
+  await vi.runOnlyPendingTimersAsync();
+  await tick();
   assert.equal(stored.address.value.value, "changed");
   assert.ok(host.querySelector('[role="alert"]'));
   await edit("Address", "corrected");
-  await act(async () => vi.runOnlyPendingTimersAsync());
+  await vi.runOnlyPendingTimersAsync();
+  await tick();
   assert.equal(stored.address.value.value, "corrected");
   assert.equal(saved.at(-1)?.address, "corrected");
 });

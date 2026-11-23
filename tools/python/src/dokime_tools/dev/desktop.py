@@ -220,7 +220,7 @@ def plugin_paths(arguments: list[str] | None = None) -> list[Path]:
 def command(environment: Mapping[str, str]) -> list[str]:
     """Let Tauri Watch Report Sources and Regenerate Their Template Before Each Rust Run."""
     build: dict[str, object] = {
-        "additionalWatchFolders": [str(ROOT / "packages" / package) for package in ("report", "plots", "document")],
+        "additionalWatchFolders": [str(ROOT / "crates/dokime-gui/src")],
         # Tauri Prepends `run`; Uv Consumes It Before Invoking the Development Runner.
         "runner": {
             "cmd": "uv",

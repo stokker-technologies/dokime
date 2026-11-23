@@ -72,3 +72,15 @@ export function caseCountLabel(count: number): string {
 /* === Private Functions === */
 
 /* === Entry Point === */
+
+export type ActiveCycleState = {
+  /** The active cycle, once the open cycles have confirmed it is still open. */
+  cycle: OpenCycle | null;
+  /** Every open cycle, in the server's newest-first order. */
+  cycles: OpenCycle[];
+  failed: boolean;
+  error: unknown;
+  loading: boolean;
+  choose: (cycleId: string | null) => void;
+  openPicker: () => void;
+};

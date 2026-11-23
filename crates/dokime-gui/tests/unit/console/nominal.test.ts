@@ -16,8 +16,9 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import type { HubRecord } from "@dokime/plots/lib/types";
+import type { HubRecord } from "@/lib/types";
 import type { TracePage } from "@/lib/api/native-logs";
+import { fixedRowWindow } from "@/lib/row-window";
 import {
   type ConsoleBuffer,
   type ConsolePage,
@@ -27,15 +28,9 @@ import {
   mergeConsoleRecords,
   RETAINED_BUFFERS,
   RETAINED_RECORDS,
-} from "@dokime/document/shell/console-buffer";
-import {
-  CONSOLE_LIST_PADDING_PX,
-  consoleFollowsTail,
-  consoleTailPinned,
-  consoleWindow,
-  FOLLOW_SLACK_PX,
-} from "@dokime/document/shell/console-follow";
-import { useConsoleRecords } from "@/shell/console-records";
+} from "@/shell/console-buffer";
+import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, FOLLOW_SLACK_PX } from "@/shell/console-follow";
+import { observeConsoleRecords } from "@/shell/console-records";
 
 /* === Re-Exports === */
 
@@ -51,7 +46,6 @@ const EXECUTION_PAGE = consoleBufferKey({ cycleId: null, executionId: null, leve
 const BOTTOM = 2_000;
 
 const fixture = vi.hoisted(() => ({
-  effects: [] as (() => (() => void) | undefined)[],
   open: vi.fn(),
   notifyError: vi.fn(),
   current: true,
@@ -125,8 +119,12 @@ function stream() {
             wake = resolve;
           });
         const item = queued.shift();
-        if (!item || "end" in item) return;
-        if ("failure" in item) throw item.failure;
+        if (!item || "end" in item) {
+          return;
+        }
+        if ("failure" in item) {
+          throw item.failure;
+        }
         yield item.page;
       }
     },
@@ -134,34 +132,20 @@ function stream() {
 }
 
 function ConsoleFixture(selection = { cycleId: "cycle-1", executionId: null as string | null, enabled: true, level: "info" as const }) {
-  useConsoleRecords(selection);
-  const cleanups = fixture.effects.splice(0).map((effect) => effect());
-  return () => {
-    for (const cleanup of cleanups) cleanup?.();
-  };
+  return observeConsoleRecords(fixture.session.identity, selection);
 }
 
 /* === Entry Point === */
 
-vi.mock("react", () => ({
-  useCallback: (callback: unknown) => callback,
-  useEffect: (effect: () => (() => void) | undefined) => fixture.effects.push(effect),
-}));
-vi.mock("zustand", () => ({
-  useStore: (store: typeof consoleRecordsStore, select: (state: ReturnType<typeof consoleRecordsStore.getState>) => unknown) =>
-    select(store.getState()),
-}));
-vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
 vi.mock("@/lib/api/native-logs", async (original) => ({
   ...(await original<typeof import("@/lib/api/native-logs")>()),
   openTraceStream: fixture.open,
 }));
-vi.mock("@dokime/plots/lib/notifications", () => ({ toast: { error: fixture.notifyError } }));
+vi.mock("@/lib/notifications", () => ({ toast: { error: fixture.notifyError } }));
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("window", globalThis);
-  fixture.effects.length = 0;
   fixture.current = true;
   fixture.open.mockReset();
   fixture.notifyError.mockReset();
@@ -270,24 +254,23 @@ test("Tail Follow", () => {
   assert.equal(consoleFollowsTail(true, consoleTailPinned(at(BOTTOM))), true);
   assert.equal(consoleFollowsTail(false, true), false);
 
-  // The First and Last Rows Sit Inside the Padding, Never Flush with the Frame
-  const list = { count: 100, height: 200, overscan: 0, rowHeight: 22 };
-  const top = consoleWindow({ ...list, scrollTop: 0 });
-  assert.equal(top.offset, CONSOLE_LIST_PADDING_PX);
-  assert.equal(top.contentHeight, 100 * 22 + 2 * CONSOLE_LIST_PADDING_PX);
+  // The First and Last Rows Are Drawn at the Padded Scroll Limits
+  const top = fixedRowWindow(100, 22, 0, 200, 0, CONSOLE_LIST_PADDING_PX);
+  assert.equal(top.before, CONSOLE_LIST_PADDING_PX);
   assert.deepEqual([top.first, top.last], [0, 10]);
-
-  // Scrolled to the Bottom, the Last Row Is Drawn and Padding Follows It
-  const end = consoleWindow({ ...list, scrollTop: top.contentHeight - 200 });
+  const contentHeight = top.before + (top.last - top.first) * 22 + top.after;
+  assert.equal(contentHeight, 100 * 22 + 2 * CONSOLE_LIST_PADDING_PX);
+  const end = fixedRowWindow(100, 22, contentHeight - 200, 200, 0, CONSOLE_LIST_PADDING_PX);
   assert.equal(end.last, 100);
-  assert.equal(end.offset + (end.last - end.first) * 22 + CONSOLE_LIST_PADDING_PX, end.contentHeight);
+  assert.equal(end.after, CONSOLE_LIST_PADDING_PX);
+  assert.equal(end.before + (end.last - end.first) * 22 + end.after, contentHeight);
 
   // An Empty List Draws Nothing and Keeps Its Padding
-  assert.deepEqual(consoleWindow({ ...list, count: 0, scrollTop: 0 }), {
+  assert.deepEqual(fixedRowWindow(0, 22, 0, 200, 0, CONSOLE_LIST_PADDING_PX), {
     first: 0,
     last: 0,
-    contentHeight: 2 * CONSOLE_LIST_PADDING_PX,
-    offset: CONSOLE_LIST_PADDING_PX,
+    after: CONSOLE_LIST_PADDING_PX,
+    before: CONSOLE_LIST_PADDING_PX,
   });
 });
 

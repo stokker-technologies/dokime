@@ -12,8 +12,8 @@
 /* === Imports === */
 
 import type { SettingDeclaration } from "@generated/host/model";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
-import type { SecretSetting, Value } from "@dokime/plots/lib/types/settings";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { SecretSetting, Value } from "@/lib/types/settings";
 
 /* === Types === */
 

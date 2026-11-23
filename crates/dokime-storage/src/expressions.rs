@@ -27,8 +27,7 @@ use std::{
 
 // Third Party Imports
 use arrow_array::{Array, ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray, StructArray, UInt64Array};
-use arrow_schema::SchemaRef;
-use arrow_schema::{DataType, Field, Schema};
+use arrow_schema::{DataType, Field, Fields, Schema, SchemaRef};
 use arrow_select::filter::filter_record_batch;
 use harmos_domain::Identifier;
 use harmos_domain::model::storage::query::{self, StreamSelection, TimeMerge, TimeMergeMode};
@@ -50,7 +49,7 @@ use rusqlite::params;
 
 // Local Imports
 use crate::{
-    BatchSelection, Error, ExecutionCut, NumericWindow, Result, Sample, Store, plot_selection,
+    BatchSelection, Error, Evidence, ExecutionCut, NumericWindow, Result, Sample, Store, plot_selection,
     scalar::{self, Agg, ScalarValue},
     telemetry::codec::Codec,
 };
@@ -63,6 +62,7 @@ use dokime_protocol::model::PlotFilter;
 use dokime_protocol::model::RecordContracts;
 
 use dokime_protocol::model::data_expression;
+use dokime_protocol::model::data_expression::Kind;
 use dokime_protocol::model::origin;
 use dokime_protocol::model::transform_expression;
 
@@ -73,6 +73,7 @@ use dokime_protocol::model::transform_expression;
 /* === Type Aliases === */
 
 type Source = (bool, String);
+type Binding = (Source, Option<String>);
 
 /* === Structs === */
 
@@ -90,7 +91,7 @@ pub(crate) struct Evaluation<'a> {
     store: &'a Store,
     cut: &'a ExecutionCut,
     source: Source,
-    attached: BTreeMap<Source, String>,
+    attached: BTreeMap<Binding, String>,
     intervals: BTreeMap<(String, String), String>,
     aggregates: RefCell<BTreeMap<Vec<u8>, ScalarValue>>,
 }
@@ -182,13 +183,13 @@ impl Store {
         &self, cut: &ExecutionCut, source: Source, selection: BatchSelection<'_>, expressions: &[DataExpression],
         mut read: impl FnMut(&Evaluation<'_>, RecordBatch) -> Result<bool>,
     ) -> Result<()> {
-        let mut sources = BTreeMap::<Source, BTreeSet<String>>::new();
-        sources.entry(source.clone()).or_default();
+        let mut sources = BTreeMap::<Binding, BTreeSet<String>>::new();
+        sources.entry((source.clone(), None)).or_default();
         for expression in expressions {
             expression.validate().map_err(Error::Invalid)?;
             collect(expression, &mut sources, 0)?;
         }
-        let fields = sources.remove(&source).unwrap_or_default().into_iter().collect::<Vec<_>>();
+        let fields = sources.remove(&(source.clone(), None)).unwrap_or_default().into_iter().collect::<Vec<_>>();
         let mut evaluation = Evaluation {
             store: self,
             cut,
@@ -204,8 +205,8 @@ impl Store {
         if sources.is_empty() && intervals.is_empty() {
             return self.source_batches(cut, &source, selection, &fields, |batch| read(&evaluation, batch));
         }
-        let mut base = self.source_table(cut, &source, selection, &fields)?;
-        for (other, fields) in sources {
+        let mut base = self.source_table(cut, &source, selection, &fields, None)?;
+        for ((other, field), fields) in sources {
             let right = self.source_table(
                 cut,
                 &other,
@@ -215,10 +216,11 @@ impl Store {
                     ..selection
                 },
                 &fields.into_iter().collect::<Vec<_>>(),
+                field.as_deref(),
             )?;
             let name = format!("_joined{}", evaluation.attached.len());
             base = align(self, cut, &base, &right, &name)?;
-            evaluation.attached.insert(other, name);
+            evaluation.attached.insert((other, field), name);
         }
         for (current, previous) in intervals {
             let current_table = self.source_table(
@@ -230,6 +232,7 @@ impl Store {
                     ..selection
                 },
                 &[],
+                None,
             )?;
             let previous_table = self.source_table(
                 cut,
@@ -240,9 +243,10 @@ impl Store {
                     ..selection
                 },
                 &[],
+                None,
             )?;
             let paired = align(self, cut, &current_table, &previous_table, "_previous")?;
-            let value_fields = arrow_schema::Fields::from(vec![Field::new("elapsed", DataType::Float64, true)]);
+            let value_fields = Fields::from(vec![Field::new("elapsed", DataType::Float64, true)]);
             let schema = Arc::new(Schema::new(vec![
                 current_table.schema().field(0).clone(),
                 Field::new("values", DataType::Struct(value_fields.clone()), false),
@@ -283,9 +287,21 @@ impl Store {
         Ok(())
     }
 
-    fn source_table(&self, cut: &ExecutionCut, source: &Source, selection: BatchSelection<'_>, fields: &[String]) -> Result<Table> {
+    fn source_table(
+        &self, cut: &ExecutionCut, source: &Source, selection: BatchSelection<'_>, fields: &[String], present: Option<&str>,
+    ) -> Result<Table> {
+        let present = present
+            .map(|field| self.source_field(cut, source, field))
+            .transpose()?
+            .map(|field| FieldPath::from(format!("values.{field}").as_str()));
         let mut writer = None;
-        self.source_batches(cut, source, selection, fields, |batch| {
+        self.source_batches(cut, source, selection, fields, |mut batch| {
+            if let Some(present) = &present {
+                let keep = (0..batch.num_rows())
+                    .map(|row| present.value(&batch, row).map(|value| !matches!(value, ScalarValue::Missing | ScalarValue::Null)))
+                    .collect::<result::Result<Vec<_>, _>>()?;
+                batch = filter_record_batch(&batch, &BooleanArray::from(keep))?;
+            }
             if writer.is_none() {
                 writer = Some(TableWriter::new(batch.schema())?);
             }
@@ -310,6 +326,17 @@ impl Store {
             })
             .collect();
         Ok(table.transform(&Transform::Sort(Sort { keys }), &mut || Ok(()))?)
+    }
+    fn source_field(&self, cut: &ExecutionCut, source: &Source, field: &str) -> Result<String> {
+        if !field.is_empty() {
+            return Ok(field.to_owned());
+        }
+        let codec = self.source_codec(cut, source)?;
+        let fields = codec.descriptor.fields().collect::<Vec<_>>();
+        if fields.len() != 1 {
+            return Err(Error::Data("name a scalar field in this row"));
+        }
+        Ok(fields[0].name().to_owned())
     }
     pub(crate) fn source_codec(&self, cut: &ExecutionCut, source: &Source) -> Result<Codec> {
         if !source.0 {
@@ -387,7 +414,7 @@ impl Store {
             }
             let mut rows = Vec::new();
             for bytes in bytes {
-                let evidence = crate::Evidence::decode(bytes.as_slice())?;
+                let evidence = Evidence::decode(bytes.as_slice())?;
                 cursor = evidence.position;
                 if evidence.source_ns < start || evidence.source_ns > end {
                     continue;
@@ -411,13 +438,17 @@ impl Store {
 }
 impl Evaluation<'_> {
     pub(crate) fn value(&self, expression: &DataExpression, batch: &RecordBatch, row: usize, depth: usize) -> Result<ScalarValue> {
+        self.bound_value(expression, batch, row, depth, None)
+    }
+    fn bound_value(
+        &self, expression: &DataExpression, batch: &RecordBatch, row: usize, depth: usize, binding: Option<&str>,
+    ) -> Result<ScalarValue> {
         if depth > 32 {
             return Err(Error::Data("simplify expression nesting"));
         }
-        use dokime_protocol::model::data_expression::Kind;
         Ok(match expression.kind.as_ref() {
-            Some(Kind::Stream(reference)) => self.field(reference, false, batch, row)?,
-            Some(Kind::Record(reference)) => self.field(reference, true, batch, row)?,
+            Some(Kind::Stream(reference)) => self.field(reference, false, batch, row, binding)?,
+            Some(Kind::Record(reference)) => self.field(reference, true, batch, row, None)?,
             Some(Kind::Literal(value)) => scalar::from_wire(value)?,
             Some(Kind::Parameter(key) | Kind::Dimension(key)) => {
                 let Some(origin::Kind::PluginRun(run)) = self.cut.execution.origin.as_ref().and_then(|o| o.kind.as_ref()) else {
@@ -444,6 +475,7 @@ impl Evaluation<'_> {
                                 true,
                                 batch,
                                 row,
+                                None,
                             );
                         }
                         let mut input = input.clone();
@@ -452,10 +484,10 @@ impl Evaluation<'_> {
                             _ => return Err(Error::Data("select a message field for detail")),
                         };
                         reference.field = if reference.field.is_empty() { field.clone() } else { format!("{}.{}", reference.field, field) };
-                        self.value(&input, batch, row, depth + 1)?
+                        self.bound_value(&input, batch, row, depth + 1, binding)?
                     }
                     Some(transform_expression::Kind::Scale(_) | transform_expression::Kind::Offset(_)) => {
-                        let value = self.value(input, batch, row, depth + 1)?;
+                        let value = self.bound_value(input, batch, row, depth + 1, binding)?;
                         if matches!(value, ScalarValue::Missing | ScalarValue::Null) {
                             return Ok(value);
                         }
@@ -467,7 +499,10 @@ impl Evaluation<'_> {
                         }
                     }
                     Some(transform_expression::Kind::PerCase(true)) => self.value(input, batch, row, depth + 1)?,
-                    Some(transform_expression::Kind::At(_)) => self.value(input, batch, row, depth + 1)?,
+                    Some(transform_expression::Kind::At(_)) => {
+                        let reference = telemetry_field(input)?;
+                        self.bound_value(input, batch, row, depth + 1, Some(&reference.field))?
+                    }
                     Some(transform_expression::Kind::TimeBetween(previous)) => {
                         let Some(Kind::Record(current)) = input.kind.as_ref() else {
                             return Err(Error::Data("select record occurrences for time between"));
@@ -503,22 +538,15 @@ impl Evaluation<'_> {
             _ => return Err(Error::Data("select an expression")),
         })
     }
-    fn field(&self, reference: &FieldReference, record: bool, batch: &RecordBatch, row: usize) -> Result<ScalarValue> {
+    fn field(
+        &self, reference: &FieldReference, record: bool, batch: &RecordBatch, row: usize, binding: Option<&str>,
+    ) -> Result<ScalarValue> {
         let source = (record, reference.identifier.clone());
-        let field = if reference.field.is_empty() {
-            let codec = self.store.source_codec(self.cut, &source)?;
-            let fields = codec.descriptor.fields().collect::<Vec<_>>();
-            if fields.len() != 1 {
-                return Err(Error::Data("name a scalar field in this row"));
-            }
-            fields[0].name().to_owned()
-        } else {
-            reference.field.clone()
-        };
-        let mut path = if source == self.source {
+        let field = self.store.source_field(self.cut, &source, &reference.field)?;
+        let mut path = if source == self.source && binding.is_none() {
             Vec::new()
         } else {
-            vec![self.attached.get(&source).ok_or(Error::Data("bind the expression source"))?.clone()]
+            vec![self.attached.get(&(source, binding.map(str::to_owned))).ok_or(Error::Data("bind the expression source"))?.clone()]
         };
         path.push("values".into());
         path.extend(field.split('.').map(str::to_owned));
@@ -679,29 +707,44 @@ pub(crate) fn reference(source: &str, field: &str, record: bool) -> DataExpressi
         ..Default::default()
     }
 }
-fn collect(expression: &DataExpression, sources: &mut BTreeMap<Source, BTreeSet<String>>, depth: usize) -> Result<()> {
+fn telemetry_field(expression: &DataExpression) -> Result<FieldReference> {
+    match expression.kind.as_ref() {
+        Some(data_expression::Kind::Stream(reference)) => Ok(reference.clone()),
+        Some(data_expression::Kind::Transform(transform)) => {
+            let mut reference = telemetry_field(transform.input.as_deref().ok_or(Error::Data("supply the transform input"))?)?;
+            if let Some(transform_expression::Kind::Detail(field)) = &transform.kind {
+                reference.field = if reference.field.is_empty() { field.clone() } else { format!("{}.{field}", reference.field) };
+            }
+            Ok(reference)
+        }
+        _ => Err(Error::Data("Apply at to a Telemetry Source")),
+    }
+}
+fn collect(expression: &DataExpression, sources: &mut BTreeMap<Binding, BTreeSet<String>>, depth: usize) -> Result<()> {
     if depth > 32 {
         return Err(Error::Data("simplify expression nesting"));
     }
-    use dokime_protocol::model::data_expression::Kind;
     match expression.kind.as_ref() {
         Some(Kind::Stream(r)) => {
-            sources.entry((false, r.identifier.clone())).or_default().insert(r.field.clone());
+            sources.entry(((false, r.identifier.clone()), None)).or_default().insert(r.field.clone());
         }
         Some(Kind::Record(r)) => {
-            sources.entry((true, r.identifier.clone())).or_default().insert(r.field.clone());
+            sources.entry(((true, r.identifier.clone()), None)).or_default().insert(r.field.clone());
         }
         Some(Kind::Transform(t)) => {
             if let Some(transform_expression::Kind::At(at)) = &t.kind {
-                sources.entry((true, at.record_type.clone())).or_default();
+                sources.entry(((true, at.record_type.clone()), None)).or_default();
+                let reference = telemetry_field(t.input.as_deref().ok_or(Error::Data("supply the transform input"))?)?;
+                sources.entry(((false, reference.identifier), Some(reference.field.clone()))).or_default().insert(reference.field);
+                return Ok(());
             }
             if let (Some(transform_expression::Kind::Detail(field)), Some(at)) =
                 (&t.kind, t.input.as_deref().and_then(DataExpression::at_record))
             {
-                sources.entry((true, at.record_type.clone())).or_default().insert(field.clone());
+                sources.entry(((true, at.record_type.clone()), None)).or_default().insert(field.clone());
             }
             if let Some(transform_expression::Kind::TimeBetween(previous)) = &t.kind {
-                sources.entry((true, previous.clone())).or_default();
+                sources.entry(((true, previous.clone()), None)).or_default();
             }
             if let Some(input) = t.input.as_deref() {
                 collect(input, sources, depth + 1)?;

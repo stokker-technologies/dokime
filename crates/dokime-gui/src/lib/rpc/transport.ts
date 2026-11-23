@@ -9,7 +9,7 @@ import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/prot
 /* === Local Imports === */
 import { settleUnlessStopping } from "../desktop/stopping";
 import * as transport from "./ipc";
-import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
+import type { NotificationFailure } from "@/lib/notification-details";
 
 /* === Types === */
 export interface SessionIdentity {

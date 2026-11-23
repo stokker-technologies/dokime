@@ -1,12 +1,18 @@
 {
   "extends": ["../../biome.json"],
+  "html": {
+    "experimentalFullSupportEnabled": true,
+    "formatter": {
+      "enabled": true,
+      "indentScriptAndStyle": true
+    }
+  },
   "files": {
     "includes": [
       "**/*.css",
       "**/*.json",
       "**/*.ts",
-      "**/*.tsx",
-      "!src/routeTree.gen.ts",
+      "**/*.svelte",
       "!src/lib/rpc/generated",
       "!src/generated/organization",
       "!!**/.stkr/templates",

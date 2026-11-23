@@ -81,7 +81,7 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
         parts = PurePosixPath(path).parts
         if not path or path.startswith("/") or "\\" in path or any(part in {".", ".."} for part in parts):
             return frozenset({"all"})
-        if path.startswith(("packages/", "assets/organization/")) or path in {
+        if path.startswith("assets/organization/") or path in {
             "package.json",
             "pnpm-workspace.yaml",
             "pnpm-lock.yaml",

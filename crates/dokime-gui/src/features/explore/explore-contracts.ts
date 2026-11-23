@@ -9,8 +9,8 @@
 
 /* === Local Imports === */
 
-import type { CycleHistorySummary } from "@dokime/plots/lib/types";
-import type { ExecutionBrowseEntry } from "@dokime/plots/lib/types/browse";
+import type { CycleHistorySummary } from "@/lib/types";
+import type { ExecutionBrowseEntry } from "@/lib/types/browse";
 
 /* === Types === */
 
@@ -60,4 +60,8 @@ export function isUnrunExecution(entry: ExecutionBrowseEntry): boolean {
 /** The one line history gives the planned cases it is not listing. */
 export function unrunCaption(count: number): string {
   return `${count} planned ${count === 1 ? "case" : "cases"} not run`;
+}
+
+export function isDeletableExecution(execution: ExecutionBrowseEntry): boolean {
+  return Boolean(execution.checkpoint) && execution.availability === "stored";
 }

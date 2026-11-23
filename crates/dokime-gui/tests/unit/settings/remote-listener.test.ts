@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -11,15 +12,17 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
+import defaults from "@generated/typescript/application-settings.json";
 
 // Third Party Imports
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, test, vi } from "vitest";
+import { QueryClient } from "@tanstack/svelte-query";
+import { render } from "@testing-library/svelte";
+import { beforeEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { failureOf } from "@dokime/plots/lib/notification-details";
-import { RemoteSection } from "@/features/settings/sections/RemoteSection";
+import { failureOf } from "@/lib/notification-details";
+import type { ConnectedSession } from "@/app/native-session/session";
+import RemoteSection from "@/features/settings/sections/RemoteSection.svelte";
 import { commitListener, type ListenerSettings, type ListenerStatus, listenerRunning } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 
@@ -27,31 +30,31 @@ import { commands } from "@/lib/desktop/commands";
 
 /* === Constants === */
 
-const fixture = vi.hoisted(() => ({
-  session: null as { identity: { generation: string }; snapshot: { connection: { backend: { methods: string[] } } } } | null,
-  query: { isPending: true, error: null as Error | null, data: undefined as ListenerStatus | undefined, refetch: vi.fn() },
-  states: [] as unknown[],
-  updates: [] as unknown[],
-  invoke: vi.fn(),
+const fixture = vi.hoisted(() => ({ read: vi.fn(), invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
+vi.mock("@/lib/api/native-remote", async (original) => ({
+  ...(await original<typeof import("@/lib/api/native-remote")>()),
+  withNativeListener: async (_session: unknown, snapshot: object) => ({ ...snapshot, listener: await fixture.read() }),
 }));
-vi.mock("react", async (original) => ({
-  ...(await original<typeof import("react")>()),
-  useState: (initial: unknown) => [
-    fixture.states.length ? fixture.states.shift() : initial,
-    (value: unknown) => fixture.updates.push(value),
-  ],
-  useId: () => "fixture-field",
+vi.mock("@/lib/desktop/settings", () => ({
+  preferencesCommands: { desktopSettingsRead: async () => ({ revision: [7], settings: defaults }) },
 }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => fixture.invoke(...args) }));
-vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
-vi.mock("@/features/settings/ApplicationPreferences", () => ({ ApplicationPreferences: () => null }));
-vi.mock("@dokime/document/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => fixture.query,
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-}));
-vi.mock("@/lib/host/client", () => ({}));
-vi.mock("@dokime/plots/lib/notifications", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
+
+function showSection() {
+  const queryClient = new QueryClient();
+  const session = {
+    identity: { generation: "fixture", isCurrent: () => true },
+    queryClient,
+    snapshot: { ownership: "attached", connection: { backend: { methods: ["/dokime.host.v1.access.Listener/Get"] } } },
+  } as unknown as ConnectedSession;
+  const view = render(RemoteSection, { session, advanced: false, label: "Fixture", queryClient });
+  onTestFinished(() => {
+    view.unmount();
+    queryClient.clear();
+  });
+  return view;
+}
 
 const SETTINGS: ListenerSettings = {
   enabled: false,
@@ -70,53 +73,27 @@ const STOPPED: ListenerStatus = { settings: SETTINGS, keyConfigured: true, certi
 /* === Tests === */
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  fixture.session = null;
-  fixture.query.isPending = true;
-  fixture.query.error = null;
-  fixture.query.data = undefined;
-  fixture.states = [];
-  fixture.updates = [];
+  fixture.read.mockReset();
+  fixture.invoke.mockReset();
 });
 
-test("Repeated Remote Settings Loads and Failures Stay Inline", () => {
-  fixture.session = {
-    identity: { generation: "fixture" },
-    snapshot: { connection: { backend: { methods: ["/dokime.host.v1.access.Listener/Get"] } } },
-  };
-  for (let page = 0; page < 3; page++) {
-    const html = renderToStaticMarkup(createElement(RemoteSection, {}));
-    assert.match(html, /role="status"/);
-  }
-  fixture.query.isPending = false;
-  fixture.query.error = new Error("fixture-failure");
-  const html = renderToStaticMarkup(createElement(RemoteSection, {}));
-  assert.match(html, /role="alert"/);
-  assert.ok(html.includes(fixture.query.error.message));
-});
-
-test("Export Endpoint Preview", () => {
-  fixture.session = {
-    identity: { generation: "fixture" },
-    snapshot: { connection: { backend: { methods: ["/dokime.host.v1.access.Listener/Get"] } } },
-  };
+test("Export Endpoint Preview", async () => {
   const endpoints = [
     { address: "bench-host" },
     { address: "192.168.7.4", adapterName: "Wireless" },
     { address: "169.254.23.41", adapterName: "Cable Ethernet" },
   ];
-  fixture.query.isPending = false;
-  fixture.query.data = { ...STOPPED, endpoints };
-  const html = renderToStaticMarkup(createElement(RemoteSection, {}));
-  const list = html.match(/<ul aria-label="Export Endpoints"[^>]*>(.*?)<\/ul>/)?.[1];
-  assert.ok(list);
-  let previous = -1;
-  for (const endpoint of endpoints) {
-    const position = list.indexOf(endpoint.address);
-    assert.ok(position > previous);
-    previous = position;
+  fixture.read.mockResolvedValue({ ...STOPPED, endpoints });
+  const view = showSection();
+  const list = await view.findByRole("list", { name: "Export Endpoints" });
+  const rows = [...list.querySelectorAll("li")];
+  assert.deepEqual(
+    rows.map((row) => row.querySelector(".font-mono")?.textContent),
+    endpoints.map((endpoint) => endpoint.address),
+  );
+  for (const [index, endpoint] of endpoints.entries()) {
     if (endpoint.adapterName) {
-      assert.ok(list.includes(endpoint.adapterName));
+      assert.ok(rows[index]?.textContent?.includes(endpoint.adapterName));
     }
   }
   assert.equal(fixture.invoke.mock.calls.length, 0);

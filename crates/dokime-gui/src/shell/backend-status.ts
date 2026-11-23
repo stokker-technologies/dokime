@@ -1,26 +1,4 @@
-/* ***
- *
- * Dokime
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
-
-/* Backend identity and connection state from the existing runtime subscription. */
-
-/* === External Imports === */
-
-import { useQuery } from "@tanstack/react-query";
-
-/* === Local Imports === */
-
-import { useNativeSession } from "@/app/native-session/context";
-import * as rpc from "@/lib/host/client";
-import { useHubStore } from "@/stores/hub-store";
-
-/* === Types === */
-
+// Dokime — SPDX-License-Identifier: Apache-2.0
 export type ConnectionState = "connected" | "reconnecting" | "disconnected" | "unknown";
 
 export type BackendStatus = {
@@ -30,22 +8,3 @@ export type BackendStatus = {
   /** Connection failure reported by the runtime subscription. */
   detail: string | null;
 };
-
-/* === Hooks === */
-
-export function useBackendStatus(): BackendStatus {
-  const session = useNativeSession();
-  const identity = useQuery({
-    queryFn: () => rpc.statusGet(session.identity, {}),
-    queryKey: ["shell", "backend-identity", session.identity.generation],
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-  const connection = useHubStore((state) => state.connection);
-  const error = useHubStore((state) => state.error);
-
-  return {
-    connection: connection === "connecting" ? "unknown" : connection,
-    detail: error,
-    label: identity.data?.status?.identity?.applicationName || identity.data?.status?.identity?.hostId || null,
-  };
-}

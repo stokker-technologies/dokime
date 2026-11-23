@@ -14,6 +14,7 @@ import {
   fetchNativeCheckpointRecords,
   fetchNativeCheckpointTelemetry,
   fetchNativeExecutionPage,
+  NATIVE_CHECKPOINT_WINDOW_BYTES,
   type NativeExecutionSelection,
   readNativeCheckpointOutput,
 } from "@/lib/api/native-checkpoints";
@@ -31,10 +32,8 @@ import type {
   ExecutionBrowsePage,
   ExecutionCheckpoint,
   SavedCycleSummary,
-} from "@dokime/plots/lib/types/browse";
+} from "@/lib/types/browse";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey, isUnrunExecution } from "./explore-contracts";
-
-const GUI_CHECKPOINT_WINDOW_BYTES = 65_536;
 
 export function fetchExecutionPage(
   session: SessionIdentity,
@@ -85,7 +84,7 @@ export function readCheckpointOutput(
   offset: bigint,
   signal?: AbortSignal,
 ): Promise<ExecutionFileWindow> {
-  return readNativeCheckpointOutput(session, checkpoint, relativePath, { offset, maxBytes: GUI_CHECKPOINT_WINDOW_BYTES }, signal);
+  return readNativeCheckpointOutput(session, checkpoint, relativePath, { offset, maxBytes: NATIVE_CHECKPOINT_WINDOW_BYTES }, signal);
 }
 /** The one suite label every entry of this cycle agrees on, or its identifier. */
 function suiteTitle(entries: ExecutionBrowseEntry[], cycleId: string): string {
@@ -102,8 +101,12 @@ export function groupExecutions(pages: ExecutionBrowsePage[], saved: SavedCycleS
   const executions = new Map<string, ExecutionBrowseEntry>();
   const cycles = new Map<string, ExecutionBrowseCycle>();
   for (const page of pages) {
-    for (const entry of page.entries) executions.set(entry.metadata.execution_id, entry);
-    for (const cycle of page.cycles) cycles.set(cycle.cycle_id, cycle);
+    for (const entry of page.entries) {
+      executions.set(entry.metadata.execution_id, entry);
+    }
+    for (const cycle of page.cycles) {
+      cycles.set(cycle.cycle_id, cycle);
+    }
   }
   const groups = new Map<string, ExecutionBrowseEntry[]>();
   for (const entry of executions.values()) {
@@ -119,7 +122,9 @@ export function groupExecutions(pages: ExecutionBrowsePage[], saved: SavedCycleS
   const entries = [...groups].map(([key, entries]): ExploreEntry => {
     const cycleId = entries[0].metadata.cycle_id;
     const totals = cycleId === null ? undefined : cycles.get(cycleId);
-    if (!totals) throw new Error(`History.BrowseExecutions returned no totals for ${key}.`);
+    if (!totals) {
+      throw new Error(`Reload History: no totals were returned for ${key}.`);
+    }
     const target: ExploreTarget = { kind: "cycle", id: totals.cycle_id };
     const started = totals.started_at;
     const finished = totals.finished_at;
@@ -157,7 +162,11 @@ export function groupExecutions(pages: ExecutionBrowsePage[], saved: SavedCycleS
   const existing = new Set(entries.map((entry) => exploreEntryKey(entry.target)));
   for (const cycle of saved) {
     const target = { kind: "cycle" as const, id: cycle.cycle_id };
-    if (cycle.execution_count !== 0 || existing.has(exploreEntryKey(target))) continue;
+    const hasExecutions = cycle.execution_count !== 0;
+    const alreadyListed = existing.has(exploreEntryKey(target));
+    if (hasExecutions || alreadyListed) {
+      continue;
+    }
     existing.add(exploreEntryKey(target));
     entries.push({
       target,

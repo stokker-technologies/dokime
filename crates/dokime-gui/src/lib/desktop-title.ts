@@ -10,7 +10,7 @@
 /* === Local Imports === */
 
 import { commands } from "@/lib/desktop/commands";
-import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
+import { isTauriDesktop } from "@/lib/surface-environment";
 
 /* === Public Functions === */
 

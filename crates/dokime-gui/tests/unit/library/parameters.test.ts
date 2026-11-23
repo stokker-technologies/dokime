@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * dokime-rust-workspace
@@ -19,16 +20,15 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
 import { ParameterSchema, ValueType } from "@generated/host/model";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { test } from "vitest";
+import { render } from "@testing-library/svelte";
+import { onTestFinished, test } from "vitest";
 
 // Local Imports
 import { editorRow } from "@/components/parameter-editor/model";
-import { ParameterValueCell } from "@/components/parameter-editor/parameter-cells";
+import ParameterValueCell from "@/components/parameter-editor/ParameterValueCell.svelte";
 import { registeredParameterRaw } from "@/components/start-cycle-form-model";
-import { mapParameter } from "@dokime/document/lib/host/suites";
-import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
+import { mapParameter } from "@/lib/host/suites";
+import { jsonToNativeValue } from "@/lib/host/values";
 import { parseParameterInput } from "@/lib/parameter-parser";
 
 /* === Re-Exports === */
@@ -65,7 +65,9 @@ test.each([
   assert.equal(row.kind, "number");
   assert.ok(row.parsed.ok);
   assert.deepEqual(row.parsed.values.map(jsonToNativeValue), [{ kind }]);
-  const markup = renderToStaticMarkup(createElement(ParameterValueCell, { row, onChange: () => {} }));
+  const view = render(ParameterValueCell, { row, onChange: () => {} });
+  onTestFinished(() => view.unmount());
+  const markup = view.container.innerHTML;
   assert.match(markup, /type="number"/);
   assert.match(markup, /text-right/);
   assert.match(markup, /aria-hidden="true"[^>]*>s</);

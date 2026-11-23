@@ -54,15 +54,16 @@ type Reply = {
 /* === Entry Point === */
 
 test("Sparse Samples on Live and Frozen Canvas", async () => {
-  if (process.platform === "win32") assert.ok(existsSync(browserPath), "Chromium is available for canvas proof");
+  if (process.platform === "win32") {
+    assert.ok(existsSync(browserPath), "Chromium is available for canvas proof");
+  }
   const scratch = await mkdtemp(join(tmpdir(), "dokime-plot-canvas-"));
   let child: ReturnType<typeof spawn> | undefined;
   let closed: Promise<void> | undefined;
   let socket: WebSocket | undefined;
   try {
     await build({
-      configFile: resolve("../../packages/report/vite.config.ts"),
-      root: resolve("../../packages/report"),
+      configFile: resolve("vite.config.ts"),
       mode: "report",
       logLevel: "error",
       plugins: [
@@ -71,11 +72,11 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
           transformIndexHtml: {
             order: "pre",
             handler: () =>
-              '<!doctype html><html><body><div id="root" style="width:800px"></div><script type="module" src="/../../crates/dokime-gui/tests/integration/plots/canvas-fixture.tsx"></script></body></html>',
+              '<!doctype html><html><body><div id="root" style="width:800px"></div><script type="module" src="/tests/integration/plots/canvas-fixture.ts"></script></body></html>',
           },
         },
       ],
-      build: { outDir: join(scratch, "frozen"), rolldownOptions: { input: resolve("../../packages/report/report.html") } },
+      build: { outDir: join(scratch, "frozen") },
     });
     child = spawn(
       browserPath,
@@ -239,7 +240,9 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
             const result = await evaluate(`(async () => {
               await (async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })();
               const tooltip = document.querySelector('[role="tooltip"]');
-              if (!tooltip) return null;
+              if (!tooltip) {
+                return null;
+              }
               const box = tooltip.getBoundingClientRect();
               const card = tooltip.parentElement.getBoundingClientRect();
               const first = document.createRange();
@@ -301,6 +304,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     for (const dark of [false, true]) {
       for (const touch of [false, true]) {
         await evaluate(`window.canvasFixture.summaries(${dark}, ${touch})`);
+        assert.equal(await evaluate(`window.canvasFixture.counts()[0]`), 1);
         assert.deepEqual(
           await evaluate(
             `(() => [...document.querySelectorAll('[data-testid="contour-plot"]')].map(chart => ({bins:chart.querySelectorAll('rect[data-bin]').length,gaps:chart.querySelectorAll('rect[data-bin="1"],rect[data-bin="2"]').length})))()`,
@@ -385,7 +389,9 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);
     await command("Browser.close", {});
     connection.close();
-    if (browser.exitCode === null && browser.signalCode === null) browser.kill();
+    if (browser.exitCode === null && browser.signalCode === null) {
+      browser.kill();
+    }
     if (browser.exitCode === null && browser.signalCode === null)
       await once(browser, "exit", { signal: AbortSignal.timeout(30_000) }).catch((cause) => {
         throw new Error("Close Canvas Browser: Owned Process Did Not Exit", { cause });

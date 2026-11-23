@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { create } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 /* === Types === */
 
@@ -31,7 +31,7 @@ type RerunNoticeStore = {
 
 /* === Stores === */
 
-export const useRerunNoticeStore = create<RerunNoticeStore>()((set) => ({
+export const rerunNoticeStore = createStore<RerunNoticeStore>()((set) => ({
   notices: {},
   setRerunNotices: (cycleId, notices) => set((state) => ({ notices: { ...state.notices, [cycleId]: notices } })),
 }));

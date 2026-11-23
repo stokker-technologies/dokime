@@ -12,11 +12,11 @@
 /* === Local Imports === */
 
 import { commands } from "@/lib/desktop/commands";
-import type { ArtifactSource, Delivered, DeliveryAction, DesktopSaveKind } from "@dokime/document/lib/contracts/delivery";
-import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
+import type { ArtifactSource, Delivered, DeliveryAction, DesktopSaveKind } from "@/lib/contracts/delivery";
+import { isTauriDesktop } from "@/lib/surface-environment";
 import { normalizeDeliveryError } from "@/lib/rpc/errors";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import { NativeApiUnsupportedError } from "@dokime/plots/lib/api/native-values";
+import { NativeApiUnsupportedError } from "@/lib/api/native-values";
 
 /* === Types === */
 

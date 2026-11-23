@@ -39,6 +39,11 @@ operator questions, retries, cancellation, cleanup and report publication.
 
 The native desktop is back in the Cargo workspace and uses the execution host.
 Its product includes native installers and self-contained HTML reports.
+The desktop is a Svelte 5 application in `crates/dokime-gui`. Vite builds the desktop and frozen report as separate entries. The entries share Svelte components for document layout and evidence, including plots, tables, media, artifacts, and traceability.
+Captured document tables show all rows. The connected desktop provides plot settings and live viewport measurements.
+The Svelte report entry renders captured data locally and can open without a backend connection.
+
+The desktop uses plain Svelte tables for cycles, backends, history, templates, plugins, secrets, and storage sources. History follows backend continuations and displays all loaded rows in one table.
 See [GUI Guidance](docs/guides/gui.md) for host connections and controls.
 
 #### Examples

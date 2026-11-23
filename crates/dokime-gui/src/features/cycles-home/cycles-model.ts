@@ -12,11 +12,11 @@
 
 /* === Local Imports === */
 
-import { cycleState, type CycleState } from "@dokime/document/features/cycle/cycle-workspace-model";
-import type { PromptRequest } from "@dokime/plots/lib/types";
+import { cycleState, type CycleState } from "@/features/cycle/cycle-workspace-model";
+import type { PromptRequest } from "@/lib/types";
 import { CyclePhase, CycleStatus } from "@generated/host/model";
-import type { CycleSummary } from "@dokime/document/lib/api/native-planning-projection";
-import { mapCycleStatus } from "@dokime/document/lib/api/native-planning-projection";
+import type { CycleSummary } from "@/lib/api/native-planning-projection";
+import { mapCycleStatus } from "@/lib/api/native-planning-projection";
 
 /* === Constants === */
 
@@ -101,22 +101,15 @@ export function promptCountsByCycle(prompts: readonly PromptRequest[]): Map<stri
   const counts = new Map<string, number>();
   for (const prompt of prompts) {
     const cycleId = prompt.scope?.cycleId;
-    if (cycleId) counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
+    if (cycleId) {
+      counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
+    }
   }
   return counts;
 }
 
-/**
- * The three fixed groups, over the rows the server selected.
- *
- * Selection, the archive view and newest-first order are the server's:
- * this read asks for `filter.text`, `filter.archive` and `order UPDATED_AT
- * descending`, so the page cannot disagree with the pages after it and the
- * grouping does no filtering or sorting of its own. `filtered` is the one
- * thing the grouping cannot see from the rows: an empty Recent means "nothing
- * has been loaded" or "nothing matched", and those are different sentences.
- */
-export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[] {
+/** Group The Backend's Newest-First Cycle List For The Home Screen. */
+export function groupCycleRows(rows: CycleRow[]): CycleGroup[] {
   const attention = rows.filter((row) => row.attentionCount > 0 || row.status === "Blocked" || row.phase === "SealFailed");
   const attentionIds = new Set(attention.map((row) => row.cycleId));
   const active = rows.filter((row) => !attentionIds.has(row.cycleId) && row.phase !== "Sealed");
@@ -132,7 +125,7 @@ export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[]
     },
     { emptyText: "No Active Cycles", id: "active", rows: active, title: "Active" },
     {
-      emptyText: filtered ? "No Cycles Match This Filter" : "No Cycles Loaded Yet",
+      emptyText: "No Cycles Loaded Yet",
       id: "recent",
       rows: recent,
       title: "Recent",
@@ -141,10 +134,10 @@ export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[]
 }
 
 /** The Archived view: one group over the archived rows the server selected. */
-export function archivedCycleGroups(rows: CycleRow[], filtered = false): CycleGroup[] {
+export function archivedCycleGroups(rows: CycleRow[]): CycleGroup[] {
   return [
     {
-      emptyText: filtered ? "No Archived Cycles Match This Filter" : "No Archived Cycles",
+      emptyText: "No Archived Cycles",
       id: "archived",
       rows,
       title: "Archived",
@@ -192,7 +185,9 @@ function statePhase(cycle: CycleSummary): Parameters<typeof cycleState>[0] {
  */
 function sealedCases(cycle: CycleSummary): number {
   const result = cycle.result;
-  if (!result) return 0;
+  if (!result) {
+    return 0;
+  }
   return Math.min(
     Number(cycle.caseCount),
     result.passed + result.failed + result.blocked + result.notEvaluated + result.declared + result.skipped,

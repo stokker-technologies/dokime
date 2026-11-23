@@ -1,129 +1,72 @@
-/* ***
- *
- * Dokime
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
-
-/**
- * Host Firewall Notice And Explicit Action
- */
-
-/* === Imports === */
-
-// Standard Library Imports
+// @vitest-environment happy-dom
+// Dokime — SPDX-License-Identifier: Apache-2.0
 import assert from "node:assert/strict";
+import { QueryClient } from "@tanstack/svelte-query";
+import { act, fireEvent, render } from "@testing-library/svelte";
+import { beforeEach, onTestFinished, test, vi } from "vitest";
+import FirewallNotice from "@/features/settings/sections/FirewallNotice.svelte";
 
-// Third Party Imports
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, test, vi } from "vitest";
+const fixture = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
+beforeEach(() => fixture.invoke.mockReset());
 
-// Local Imports
-import { FirewallNotice } from "@/features/settings/sections/FirewallNotice";
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-const fixture = vi.hoisted(() => ({
-  result: { required: true, message: null as string | null },
-  invoke: vi.fn(),
-  refetch: vi.fn(),
-  click: null as (() => void) | null,
-  inspect: null as (() => Promise<unknown>) | null,
-  messages: [] as unknown[],
-  label: "Fixture Lab",
-}));
-
-vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => fixture.invoke(...args) }));
-vi.mock("@dokime/document/lib/brand", () => ({ useBrand: () => ({ label: fixture.label }) }));
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: ({ queryFn }: { queryFn: () => Promise<unknown> }) => {
-    fixture.inspect = queryFn;
-    return { data: fixture.result, refetch: fixture.refetch, error: null };
-  },
-}));
-vi.mock("react", async (original) => ({
-  ...(await original<typeof import("react")>()),
-  useState: (initial: unknown) => [initial, (value: unknown) => fixture.messages.push(value)],
-}));
-vi.mock("@dokime/plots/components/ui/button", () => ({
-  Button: ({ onClick }: { onClick: () => void }) => {
-    fixture.click = onClick;
-    return createElement("button", { onClick, type: "button" });
-  },
-}));
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  fixture.result = { required: true, message: null };
-  fixture.click = null;
-  fixture.inspect = null;
-  fixture.messages = [];
-});
+function showNotice(generation: string, enabled: boolean, listenerAddress?: string) {
+  const queryClient = new QueryClient();
+  const view = render(FirewallNotice, { generation, enabled, listenerAddress, label: "Fixture Lab", queryClient });
+  onTestFinished(() => {
+    view.unmount();
+    queryClient.clear();
+  });
+  return view;
+}
 
 test("Blocked Host Shows Its Brand and Only Elevates After the Operator Acts", async () => {
-  const html = renderToStaticMarkup(
-    createElement(FirewallNotice, { generation: "host-7", enabled: true, listenerAddress: "0.0.0.0:8765" }),
-  );
-  assert.ok(html.includes(fixture.label));
-  assert.match(html, /role="status"/);
-  assert.equal(fixture.invoke.mock.calls.length, 0);
-  assert.ok(fixture.inspect);
-  fixture.invoke.mockResolvedValueOnce(fixture.result);
-  await fixture.inspect();
+  fixture.invoke.mockResolvedValueOnce({ required: true, message: null });
+  const view = showNotice("host-7", true, "0.0.0.0:8765");
+  const action = await view.findByRole("button", { name: "Allow In Firewall…" });
+  assert.ok(view.getByRole("status").textContent?.includes("Fixture Lab"));
   assert.deepEqual(fixture.invoke.mock.calls, [["desktop_firewall", { generation: "host-7", allow: false }]]);
-  assert.ok(fixture.click);
+  fixture.invoke.mockResolvedValue({ required: false, message: null });
+  await fireEvent.click(action);
+  await view.findByText(/allows remote access/);
+  assert.deepEqual(fixture.invoke.mock.calls.slice(1), [
+    ["desktop_firewall", { generation: "host-7", allow: true }],
+    ["desktop_firewall", { generation: "host-7", allow: false }],
+  ]);
+});
+
+test("Allowed or Inactive Host Does Not Offer an Action", async () => {
   fixture.invoke.mockResolvedValueOnce({ required: false, message: null });
-  fixture.click();
-  await vi.waitFor(() => assert.equal(fixture.refetch.mock.calls.length, 1));
-  assert.deepEqual(fixture.invoke.mock.calls[1], ["desktop_firewall", { generation: "host-7", allow: true }]);
+  const view = showNotice("host-8", false);
+  await act();
+  assert.equal(view.queryByRole("button"), null);
+  assert.deepEqual(fixture.invoke.mock.calls, [["desktop_firewall", { generation: "host-8", allow: false }]]);
 });
 
-test("Allowed or Inactive Host Does Not Offer an Action", () => {
-  fixture.result.required = false;
-  const html = renderToStaticMarkup(createElement(FirewallNotice, { generation: "host-8", enabled: false }));
-  assert.equal(html, "");
-  assert.equal(fixture.click, null);
-  assert.equal(fixture.invoke.mock.calls.length, 0);
-});
-
-test("Served Network Details", () => {
-  fixture.result.message = "Cable Ethernet (Unidentified network, Public network)";
-  const html = renderToStaticMarkup(
-    createElement(FirewallNotice, { generation: "host-public", enabled: true, listenerAddress: "0.0.0.0:8765" }),
-  );
-  assert.ok(html.includes(fixture.result.message));
-  assert.ok(fixture.click);
-  assert.equal(fixture.invoke.mock.calls.length, 0);
+test("Served Network Details", async () => {
+  const message = "Cable Ethernet (Unidentified network, Public network)";
+  fixture.invoke.mockResolvedValueOnce({ required: true, message });
+  const view = showNotice("host-public", true, "0.0.0.0:8765");
+  assert.ok(await view.findByText(message));
+  assert.ok(view.getByRole("button"));
+  assert.deepEqual(fixture.invoke.mock.calls, [["desktop_firewall", { generation: "host-public", allow: false }]]);
 });
 
 test("Cancelled Elevation Leaves Nonfatal Feedback Without Reporting Success", async () => {
-  renderToStaticMarkup(createElement(FirewallNotice, { generation: "host-9", enabled: true, listenerAddress: "[::]:8765" }));
+  fixture.invoke.mockResolvedValueOnce({ required: true, message: null });
+  const view = showNotice("host-9", true, "[::]:8765");
+  const action = await view.findByRole("button", { name: "Allow In Firewall…" });
   fixture.invoke.mockRejectedValueOnce(new Error("cancelled"));
-  assert.ok(fixture.click);
-  fixture.click();
-  await vi.waitFor(() => assert.ok(fixture.messages.some((value) => typeof value === "string" && value.length > 0)));
-  assert.equal(fixture.refetch.mock.calls.length, 0);
+  await fireEvent.click(action);
+  assert.ok(await view.findByText(/Windows Firewall was not changed/));
+  assert.equal(fixture.invoke.mock.calls.length, 2);
 });
 
-test("Skipped Cleanup Is Visible Without Offering Elevation", () => {
-  fixture.result = { required: false, message: "fixture-cleanup-skipped" };
-  const html = renderToStaticMarkup(createElement(FirewallNotice, { generation: "host-10", enabled: false }));
-  assert.match(html, /role="status"/);
-  assert.equal(fixture.click, null);
-  assert.equal(fixture.invoke.mock.calls.length, 0);
+test("Skipped Cleanup Is Visible Without Offering Elevation", async () => {
+  const message = "fixture-cleanup-skipped";
+  fixture.invoke.mockResolvedValueOnce({ required: false, message });
+  const view = showNotice("host-10", false);
+  assert.equal(await view.findByRole("status"), view.getByText(message));
+  assert.equal(view.queryByRole("button"), null);
+  assert.deepEqual(fixture.invoke.mock.calls, [["desktop_firewall", { generation: "host-10", allow: false }]]);
 });
-
-/* === Private Functions === */
-
-/* === Entry Point === */

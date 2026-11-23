@@ -21,15 +21,15 @@
 
 import { documentsGet, plotsSettingsGet, plotsSettingsSet } from "@/lib/host/client";
 
-import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
+import { cutKey, required } from "@/lib/rpc/canonical";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
-import type { DocumentDownsampleTechnique } from "@dokime/plots/lib/types";
+import type { DocumentDownsampleTechnique } from "@/lib/types";
 
 import { Downsample } from "@generated/host/model";
 
-import { assembleDocument, sameFrontiers, type CompletedDocument } from "@dokime/document/lib/api/native-documents";
+import { assembleDocument, sameFrontiers, type CompletedDocument } from "@/lib/api/native-documents";
 
 /* === Re-Exports === */
 

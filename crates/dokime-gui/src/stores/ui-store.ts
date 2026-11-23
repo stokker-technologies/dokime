@@ -1,0 +1,232 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === External Imports === */
+
+import { z } from "zod";
+import { createStore } from "zustand/vanilla";
+import { createJSONStorage, persist } from "zustand/middleware";
+
+/* === Local Imports === */
+
+import { isTauriDesktop } from "../lib/surface-environment";
+import type { DensityPreference } from "../lib/theme";
+import type { ConsoleLevel, ConsoleScope } from "../shell/console-view-model";
+
+/* === Types === */
+
+export type ConsoleState = {
+  /**
+   * Keep the newest row in view. Scrolling up releases it for the session;
+   * never persisted, so every window starts on the tail.
+   */
+  follow: boolean;
+  /** Drawer height in pixels, dragged by the operator. */
+  height: number;
+  level: ConsoleLevel;
+  /** Wall-clock ms the drawer was last opened; the badge counts from here. */
+  lastOpenedAt: number;
+  open: boolean;
+  scope: ConsoleScope;
+};
+
+type UiStoreState = {
+  console: ConsoleState;
+  cycleSummaryCardBusy: boolean;
+  cycleSummaryCardDescription: string;
+  cycleSummaryCardDialogOpen: boolean;
+  cycleSummaryCardMarkdown: string;
+  cycleSummaryCardTitle: string;
+  clearDialogOpen: boolean;
+  clearingCycle: boolean;
+  density: DensityPreference;
+  /** The open cycle the Library adds cases to; checked against the open cycles on every read. */
+  activeCycleId: string | null;
+  /** Whether the active cycle picker is open; one picker serves the shell and the template dialog. */
+  activeCyclePickerOpen: boolean;
+  leftRailCollapsed: boolean;
+  noteText: string;
+  rightRailCollapsed: boolean;
+  railCollapseMode: "auto" | "manual";
+  /**
+   * The contextual sidebar's collapsed state, one answer per density.
+   *
+   * A tablet operator and a desk operator are the same person with different
+   * room: the choice made at one density must not follow them to the other.
+   */
+  sidebarCollapsed: Partial<Record<DensityPreference, boolean>>;
+  sidebarWidth: number;
+  showAdvancedSettings: boolean;
+  themeFamily: string | null;
+  traceabilityLocation: string;
+  traceabilityLocationDraft: string;
+};
+
+type UiStore = UiStoreState & {
+  setConsoleState: (patch: Partial<ConsoleState>) => void;
+  resetUiStore: () => void;
+  setUiState: (patch: Partial<UiStoreState>) => void;
+};
+
+/* === Constants === */
+
+export const INITIAL_CONSOLE_STATE: ConsoleState = {
+  follow: true,
+  height: 240,
+  lastOpenedAt: 0,
+  level: "info",
+  open: false,
+  scope: "cycle",
+};
+
+const initialUiStoreState: UiStoreState = {
+  console: INITIAL_CONSOLE_STATE,
+  cycleSummaryCardBusy: false,
+  cycleSummaryCardDescription: "",
+  cycleSummaryCardDialogOpen: false,
+  cycleSummaryCardMarkdown: "",
+  cycleSummaryCardTitle: "Cycle Summary Note",
+  clearDialogOpen: false,
+  clearingCycle: false,
+  density: "comfortable",
+  activeCycleId: null,
+  activeCyclePickerOpen: false,
+  leftRailCollapsed: false,
+  noteText: "",
+  rightRailCollapsed: false,
+  railCollapseMode: "auto",
+  sidebarCollapsed: {},
+  sidebarWidth: 256,
+  showAdvancedSettings: false,
+  themeFamily: null,
+  traceabilityLocation: "",
+  traceabilityLocationDraft: "",
+};
+
+const persistedConsoleSchema = z
+  .object({
+    height: z.number().min(120).max(900).catch(INITIAL_CONSOLE_STATE.height),
+    level: z.enum(["trace", "debug", "info", "warning", "error"]).catch(INITIAL_CONSOLE_STATE.level),
+    scope: z.enum(["instance", "cycle", "execution"]).catch(INITIAL_CONSOLE_STATE.scope),
+  })
+  .catch({
+    height: INITIAL_CONSOLE_STATE.height,
+    level: INITIAL_CONSOLE_STATE.level,
+    scope: INITIAL_CONSOLE_STATE.scope,
+  });
+
+const persistedUiStateSchema = z.object({
+  console: persistedConsoleSchema.default({
+    height: INITIAL_CONSOLE_STATE.height,
+    level: INITIAL_CONSOLE_STATE.level,
+    scope: INITIAL_CONSOLE_STATE.scope,
+  }),
+  density: z.enum(["comfortable", "compact", "touch"]).catch("comfortable"),
+  activeCycleId: z.string().min(1).nullable().catch(null).default(null),
+  sidebarWidth: z.number().min(200).max(360).catch(256).default(256),
+  sidebarCollapsed: z
+    .object({
+      comfortable: z.boolean().optional(),
+      compact: z.boolean().optional(),
+      touch: z.boolean().optional(),
+    })
+    .catch({})
+    .default({}),
+  showAdvancedSettings: z.boolean().catch(false),
+  themeFamily: z.string().nullable().optional(),
+});
+
+/* === Private Functions === */
+
+/** Under Tauri the WebView copy is a sidebar-only sidecar of the store's key. */
+function storageKey(name: string): string {
+  return isTauriDesktop() ? `${name}.sidebar` : name;
+}
+
+/* === Public Functions === */
+
+export const uiStore = createStore<UiStore>()(
+  persist(
+    (set) => ({
+      ...initialUiStoreState,
+      setConsoleState: (patch) => set((state) => ({ console: { ...state.console, ...patch } })),
+      resetUiStore: () =>
+        set((state) => ({
+          ...initialUiStoreState,
+          density: state.density,
+          showAdvancedSettings: state.showAdvancedSettings,
+          themeFamily: state.themeFamily,
+        })),
+      setUiState: (patch) => set((state) => ({ ...state, ...patch })),
+    }),
+    {
+      merge: (persisted, current) => {
+        const parsed = persistedUiStateSchema.safeParse((persisted as { density?: unknown; theme?: unknown }) ?? {});
+        if (!parsed.success) {
+          return current;
+        }
+        // Desktop settings own density and the theme family under Tauri, so a
+        // stale local copy must not win the first frame. The sidebar has no
+        // backend home, so its collapsed state is restored on both surfaces.
+        const desktop = isTauriDesktop();
+        return {
+          ...current,
+          console: { ...INITIAL_CONSOLE_STATE, ...parsed.data.console },
+          density: desktop ? current.density : parsed.data.density,
+          activeCycleId: parsed.data.activeCycleId,
+          sidebarCollapsed: parsed.data.sidebarCollapsed,
+          sidebarWidth: parsed.data.sidebarWidth,
+          showAdvancedSettings: parsed.data.showAdvancedSettings,
+          themeFamily: desktop ? current.themeFamily : (parsed.data.themeFamily ?? null),
+        };
+      },
+      name: "dokime-test-hub.ui",
+      partialize: (state) => ({
+        console: {
+          height: state.console.height,
+          level: state.console.level,
+          scope: state.console.scope,
+        },
+        density: state.density,
+        activeCycleId: state.activeCycleId,
+        sidebarCollapsed: state.sidebarCollapsed,
+        sidebarWidth: state.sidebarWidth,
+        showAdvancedSettings: state.showAdvancedSettings,
+        themeFamily: state.themeFamily,
+      }),
+      /* Desktop settings own density and the theme family, so under Tauri the
+         WebView keeps only what has no backend home: the sidebar, the
+         console drawer's geometry and the active cycle. In a browser
+         there is no other home for any of it, so the whole slice is kept. */
+      storage: createJSONStorage(() => ({
+        getItem: (name) => window.localStorage.getItem(storageKey(name)),
+        removeItem: (name) => window.localStorage.removeItem(storageKey(name)),
+        setItem: (name, value) => {
+          if (!isTauriDesktop()) {
+            window.localStorage.setItem(name, value);
+            return;
+          }
+          const state = (JSON.parse(value) as { state?: UiStoreState }).state;
+          window.localStorage.setItem(
+            storageKey(name),
+            JSON.stringify({
+              state: {
+                console: state?.console ?? INITIAL_CONSOLE_STATE,
+                activeCycleId: state?.activeCycleId ?? null,
+                sidebarCollapsed: state?.sidebarCollapsed ?? {},
+                sidebarWidth: state?.sidebarWidth ?? 256,
+                showAdvancedSettings: state?.showAdvancedSettings ?? false,
+              },
+            }),
+          );
+        },
+      })),
+    },
+  ),
+);

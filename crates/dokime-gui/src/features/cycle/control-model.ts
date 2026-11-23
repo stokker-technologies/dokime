@@ -30,13 +30,9 @@
 // Third Party Imports
 
 // Local Imports
-import type { TestCycle, TestExecution } from "@dokime/plots/lib/types";
+import type { TestCycle, TestExecution } from "@/lib/types";
 import type { RerunNotices } from "@/stores/rerun-notice-store";
-import {
-  executionStatusLabel,
-  isTerminalExecutionStatus,
-  isUnstartedExecution,
-} from "@dokime/document/features/cycle/cycle-workspace-model";
+import { executionStatusLabel, isTerminalExecutionStatus, isUnstartedExecution } from "@/features/cycle/cycle-workspace-model";
 
 /* === Re-Exports === */
 
@@ -92,6 +88,13 @@ export type CycleControlInput = {
 /* === Classes === */
 
 /* === Public Functions === */
+
+/** The Count, Preceded By The Phase When The Runtime Reports One. */
+export function progressCount({ completed, phase, total }: { completed: number; phase: string; total: number }): string {
+  const count = `${completed}/${total}`;
+  const label = phase.trim();
+  return label ? `${label} ${count}` : count;
+}
 
 /**
  * The runtime owns finalization. Completed records cover only completed steps,

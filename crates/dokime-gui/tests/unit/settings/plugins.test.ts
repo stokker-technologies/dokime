@@ -19,24 +19,23 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { beforeEach, onTestFinished, test, vi } from "vitest";
+import { type ComponentProps, tick } from "svelte";
 import { create } from "@bufbuild/protobuf";
-import { act, createElement, isValidElement, type ComponentProps, type ReactNode } from "react";
-import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
-import type * as contracts from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient } from "@tanstack/svelte-query";
+import { fireEvent, render, within } from "@testing-library/svelte";
+import type { ConnectedSession } from "@/app/native-session/session";
+import InstalledPluginDetailView from "@/features/settings/installed-plugins/InstalledPluginDetail.svelte";
+import type { InstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 
 // Local Imports
-import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
-import { PluginSettingsSurface } from "@/features/settings/PluginSettingsSurface";
-import { PluginList, statusPresentation } from "@/features/settings/plugins/PluginList";
-import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
-import { bundleSettingsPage, programRows } from "@/features/settings/plugins/PluginPrograms";
+import PluginSettingsSurface from "@/features/settings/PluginSettingsSurface.svelte";
+import { statusPresentation } from "@/features/settings/plugins/plugin-rows";
+import PluginTable from "@/features/settings/plugins/PluginTable.svelte";
+import { bundleSettingsPage, programRows } from "@/features/settings/plugins/plugin-programs";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { startNotification } from "@/features/settings/plugins/plugin-queries";
-import { SecretsSection } from "@/features/settings/sections/SecretsSection";
+import { pluginQueryKeys, startNotification } from "@/features/settings/plugins/plugin-queries";
+import SecretsSection from "@/features/settings/sections/SecretsSection.svelte";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
-import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
 import { FailureSchema, PluginEntrySchema, PluginState, SettingDeclarationSchema } from "@generated/host/model";
 import { formatPluginSetting, parsePluginSetting, readPluginSetting } from "@/lib/api/native-settings";
 
@@ -45,23 +44,16 @@ import { formatPluginSetting, parsePluginSetting, readPluginSetting } from "@/li
 /* === Constants === */
 
 const fixture = vi.hoisted(() => ({
-  admitted: vi.fn(),
-  installed: vi.fn(),
   settings: vi.fn(),
   save: vi.fn(),
   detail: vi.fn(),
   installations: vi.fn(),
-  captureAdding: false,
-  capturedAdding: false,
-  adding: null as string | null,
-  buttons: [] as (() => void)[],
-  hash: "",
-  navigate: vi.fn(),
+  readSecrets: vi.fn(),
   reload: vi.fn(),
-  actions: new Map<string, () => void>(),
-  rows: [] as PluginTableRow[],
 }));
 const session = { generation: "1", isCurrent: () => true };
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const connected = { identity: session, queryClient } as unknown as ConnectedSession;
 const entry: ManagedPlugin = create(PluginEntrySchema, {
   name: "bench",
   revision: new Uint8Array([1]),
@@ -71,101 +63,54 @@ const entry: ManagedPlugin = create(PluginEntrySchema, {
   failure: create(FailureSchema, { message: "activation-refused" }),
 });
 
-vi.mock("react", async (original) => {
-  const react = await original<typeof import("react")>();
-  return {
-    ...react,
-    useState: (initial: unknown) => {
-      const state = react.useState(initial);
-      if (fixture.captureAdding && initial === null && !fixture.capturedAdding) {
-        fixture.capturedAdding = true;
-        return [
-          fixture.adding,
-          (value: string | null) => {
-            fixture.adding = value;
-          },
-        ];
-      }
-      return state;
-    },
-  };
-});
-vi.mock("@dokime/plots/components/ui/button", () => ({
-  Button: ({ onClick, ...props }: ComponentProps<"button">) => {
-    if (onClick && !props.disabled && props.children !== "Copy") {
-      fixture.buttons.push(() => onClick({} as never));
-    }
-    if (onClick && !props.disabled && props["aria-label"]) {
-      fixture.actions.set(props["aria-label"], () => onClick({} as never));
-    }
-    return createElement("button", { type: "button", ...props });
-  },
-}));
-vi.mock("@/features/settings/plugins/PluginTable", () => ({
-  PluginTable: ({ rows }: { rows: PluginTableRow[] }) => {
-    fixture.rows = rows;
-    return createElement(
-      "div",
-      null,
-      rows.map((row) => createElement("div", { key: row.key }, row.trailing)),
-    );
-  },
-}));
-vi.mock("@/lib/api/native-plugins", () => ({ listNativeAdmittedPlugins: fixture.admitted, listNativePlugins: fixture.installed }));
 vi.mock("@/lib/api/native-settings", async (original) => ({
   ...(await original<typeof import("@/lib/api/native-settings")>()),
   getNativePluginSettings: fixture.settings,
 }));
-vi.mock("@/lib/api/native-secrets", () => ({ readSecrets: vi.fn(), putSecret: vi.fn(), removeSecret: vi.fn() }));
-vi.mock("@/features/settings/sections/SecretTransfer", () => ({ SecretTransfer: () => null }));
-vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => ({ identity: session }) }));
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: { entries: [], generation: 1n, hostLabel: "Fixture", hostId: "fixture" }, isFetching: false }),
-  useQueryClient: () => ({}),
+vi.mock("@/lib/api/native-secrets", () => ({
+  readSecrets: fixture.readSecrets,
+  putSecret: vi.fn(),
+  removeSecret: vi.fn(),
+  exportSecrets: vi.fn(),
+  importSecrets: vi.fn(),
+  pickSecretArchive: vi.fn(),
+  previewSecrets: vi.fn(),
 }));
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, params, hash, children }: { to: string; params: { section: string }; hash?: string; children: ReactNode }) =>
-    createElement("a", { href: `${to.replace("$section", params.section)}${hash ? `#${hash}` : ""}` }, children),
-  useLocation: () => fixture.hash,
-  useNavigate: () => fixture.navigate,
+vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", async (original) => ({
+  ...(await original<typeof import("@/features/settings/installed-plugins/installed-plugin-queries")>()),
+  installedPluginDetailsOptions: (_session: ConnectedSession, pluginId: string) => ({
+    enabled: Boolean(pluginId),
+    queryKey: ["settings", "installed-plugins", "detail", session.generation, pluginId],
+    queryFn: async () => {
+      const result = fixture.detail(pluginId);
+      if (result.isError) {
+        throw result.error;
+      }
+      return result.data;
+    },
+  }),
+  installedPluginSettingsOptions: () => ({ mutationFn: (input: unknown) => fixture.save(input) }),
 }));
-vi.mock("@dokime/plots/components/ui/dialog", () => ({
-  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) => (open ? children : null),
-  DialogContent: ({ children }: { children: ReactNode }) => createElement("div", { role: "dialog" }, children),
-  DialogHeader: ({ children }: { children: ReactNode }) => children,
-  DialogTitle: ({ children }: { children: ReactNode }) => children,
-  DialogDescription: ({ children }: { children: ReactNode }) => children,
-  DialogFooter: ({ children }: { children: ReactNode }) => children,
-}));
-vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
-  useInstalledPluginDetailQuery: fixture.detail,
-  useInstalledPluginSettingsMutation: () => ({ mutateAsync: fixture.save }),
-  useInstalledPluginSecretMutation: () => ({ mutateAsync: vi.fn() }),
-  usePluginRestartRefresh: vi.fn(),
+vi.mock("@/features/settings/settings-queries", async (original) => ({
+  ...(await original<typeof import("@/features/settings/settings-queries")>()),
+  settingsFrameQueryOptions: () => ({ queryKey: ["settings", "frame"], queryFn: async () => ({ sections: [], cards: [] }) }),
 }));
 vi.mock("@/features/settings/plugins/plugin-queries", async (original) => ({
   ...(await original<typeof import("@/features/settings/plugins/plugin-queries")>()),
-  usePluginsQuery: fixture.installations,
-  useReloadPluginMutation: () => ({ mutate: fixture.reload, isPending: false, isError: false }),
+  pluginsListQueryOptions: () => ({
+    queryKey: ["settings", "plugins", "list", session.generation],
+    queryFn: async () => fixture.installations().data,
+  }),
+  reloadPluginOptions: () => ({ mutationFn: fixture.reload }),
 }));
-vi.mock("@/features/settings/use-settings-sections", () => ({ useSettingsSections: () => ({ frame: { sections: [], cards: [] } }) }));
-vi.mock("@/features/settings/SettingsSurface", () => ({ SettingsAdvancedSwitch: () => null }));
-vi.mock("@/features/settings/PluginSettingsCards", () => ({ PluginSettingsCards: () => null }));
-vi.mock("@dokime/document/shell/page-chrome", () => ({ usePageChrome: vi.fn() }));
-vi.mock("@dokime/document/lib/brand", () => ({ useBrand: () => ({ label: "Fixture" }) }));
-vi.mock("@dokime/document/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
+vi.mock("@/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fixture.captureAdding = false;
-  fixture.capturedAdding = false;
-  fixture.adding = null;
-  fixture.buttons.length = 0;
-  fixture.actions.clear();
-  fixture.hash = "";
+  queryClient.clear();
+  fixture.readSecrets.mockResolvedValue({ entries: [], generation: 1n, hostLabel: "Fixture", hostId: "fixture" });
   fixture.save.mockResolvedValue(undefined);
-  fixture.admitted.mockResolvedValue([]);
-  fixture.installed.mockResolvedValue([entry]);
+  fixture.installations.mockReturnValue({ data: [] });
   fixture.detail.mockImplementation((pluginId: string) => ({
     data: {
       plugin_id: pluginId,
@@ -197,55 +142,40 @@ beforeEach(() => {
   });
 });
 
+function showPluginSettings() {
+  const view = render(PluginSettingsSurface, { pluginId: entry.name, session: connected, label: "Fixture" });
+  onTestFinished(() => view.unmount());
+  return view;
+}
+
 test("Inactive Entry Keeps Its Settings Navigation", () => {
   assert.equal(bundleSettingsPage(entry, [], null), entry.name);
   assert.equal(bundleSettingsPage({ ...entry, value: { enabled: false } }, [], null), entry.name);
 });
 
 test("Entry Settings Remain Available After Activation Failure", async () => {
-  const plugin = { plugin_id: entry.name, label: entry.name, status: "failed", error: entry.failure?.message };
-  fixture.admitted.mockResolvedValue([plugin]);
-  const detail = await getInstalledPluginDetail(session, entry.name);
+  fixture.installations.mockReturnValue({ data: [entry] });
+  const queries = await vi.importActual<typeof import("@/features/settings/installed-plugins/installed-plugin-queries")>(
+    "@/features/settings/installed-plugins/installed-plugin-queries",
+  );
+  const detail = await queries.installedPluginDetailsOptions(connected, entry.name, "fixture").queryFn();
   assert.equal(detail?.plugin_id, entry.name);
   assert.equal(detail?.error, entry.failure?.message);
   assert.deepEqual(detail?.values, { address: "corrected" });
   assert.deepEqual(fixture.settings.mock.calls, [[session, entry.name]]);
-  assert.equal(await getInstalledPluginDetail(session, "unknown"), null);
+  assert.equal(await queries.installedPluginDetailsOptions(connected, "unknown", "fixture").queryFn(), null);
 });
 
-test("Failed Forms Keep Their Controls Editable", () => {
+test("Failed Forms Keep Their Controls Editable", async () => {
   fixture.installations.mockReturnValue({ data: [entry] });
-  fixture.detail.mockImplementation((pluginId: string) => ({
-    data: {
-      plugin_id: pluginId,
-      label: pluginId,
-      version: "1.0.0",
-      runtime: "code",
-      status: "failed",
-      error: null,
-      settings: {
-        contributions: [
-          {
-            kind: "setting",
-            declaration: create(SettingDeclarationSchema, {
-              name: "address",
-              title: "Address",
-              default: { value: { case: "text", value: "" } },
-            }),
-          },
-        ],
-      },
-      values: { address: "corrected" },
-      secrets: [],
-    },
-  }));
-  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
+  const view = showPluginSettings();
+  await view.findByRole("textbox", { name: "Address" });
   assert.deepEqual(
     fixture.detail.mock.calls.map(([id]) => id),
     [entry.name],
   );
-  assert.equal((html.match(/<input/g) ?? []).length, 1);
-  assert.equal(html.includes("disabled="), false);
+  assert.equal(view.container.querySelectorAll("input").length, 1);
+  assert.equal(view.container.querySelector("[disabled]"), null);
 });
 
 test("Entry States Follow Current Activation and Enablement", () => {
@@ -256,6 +186,24 @@ test("Entry States Follow Current Activation and Enablement", () => {
   assert.notEqual(startNotification(entry), null);
 });
 
+function showPluginEntries(entries: ManagedPlugin[], props: Partial<ComponentProps<typeof PluginTable>> = {}) {
+  const view = render(PluginTable, {
+    entries,
+    generation: session.generation,
+    reloading: false,
+    removingId: null,
+    changingEnabled: false,
+    onReload: fixture.reload,
+    onRemove: vi.fn(),
+    onSetEnabled: vi.fn(),
+    openSettings: vi.fn(),
+    settingsSectionOf: () => null,
+    ...props,
+  });
+  onTestFinished(() => view.unmount());
+  return view;
+}
+
 test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
   const managed = create(PluginEntrySchema, { ...entry, name: "equipment" });
   const registered: ManagedPlugin = create(PluginEntrySchema, {
@@ -264,19 +212,13 @@ test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
     value: { enabled: true },
     placement: { kind: { case: "remote", value: { url: "http://127.0.0.1:1" } } },
   });
-  renderToStaticMarkup(
-    createElement(PluginList, {
-      entries: [managed, registered],
-      onRemove: vi.fn(),
-      onOpenSettings: vi.fn(),
-      removingId: null,
-      onSetEnabled: vi.fn(),
-      changingEnabled: false,
-      settingsSectionOf: () => null,
-    }),
-  );
+  const view = showPluginEntries([managed, registered]);
   assert.deepEqual(
-    fixture.rows.map((row) => [row.key, row.placement, row.status]),
+    [...view.container.querySelectorAll<HTMLTableRowElement>("tr[data-row-id]")].map((row) => [
+      row.dataset.rowId,
+      row.cells[2].textContent?.trim(),
+      row.cells[1].textContent?.trim(),
+    ]),
     [
       ["equipment", "Managed", "Failed"],
       ["bench", "Unmanaged", "Offline"],
@@ -286,51 +228,30 @@ test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
   assert.deepEqual(programRows([program], [registered], null), []);
 });
 
-test("Failed Entry Actions Address Its Persisted Name", () => {
+test("Failed Entry Actions Address Its Persisted Name", async () => {
   const remove = vi.fn();
   const enabled = vi.fn();
-  renderToStaticMarkup(
-    createElement(PluginList, {
-      entries: [entry],
-      onRemove: remove,
-      onOpenSettings: vi.fn(),
-      removingId: null,
-      onSetEnabled: enabled,
-      changingEnabled: false,
-      settingsSectionOf: () => entry.name,
-    }),
-  );
-  fixture.actions.get(`Delete ${entry.name}`)?.();
-  fixture.actions.get(`Reload ${entry.name}`)?.();
-  fixture.rows[0].enabled?.onChange(false);
+  const view = showPluginEntries([entry], { onRemove: remove, onSetEnabled: enabled, settingsSectionOf: () => entry.name });
+  await fireEvent.click(view.getByRole("button", { name: `Delete ${entry.name}` }));
+  await fireEvent.click(view.getByRole("button", { name: `Reload ${entry.name}` }));
+  await fireEvent.click(view.getByRole("switch", { name: `Disable ${entry.name}` }));
   assert.deepEqual(remove.mock.calls, [[entry]]);
   assert.deepEqual(fixture.reload.mock.calls, [[entry.name]]);
   assert.deepEqual(enabled.mock.calls, [[entry, false]]);
 });
 
 test("Failed Entry Retains Its Failure Without a Root Message", () => {
-  const failed = { ...entry, failure: create(FailureSchema, { code: "bench_refused", action: "bench_action" }) };
-  renderToStaticMarkup(
-    createElement(PluginList, {
-      entries: [failed],
-      onRemove: vi.fn(),
-      onOpenSettings: vi.fn(),
-      removingId: null,
-      onSetEnabled: vi.fn(),
-      changingEnabled: false,
-      settingsSectionOf: () => failed.name,
-    }),
-  );
-  const alert = fixture.rows[0].alert;
-  assert.ok(isValidElement<{ failure: NotificationFailure }>(alert));
-  assert.equal(alert.props.failure.plugin, failed.name);
-  assert.equal(alert.props.failure.reason, failed.failure.code);
-  const html = renderToStaticMarkup(alert);
-  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
+  const failed = { ...entry, failure: create(FailureSchema, { code: "fixture_refused", action: "fixture_action" }) };
+  const view = showPluginEntries([failed], { settingsSectionOf: () => failed.name });
+  const alert = view.getByRole("alert");
+  assert.equal(view.getAllByRole("alert").length, 1);
+  const technical = alert.querySelector("details pre")?.textContent;
+  assert.ok(technical?.includes(`Plugin: ${failed.name}`));
+  assert.ok(technical?.includes(`Code: ${failed.failure.code}`));
 });
 
-test("Declared Secret Add", () => {
-  const detail: contracts.InstalledPluginDetail = {
+test("Declared Secret Add", async () => {
+  const detail: InstalledPluginDetail = {
     plugin_id: "equipment.main",
     owner: null,
     label: "Equipment",
@@ -351,74 +272,74 @@ test("Declared Secret Add", () => {
       { identifier: "optional", available: true },
     ],
   };
-  const render = () => {
-    fixture.capturedAdding = false;
-    return renderToStaticMarkup(createElement(InstalledPluginDetail, { detail, onSaveSettings: async () => {} }));
-  };
-  fixture.captureAdding = true;
-  const initial = render();
-  assert.ok(initial.includes("api_token"));
-  assert.equal(initial.includes('type="password"'), false);
-  assert.equal(fixture.buttons.length, 1);
-  fixture.buttons[0]();
-  const opened = render();
-  assert.ok(opened.includes('role="dialog"'));
-  assert.ok(opened.includes('value="api_token"'));
-  assert.ok(opened.includes('type="password"'));
+  const view = render(InstalledPluginDetailView, { detail, session: connected, brandLabel: "Fixture", onSaveSettings: async () => {} });
+  onTestFinished(() => view.unmount());
+  assert.ok(view.getByText("api_token", { exact: true }));
+  assert.equal(view.container.querySelector('input[type="password"]'), null);
+  const add = view.getAllByRole("button", { name: "Add in Secret Storage" });
+  assert.equal(add.length, 1);
+  await fireEvent.click(add[0]);
+  const dialog = within(await view.findByRole("dialog", { name: "Add Secret" }));
+  const identifier = await dialog.findByLabelText("Identifier");
+  assert.ok(identifier instanceof HTMLInputElement);
+  assert.equal(identifier.value, "api_token");
+  assert.equal(dialog.getByLabelText("Value").getAttribute("type"), "password");
 });
 
-test("Missing Secret Action", () => {
-  fixture.hash = "add-secret=api_token";
-  const html = renderToStaticMarkup(createElement(SecretsSection));
-  assert.ok(html.includes('role="dialog"'));
-  assert.ok(html.includes('value="api_token"'));
-  assert.ok(html.includes('type="password"'));
-  fixture.hash = "";
-  const ordinary = renderToStaticMarkup(createElement(SecretsSection));
-  assert.equal(ordinary.includes('role="dialog"'), false);
+test("Missing Secret Action", async () => {
+  const clearHash = vi.fn();
+  const view = render(SecretsSection, { session: connected, hash: "add-secret=api_token", clearHash });
+  onTestFinished(() => view.unmount());
+  const dialog = within(await view.findByRole("dialog", { name: "Add Secret" }));
+  const identifier = dialog.getByLabelText("Identifier");
+  assert.ok(identifier instanceof HTMLInputElement);
+  assert.equal(identifier.value, "api_token");
+  assert.equal(dialog.getByLabelText("Value").getAttribute("type"), "password");
+  assert.equal(clearHash.mock.calls.length, 1);
+  await view.rerender({ hash: "" });
+  await fireEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+  assert.equal(view.queryByRole("dialog"), null);
 });
 
-test("Undescribed Plugin Waits Without Requesting Settings", () => {
-  fixture.installations.mockReturnValue({ data: [{ ...entry, failure: undefined, state: PluginState.CONNECTING }] });
-  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
-  assert.ok(html.includes('role="status"'));
-  assert.ok(!html.includes('role="alert"'));
+test("Undescribed Plugin Waits Without Requesting Settings", async () => {
+  const installation = { ...entry, failure: undefined, state: PluginState.CONNECTING };
+  queryClient.setQueryData(pluginQueryKeys.list(session.generation), [installation]);
+  queryClient.setQueryData(["settings", "frame"], { sections: [], cards: [] });
+  fixture.installations.mockReturnValue({ data: [installation] });
+  const view = showPluginSettings();
+  assert.ok(view.getByRole("status"));
+  assert.equal(view.queryByRole("alert"), null);
+  assert.equal(view.queryByRole("button", { name: "Reload" }), null);
   assert.equal(fixture.detail.mock.calls.length, 0);
 });
 
-test("Independent Failed Section Occupies Its Content Slot", () => {
+test("Independent Failed Section Occupies Its Content Slot", async () => {
   fixture.installations.mockReturnValue({
     data: [{ ...entry, failure: undefined, description: { id: "bench" }, state: PluginState.READY }],
   });
-  fixture.detail.mockReturnValue({ isError: true, error: new Error("bench_section"), refetch: vi.fn() });
-  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
-  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
-  assert.ok(html.includes("bench_section"));
+  const refusal = new Error("fixture-section");
+  fixture.detail.mockReturnValue({ isError: true, error: refusal });
+  const view = showPluginSettings();
+  const alert = await view.findByRole("alert");
+  assert.equal(view.getAllByRole("alert").length, 1);
+  assert.ok(alert.textContent?.includes(refusal.message));
 });
 
 test("Failed Plugin Settings Save the Corrected Value", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.useFakeTimers();
   fixture.installations.mockReturnValue({ data: [entry] });
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-  });
-  await act(async () => root.render(createElement(PluginSettingsSurface, { pluginId: entry.name })));
-  const input = host.querySelector("input");
-  assert.ok(input);
+  const view = showPluginSettings();
+  const input = await view.findByRole("textbox", { name: "Address" });
+  assert.ok(input instanceof HTMLInputElement);
   assert.equal(input.disabled, false);
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "repaired-address");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await act(async () => vi.advanceTimersByTimeAsync(100));
-  assert.deepEqual(fixture.save.mock.calls, [[{ pluginId: entry.name, values: { address: "repaired-address" } }]]);
+  vi.useFakeTimers();
+  try {
+    await fireEvent.input(input, { target: { value: "repaired-address" } });
+    await vi.advanceTimersByTimeAsync(100);
+    await tick();
+    assert.deepEqual(fixture.save.mock.calls, [[{ pluginId: entry.name, values: { address: "repaired-address" } }]]);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("Durations Format Compact Units and Parse Them Without Losing Nanoseconds", () => {

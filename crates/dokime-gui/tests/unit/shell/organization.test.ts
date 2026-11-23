@@ -20,13 +20,13 @@ import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
 
 // Local Imports
-import { brandFromLogos, selectLogo, type Brand } from "@dokime/document/lib/brand";
+import { brandFromLogos, selectLogo, type Brand } from "@/lib/brand";
 import { loadAppearance } from "@/lib/rpc/appearance";
 import { LogoVariant } from "@generated/host/model";
-import type { RuntimeThemeFamily } from "@dokime/document/lib/appearance";
-import { applyBrandFavicon } from "@dokime/document/lib/favicon";
-import { materializeThemeFamilyVariables } from "@dokime/document/lib/theme-family";
-import { applyReportAppearance } from "@dokime/report/report-appearance";
+import type { RuntimeThemeFamily } from "@/lib/types/appearance";
+import { applyBrandFavicon } from "@/lib/favicon";
+import { materializeThemeFamilyVariables } from "@/lib/theme-family";
+import { applyReportAppearance } from "@/report/report-appearance";
 
 /* === Re-Exports === */
 

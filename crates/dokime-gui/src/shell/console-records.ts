@@ -15,135 +15,126 @@
  */
 
 /* === External Imports === */
-import { failureOf } from "@dokime/plots/lib/notification-details";
-import { toast } from "@dokime/plots/lib/notifications";
-import { useCallback, useEffect } from "react";
-import { useStore } from "zustand";
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
-import { useNativeSessionOptional } from "@/app/native-session/context";
+import type { SessionIdentity } from "@/lib/rpc/transport";
 import { openTraceStream, NativeTraceHistoryExpired, type TraceLevel } from "@/lib/api/native-logs";
 import { normalizeRpcError } from "@/lib/rpc/errors";
-import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "@dokime/document/shell/console-buffer";
+import { consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "@/shell/console-buffer";
 
 /* === Constants === */
 
 const GUI_CONSOLE_RECONNECT_MAX_MS = 30_000;
 const GUI_RECONNECT_MS = 1_000;
 
-/* === Hooks === */
-export function useConsoleRecords({
-  cycleId,
-  enabled,
-  executionId,
-  level,
-}: {
-  cycleId: string | null;
-  enabled: boolean;
-  executionId: string | null;
-  level: TraceLevel;
-}): ConsoleRecords {
-  const session = useNativeSessionOptional();
-  const generation = session?.identity.generation ?? null;
+/* === Public Functions === */
+
+export function observeConsoleRecords(
+  identity: SessionIdentity,
+  { cycleId, executionId, level }: { cycleId: string | null; executionId: string | null; level: TraceLevel },
+): () => void {
   const key = consoleBufferKey({ cycleId, executionId, level });
-  const buffer = useStore(consoleRecordsStore, (state) => state.buffers.get(key) ?? EMPTY_CONSOLE_BUFFER);
+  const store = consoleRecordsStore.getState;
+  store().bindSession(identity.generation);
+  const held = store().buffers.get(key) ?? EMPTY_CONSOLE_BUFFER;
+  let active = true;
+  let retry: number | undefined;
+  let stream: Awaited<ReturnType<typeof openTraceStream>> | undefined;
+  let afterSequence = held.afterSequence;
+  let epoch = held.epoch;
+  let reconnectDelay = GUI_RECONNECT_MS;
+  let streamDropped = 0n;
 
-  useEffect(() => {
-    consoleRecordsStore.getState().bindSession(generation);
-  }, [generation]);
-
-  useEffect(() => {
-    if (!enabled || !session) return undefined;
-    const store = consoleRecordsStore.getState;
-    store().bindSession(session.identity.generation);
-    const held = store().buffers.get(key) ?? EMPTY_CONSOLE_BUFFER;
-    let active = true;
-    let retry: number | undefined;
-    let stream: Awaited<ReturnType<typeof openTraceStream>> | undefined;
-    let afterSequence = held.afterSequence;
-    let epoch = held.epoch;
-    let reconnectDelay = GUI_RECONNECT_MS;
-    let streamDropped = 0n;
-
-    const connect = async () => {
-      if (!active || !session.identity.isCurrent()) return;
-      let reconnect = true;
-      try {
-        const opened = await openTraceStream(session.identity, {
-          cycleId,
-          executionId,
-          minLevel: level,
-          afterSequence,
-          epoch,
-        });
-        if (!active || !session.identity.isCurrent()) {
-          await opened.cancel();
-          return;
-        }
-        stream = opened;
-        streamDropped = 0n;
-        for await (const page of opened) {
-          if (!active || !session.identity.isCurrent()) break;
-          afterSequence = page.nextSequence;
-          epoch = page.epoch;
-          streamDropped = page.dropped;
-          reconnectDelay = GUI_RECONNECT_MS;
-          store().receive(key, page, streamDropped);
-        }
-        if (active) store().setError(key, "Trace stream ended; reconnecting.");
-      } catch (failure) {
-        if (!active || !session.identity.isCurrent()) return;
-        const code = grpcCode(failure);
-        const record = failureOf(normalizeRpcError(failure), "Trace Stream Failed");
-        toast.error(record, { context: "background" });
-        const cause = record.message;
-        if (code === 11 || failure instanceof NativeTraceHistoryExpired) {
-          afterSequence = 0n;
-          epoch = undefined;
-          streamDropped = 0n;
-          store().rewind(key);
-          store().setError(key, `Trace history expired; replaying retained events. ${cause}`, record);
-        } else if (code === 12 || unavailable(failure)) {
-          reconnect = false;
-          store().setError(key, `Tracing is not available for this connection. ${cause}`, record);
-        } else if (code === 3 || code === 7 || code === 16 || code === 8) {
-          reconnect = false;
-          store().setError(key, `Trace subscription was refused by the backend. ${cause}`, record);
-        } else {
-          store().setError(key, `Trace stream unavailable; reconnecting. ${cause}`, record);
-        }
-      } finally {
-        const closing = stream;
-        stream = undefined;
-        await closing?.cancel().catch(() => undefined);
-        if (reconnect && active && session.identity.isCurrent()) {
-          retry = window.setTimeout(() => void connect(), reconnectDelay);
-          reconnectDelay = Math.min(GUI_CONSOLE_RECONNECT_MAX_MS, reconnectDelay * 2);
-        }
+  const connect = async () => {
+    if (!active || !identity.isCurrent()) {
+      return;
+    }
+    let reconnect = true;
+    try {
+      const opened = await openTraceStream(identity, {
+        cycleId,
+        executionId,
+        minLevel: level,
+        afterSequence,
+        epoch,
+      });
+      if (!active || !identity.isCurrent()) {
+        await opened.cancel();
+        return;
       }
-    };
-    void connect();
-    return () => {
-      active = false;
-      if (retry !== undefined) window.clearTimeout(retry);
-      void stream?.cancel().catch(() => undefined);
-    };
-  }, [cycleId, enabled, executionId, key, level, session]);
-
-  const clear = useCallback(() => consoleRecordsStore.getState().clear(key), [key]);
-
-  return { clear, dropped: buffer.dropped, error: buffer.error, failure: buffer.failure, records: buffer.records };
+      stream = opened;
+      streamDropped = 0n;
+      for await (const page of opened) {
+        if (!active || !identity.isCurrent()) {
+          break;
+        }
+        afterSequence = page.nextSequence;
+        epoch = page.epoch;
+        streamDropped = page.dropped;
+        reconnectDelay = GUI_RECONNECT_MS;
+        store().receive(key, page, streamDropped);
+      }
+      if (active) {
+        store().setError(key, "Trace stream ended; reconnecting.");
+      }
+    } catch (failure) {
+      if (!active || !identity.isCurrent()) {
+        return;
+      }
+      const code = grpcCode(failure);
+      const record = failureOf(normalizeRpcError(failure), "Trace Stream Failed");
+      toast.error(record, { context: "background" });
+      const cause = record.message;
+      if (code === 11 || failure instanceof NativeTraceHistoryExpired) {
+        afterSequence = 0n;
+        epoch = undefined;
+        streamDropped = 0n;
+        store().rewind(key);
+        store().setError(key, `Trace history expired; replaying retained events. ${cause}`, record);
+      } else if (code === 12 || unavailable(failure)) {
+        reconnect = false;
+        store().setError(key, `Tracing is not available for this connection. ${cause}`, record);
+      } else if (code === 3 || code === 7 || code === 16 || code === 8) {
+        reconnect = false;
+        store().setError(key, `Trace subscription was refused by the backend. ${cause}`, record);
+      } else {
+        store().setError(key, `Trace stream unavailable; reconnecting. ${cause}`, record);
+      }
+    } finally {
+      const closing = stream;
+      stream = undefined;
+      await closing?.cancel().catch(() => undefined);
+      if (reconnect && active && identity.isCurrent()) {
+        retry = window.setTimeout(() => void connect(), reconnectDelay);
+        reconnectDelay = Math.min(GUI_CONSOLE_RECONNECT_MAX_MS, reconnectDelay * 2);
+      }
+    }
+  };
+  void connect();
+  return () => {
+    active = false;
+    if (retry !== undefined) {
+      window.clearTimeout(retry);
+    }
+    void stream?.cancel().catch(() => undefined);
+  };
 }
 
 /* === Private Functions === */
 function grpcCode(error: unknown): number | undefined {
-  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "grpc" || !("detail" in error)) return undefined;
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "grpc" || !("detail" in error)) {
+    return undefined;
+  }
   const detail = error.detail;
   return detail && typeof detail === "object" && "code" in detail && typeof detail.code === "number" ? detail.code : undefined;
 }
 
 function unavailable(error: unknown): boolean {
-  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "session" || !("detail" in error)) return false;
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "session" || !("detail" in error)) {
+    return false;
+  }
   const detail = error.detail;
   return (
     !!detail &&

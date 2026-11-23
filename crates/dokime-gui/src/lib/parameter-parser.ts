@@ -7,12 +7,12 @@
  * ***
  */
 
-import { NativeIntegerValue, NativeNumberValue, parseNativeInteger, reviveNativeValues } from "@dokime/plots/lib/api/native-values";
-import { numericValue } from "@dokime/plots/lib/utils";
+import { NativeIntegerValue, NativeNumberValue, parseNativeInteger, reviveNativeValues } from "@/lib/api/native-values";
+import { numericValue } from "@/lib/utils";
 
 /* === Types === */
 
-import type { ParameterDefinition, ParameterListDefinition } from "@dokime/plots/lib/types";
+import type { ParameterDefinition, ParameterListDefinition } from "@/lib/types";
 
 export type ParseResult = { ok: true; values: unknown[] } | { ok: false; error: string };
 

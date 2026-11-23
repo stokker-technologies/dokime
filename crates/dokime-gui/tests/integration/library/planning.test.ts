@@ -29,18 +29,17 @@ import {
   SuiteSchema,
   ValueType,
 } from "@generated/host/model";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationObserver, QueryClient } from "@tanstack/svelte-query";
+import { fireEvent, render, waitFor } from "@testing-library/svelte";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { TooltipProvider } from "@dokime/plots/components/ui/tooltip";
+import type { ConnectedSession } from "@/app/native-session/session";
 import type { OpenCycle } from "@/features/library/active-cycle-model";
-import { TemplateDialog } from "@/features/library/TemplateDialog";
+import TemplateDialog from "@/features/library/TemplateDialog.svelte";
 import { previewNativeTestCycle } from "@/lib/api/native-planning";
-import { mapSuite } from "@dokime/document/lib/host/suites";
+import { mapSuite } from "@/lib/host/suites";
 
 /* === Re-Exports === */
 
@@ -48,30 +47,36 @@ import { mapSuite } from "@dokime/document/lib/host/suites";
 
 const boundary = vi.hoisted(() => ({ unary: vi.fn(), preview: vi.fn(), append: vi.fn(), closed: vi.fn() }));
 vi.mock("@/lib/rpc/transport", () => ({ unary: boundary.unary }));
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
-vi.mock("@/app/native-session/context", () => ({
-  useNativeSession: () => ({ identity: { generation: "planning", isCurrent: () => true } }),
-  useNativeSessionOptional: () => null,
-}));
 vi.mock("@/components/suite-picker/server-state", () => ({
-  usePreviewTestCycleMutation: () => ({ mutateAsync: boundary.preview }),
-  useAppendTestCycleMutation: () => ({ mutateAsync: boundary.append }),
+  previewTestCycleOptions: () => ({ mutationFn: (request: unknown) => boundary.preview(request) }),
+  appendTestCycleOptions: () => ({ mutationFn: (request: unknown) => boundary.append(request) }),
 }));
-vi.mock("@/components/artifact-upload-mutation", () => ({ useOperatorArtifactUploadMutation: () => ({ mutateAsync: vi.fn() }) }));
-vi.mock("@dokime/plots/lib/notifications", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@dokime/plots/lib/notifications")>();
+vi.mock("@/components/artifact-upload-mutation", () => ({ operatorArtifactUploadOptions: () => ({ mutationFn: vi.fn() }) }));
+vi.mock("@/lib/notifications", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/notifications")>();
   return { ...actual, toast: { ...actual.toast, success: vi.fn() } };
 });
 vi.mock("@/stores/parameter-overrides-store", () => ({
-  useParameterOverridesStatus: () => ({ ready: true, error: null }),
-  useParameterOverridesStore: (select: (state: unknown) => unknown) =>
-    select({
+  parameterOverridesStatus: {
+    getState: () => ({ ready: true, error: null }),
+    subscribe: () => () => {},
+  },
+  parameterOverridesStore: {
+    getState: () => ({
       overrides: {},
       setParameterOverride: vi.fn(),
       resetParameterOverride: vi.fn(),
       clearTemplateOverrides: vi.fn(),
     }),
+    subscribe: () => () => {},
+  },
 }));
+
+const identity = { generation: "planning", isCurrent: () => true };
+
+function sessionFor(queryClient: QueryClient): ConnectedSession {
+  return { identity, queryClient } as ConnectedSession;
+}
 
 /* === Types === */
 
@@ -139,7 +144,7 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
   });
   boundary.preview.mockImplementation((request) => previewNativeTestCycle({ generation: "1", isCurrent: () => true }, request));
   boundary.append.mockResolvedValue(create(ExecutionsCreateResponseSchema));
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, indexedDB: new IDBFactory(), IDBKeyRange });
+  Object.assign(globalThis, { indexedDB: new IDBFactory(), IDBKeyRange });
   const activeCycle: OpenCycle = {
     attentionCount: 0,
     caseCount: 0,
@@ -157,29 +162,20 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
     updatedAtIso: null,
     updatedAtMs: null,
   };
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
+  const client = new QueryClient();
+  const dialog = render(TemplateDialog, {
+    activeCycle,
+    hasOpenCycles: true,
+    onChangeCycle: () => {},
+    onNewCycle: () => {},
+    onOpenChange: boundary.closed,
+    openCycle: () => {},
+    open: true,
+    session: sessionFor(client),
+    suite,
+    template: suite.members[0],
+  });
   try {
-    // Open the Actual Dialog and Leave Every Field Untouched
-    await act(async () =>
-      root.render(
-        createElement(
-          TooltipProvider,
-          null,
-          createElement(TemplateDialog, {
-            activeCycle,
-            hasOpenCycles: true,
-            onChangeCycle: () => {},
-            onNewCycle: () => {},
-            onOpenChange: boundary.closed,
-            open: true,
-            suite,
-            template: suite.members[0],
-          }),
-        ),
-      ),
-    );
     const input = document.querySelector<HTMLInputElement>('[data-testid="parameter-input-iterations"]');
     assert.ok(input);
     assert.equal(input.type, "number");
@@ -188,16 +184,10 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
     assert.equal(input.max, "65536");
     assert.equal(input.step, "1");
     if (raw !== undefined) {
-      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-      assert.ok(setValue);
-      await act(async () => {
-        setValue.call(input, raw);
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      });
+      await fireEvent.input(input, { target: { value: raw } });
     }
-    const next = Array.from(document.querySelectorAll("button")).find((button) => button.textContent === "Next");
-    assert.ok(next);
+    const next = dialog.getByRole("button", { name: "Next" });
+    assert.ok(next instanceof HTMLButtonElement);
     if (raw === "0") {
       assert.equal(next.disabled, true);
       assert.equal(boundary.preview.mock.calls.length, 0);
@@ -206,7 +196,8 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
     assert.equal(next.disabled, false);
 
     // Plan Through the Native Adapter and Complete the Single-Case Transaction
-    await act(async () => next.click());
+    await fireEvent.click(next);
+    await waitFor(() => assert.equal(boundary.unary.mock.calls.length, 1));
     assert.deepEqual(
       boundary.unary.mock.calls.map(([path]) => path),
       ["/dokime.host.v1.Cases/Create"],
@@ -220,21 +211,21 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
     );
     if (raw !== undefined) {
       assert.equal(boundary.append.mock.calls.length, 0);
-      const finish = document.querySelector<HTMLButtonElement>('[data-testid="template-add"]');
-      assert.ok(finish);
-      await act(async () => finish.click());
+      const finish = await dialog.findByRole("button", { name: "Finish and Add" });
+      await fireEvent.click(finish);
     }
+    await waitFor(() => assert.equal(boundary.closed.mock.calls.length, 1));
     assert.equal(boundary.append.mock.calls.length, 1);
     assert.deepEqual(boundary.closed.mock.calls, [[false]]);
   } finally {
-    await act(async () => root.unmount());
-    container.remove();
+    dialog.unmount();
+    client.clear();
   }
 });
 
 test("Append Returns the Admission Without Rebuilding the Cycle or Refreshing the Catalog", async () => {
   vi.clearAllMocks();
-  const { useAppendTestCycleMutation } = await vi.importActual<typeof import("@/components/suite-picker/server-state")>(
+  const { appendTestCycleOptions } = await vi.importActual<typeof import("@/components/suite-picker/server-state")>(
     "@/components/suite-picker/server-state",
   );
   const client = new QueryClient();
@@ -260,21 +251,9 @@ test("Append Returns the Admission Without Rebuilding the Cycle or Refreshing th
     });
     return admission;
   });
-  let append: ReturnType<typeof useAppendTestCycleMutation>["mutateAsync"] | undefined;
-  function Append() {
-    append = useAppendTestCycleMutation().mutateAsync;
-    return null;
-  }
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
+  const append = new MutationObserver(client, appendTestCycleOptions(sessionFor(client)));
   try {
-    await act(async () => root.render(createElement(QueryClientProvider, { client }, createElement(Append))));
-    let reply: unknown;
-    await act(async () => {
-      assert.ok(append);
-      reply = await append({ cycleId: "cycle", selections: [{ suite_id: "suite", template_id: "template", parameters: {} }] });
-    });
+    const reply = await append.mutate({ cycleId: "cycle", selections: [{ suite_id: "suite", template_id: "template", parameters: {} }] });
     assert.strictEqual(reply, admission);
     assert.deepEqual(
       boundary.unary.mock.calls.map(([path]) => path),
@@ -286,8 +265,6 @@ test("Append Returns the Admission Without Rebuilding the Cycle or Refreshing th
       false,
     );
   } finally {
-    await act(async () => root.unmount());
-    container.remove();
     client.clear();
   }
 });

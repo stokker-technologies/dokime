@@ -19,7 +19,7 @@ import { beforeEach, test, vi } from "vitest";
 // Local Imports
 import { TraceabilityGetResponseSchema } from "@generated/host/model";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
-import { required, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import { required, type Wire } from "@/lib/rpc/canonical";
 
 /* === Re-Exports === */
 

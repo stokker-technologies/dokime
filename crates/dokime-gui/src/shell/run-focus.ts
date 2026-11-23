@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import type { TestExecution, TestCyclePlan } from "@dokime/plots/lib/types";
+import type { TestExecution, TestCyclePlan } from "@/lib/types";
 
 /* === Re-Exports === */
 
@@ -33,9 +33,13 @@ export type RunFocus = { cycleLabel: string; executionLabel: string; execution: 
 export function activeRunFocus(details: readonly { plan: TestCyclePlan | null; executions: TestExecution[] }[]): RunFocus[] {
   const active: RunFocus[] = [];
   for (const { plan, executions } of details) {
-    if (!plan) continue;
+    if (!plan) {
+      continue;
+    }
     for (const execution of executions) {
-      if (!["running", "waiting_for_prompt", "finalizing"].includes(execution.status)) continue;
+      if (!["running", "waiting_for_prompt", "finalizing"].includes(execution.status)) {
+        continue;
+      }
       const owner = plan.cases.find((item) => item.case_id === execution.case_id);
       const template = plan.templates.find((item) => item.template_id === execution.template_id);
       const total = template?.steps.length ?? 0;
@@ -62,19 +66,20 @@ export function activeRunFocus(details: readonly { plan: TestCyclePlan | null; e
       b.execution.test_execution_id.localeCompare(a.execution.test_execution_id),
   );
 }
-export function elapsedMinutes(startedAt: string | null | undefined, now: number): number | null {
-  const start = Date.parse(startedAt ?? "");
-  return Number.isFinite(start) ? Math.max(0, Math.floor((now - start) / 60000)) : null;
-}
-export function runElapsed(minutes: number | null): string {
-  if (minutes === null) return "";
+export function runElapsed(elapsedS: number | null): string {
+  if (elapsedS === null) {
+    return "";
+  }
+  const minutes = Math.floor(elapsedS / 60);
   const days = Math.floor(minutes / 1440);
   const hours = Math.floor((minutes % 1440) / 60);
   return `${days}d ${hours}h ${minutes % 60}m`;
 }
 export function runDestination(focus: readonly RunFocus[]) {
   const first = focus[0];
-  if (!first) return null;
+  if (!first) {
+    return null;
+  }
   return focus.length > 1
     ? { to: "/cycles" as const, hash: "active" }
     : {

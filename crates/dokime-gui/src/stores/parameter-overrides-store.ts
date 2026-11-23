@@ -12,20 +12,20 @@
 
 /* === External Imports === */
 
-import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import type { NotificationFailure } from "@/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { z } from "zod";
-import { create } from "zustand";
+import { createStore } from "zustand/vanilla";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
-import { toast } from "@dokime/plots/lib/notifications";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
 import { commands } from "@/lib/desktop/commands";
 import type { ParameterOverrides } from "@/lib/desktop/settings";
-import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
-import type { ParameterDefinition } from "@dokime/plots/lib/types";
-import { isReportBuild } from "@dokime/document/lib/ui-mode";
+import { isTauriDesktop } from "@/lib/surface-environment";
+import type { ParameterDefinition } from "@/lib/types";
+import { isReportBuild } from "@/lib/ui-mode";
 
 /* === Constants === */
 
@@ -62,7 +62,7 @@ type ParameterOverridesStore = ParameterOverridesStoreState & {
 let pending: ParameterOverrides | null = null;
 let writing: Promise<void> | null = null;
 
-export const useParameterOverridesStatus = create<{ ready: boolean; error: NotificationFailure | null }>(() => ({
+export const parameterOverridesStatus = createStore<{ ready: boolean; error: NotificationFailure | null }>(() => ({
   ready: false,
   error: null,
 }));
@@ -77,7 +77,7 @@ export function readPersistedParameterOverrides(value: unknown): ParameterOverri
   return persistedParameterOverridesSchema.parse(value).overrides;
 }
 
-export const useParameterOverridesStore = create<ParameterOverridesStore>()(
+export const parameterOverridesStore = createStore<ParameterOverridesStore>()(
   persist(
     (set) => ({
       ...initialParameterOverridesState,
@@ -139,9 +139,9 @@ export const useParameterOverridesStore = create<ParameterOverridesStore>()(
       partialize: (state) => ({ overrides: state.overrides }),
       storage: createJSONStorage(parameterStorage),
       onRehydrateStorage: () => {
-        useParameterOverridesStatus.setState({ ready: false, error: null });
+        parameterOverridesStatus.setState({ ready: false, error: null });
         return (_state, error) => {
-          useParameterOverridesStatus.setState({
+          parameterOverridesStatus.setState({
             ready: !error,
             error: error ? failureOf(error, "Remembered Parameters Unavailable") : null,
           });
@@ -184,12 +184,12 @@ function parameterStorage(): StateStorage {
     return {
       getItem: (name) => window.localStorage.getItem(name),
       setItem: (name, value) => {
-        if (useParameterOverridesStatus.getState().ready) {
+        if (parameterOverridesStatus.getState().ready) {
           window.localStorage.setItem(name, value);
         }
       },
       removeItem: (name) => {
-        if (useParameterOverridesStatus.getState().ready) {
+        if (parameterOverridesStatus.getState().ready) {
           window.localStorage.removeItem(name);
         }
       },
@@ -205,13 +205,13 @@ function parameterStorage(): StateStorage {
       return JSON.stringify({ state: { overrides: values }, version: 1 });
     },
     setItem: (_name, payload) => {
-      if (!useParameterOverridesStatus.getState().ready) {
+      if (!parameterOverridesStatus.getState().ready) {
         return;
       }
       return writeDesktop(readPersistedParameterOverrides(JSON.parse(payload).state));
     },
     removeItem: () => {
-      if (!useParameterOverridesStatus.getState().ready) {
+      if (!parameterOverridesStatus.getState().ready) {
         return;
       }
       return writeDesktop({});

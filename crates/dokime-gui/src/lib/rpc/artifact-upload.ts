@@ -8,8 +8,8 @@ import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/p
 
 import { type ArtifactMetadata, ArtifactMetadataSchema } from "@generated/host/model";
 import { ArtifactsCreateRequestSchema } from "@generated/host/model";
-import type { RpcError } from "@dokime/document/lib/contracts/rpc";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { RpcError } from "@/lib/contracts/rpc";
+import type { Wire } from "@/lib/rpc/canonical";
 import { normalizeRpcError } from "./errors";
 import { invokeOwned, requestBytes, responseBytes } from "./ipc";
 import type { SessionIdentity } from "./transport";

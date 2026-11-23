@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -13,9 +14,8 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { test } from "vitest";
+import { render } from "@testing-library/svelte";
+import { onTestFinished, test } from "vitest";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { SuiteSchema } from "@generated/host/model";
 
@@ -24,16 +24,18 @@ import { ValueType } from "@generated/host/model";
 // Local Imports
 import { type EditorParameterRow, editorProblems, editorRow } from "@/components/parameter-editor/model";
 import { titleCaseIdentifier } from "@/components/start-cycle-form-model";
-import { artifactLabel } from "@dokime/document/lib/dashboard";
-import type { FileDefinition, ParameterDefinition } from "@dokime/plots/lib/types";
+import { artifactLabel } from "@/lib/dashboard";
+import type { FileDefinition, ParameterDefinition } from "@/lib/types";
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
-import { ActiveCycleInline, ActiveCyclePickerList, ActiveCycleSummary } from "@/features/library/ActiveCycle";
+import ActiveCycleInline from "@/features/library/ActiveCycleInline.svelte";
+import ActiveCyclePickerList from "@/features/library/ActiveCyclePickerList.svelte";
+import ActiveCycleSummary from "@/features/library/ActiveCycleSummary.svelte";
 import { openCycles, resolveActiveCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
-import type { TestCycleSelection } from "@dokime/plots/lib/types";
-import type { SuiteTemplateEntry } from "@dokime/plots/lib/types";
-import { TemplateProcedure } from "@/features/library/TemplateDialog";
-import { mapSuite as mapHostSuite } from "@dokime/document/lib/host/suites";
+import type { TestCycleSelection } from "@/lib/types";
+import type { SuiteTemplateEntry } from "@/lib/types";
+import TemplateProcedure from "@/features/library/TemplateProcedure.svelte";
+import { mapSuite } from "@/lib/host/suites";
 
 /* === Re-Exports === */
 
@@ -96,7 +98,9 @@ test("Procedure Preview Uses Registered Step Order Without Mutating the Catalog"
       { step_id: "first", method_name: "first", order: 1 },
     ],
   } as SuiteTemplateEntry;
-  const markup = renderToStaticMarkup(createElement(TemplateProcedure, { template }));
+  const view = render(TemplateProcedure, { template });
+  onTestFinished(() => view.unmount());
+  const markup = view.container.innerHTML;
   assert.deepEqual(
     [...markup.matchAll(/data-step-id="([^"]+)"/g)].map((step) => step[1]),
     ["first", "second"],
@@ -105,7 +109,9 @@ test("Procedure Preview Uses Registered Step Order Without Mutating the Catalog"
     template.steps.map((step) => step.step_id),
     ["second", "first"],
   );
-  assert.equal(renderToStaticMarkup(createElement(TemplateProcedure, { template: { ...template, steps: [] } })), "");
+  const empty = render(TemplateProcedure, { template: { ...template, steps: [] } });
+  onTestFinished(() => empty.unmount());
+  assert.equal(empty.container.querySelector("section"), null);
 });
 
 test("Template Problems Keep Each Field and Its Validation Cause", () => {
@@ -186,41 +192,55 @@ test("Active Cycle", () => {
   assert.equal(resolveActiveCycle("missing", cycles), null);
   assert.equal(resolveActiveCycle(null, cycles), null);
 
-  // The Shell Element States Name, Short Identifier and State
-  const element = text(renderToStaticMarkup(createElement(ActiveCycleSummary, { cycle: cycles[0] })));
-  assert.match(element, /^Bench Cycle 0f3a91c2 .*Active · Running$/);
+  // The Shell Element States Name, Short Identifier And State.
+  const summary = render(ActiveCycleSummary, { cycle: cycles[0] });
+  const pill = summary.container.querySelector('[data-slot="badge"]:not([aria-hidden])');
+  assert.equal(pill?.textContent, cycles[0].statusLabel);
+  assert.ok(summary.container.textContent?.includes(cycles[0].label));
+  assert.ok(summary.container.textContent?.includes(cycles[0].shortId));
+  summary.unmount();
 
-  // The Picker Lists Every Open Cycle on One Grid, Marks the Active One, and Searches
-  const list = (search: string) =>
-    renderToStaticMarkup(
-      createElement(ActiveCyclePickerList, {
-        activeId: cycles[1].cycleId,
-        cycles,
-        loading: false,
-        onChoose: () => {},
-        onNewCycle: () => {},
-        onSearch: () => {},
-        search,
-      }),
-    );
-  const all = list("");
-  assert.match(all, /grid-cols-subgrid/);
-  for (const heading of ["Cycle", "State", "Created", "Identifier", "Members"]) assert.ok(text(all).includes(heading), heading);
-  assert.ok(text(all).includes("Bench Cycle") && text(all).includes("Night Cycle") && !text(all).includes("Sealed Cycle"));
-  assert.ok(text(all).includes("3 Cases"));
-  assert.match(all, /aria-pressed="true"[^>]*>(?:(?!<\/button>).)*Night Cycle/);
-  assert.ok(text(all).includes("New Cycle"));
-  assert.ok(!text(list("c40e")).includes("Bench Cycle"), "search matches the identifier");
-  assert.ok(text(list("nothing")).includes("No Open Cycle Matches This Search"));
+  // The Picker Lists Open Cycles, Marks The Active One And Searches Identifiers.
+  const actions = { onChoose: () => {}, onNewCycle: () => {}, onSearch: () => {} };
+  const props = { activeId: cycles[1].cycleId, cycles, loading: false, ...actions };
+  const list = render(ActiveCyclePickerList, { ...props, search: "" });
+  const grid = list.getByTestId("open-cycles");
+  assert.deepEqual(
+    [...grid.firstElementChild!.children].map((column) => column.textContent),
+    ["Cycle", "State", "Created", "Identifier", "Members"],
+  );
+  assert.equal(grid.querySelectorAll("button.grid-cols-subgrid").length, 2);
+  for (const cycle of cycles) {
+    const row = list.getByRole("button", { name: new RegExp(cycle.label) });
+    assert.equal(row.getAttribute("aria-pressed"), String(cycle.cycleId === props.activeId));
+    assert.ok(row.textContent?.includes("3 Cases"));
+  }
+  assert.equal(list.queryByRole("button", { name: /Sealed Cycle/ }), null);
+  assert.ok(list.getByRole("button", { name: "New Cycle" }));
+  list.unmount();
 
-  // The Template Dialog Names the Active Cycle with Change
-  const inline = (cycle: (typeof cycles)[number] | null, hasOpenCycles: boolean) =>
-    text(renderToStaticMarkup(createElement(ActiveCycleInline, { cycle, hasOpenCycles, onChange: () => {}, onNewCycle: () => {} })));
-  assert.match(inline(cycles[1], true), /^Active Cycle Night Cycle c40e8a57 .*Change$/);
+  const filtered = render(ActiveCyclePickerList, { ...props, search: "c40e" });
+  assert.equal(filtered.queryByRole("button", { name: /Bench Cycle/ }), null);
+  assert.ok(filtered.getByRole("button", { name: /Night Cycle/ }));
+  filtered.unmount();
 
-  // Open Cycles Without A Choice Ask For One; Only No Open Cycle Blocks
-  assert.equal(inline(null, true), `Active Cycle ${NO_CHOSEN_CYCLE} Choose`);
-  assert.equal(inline(null, false), `Active Cycle ${NO_ACTIVE_CYCLE} New Cycle`);
+  const empty = render(ActiveCyclePickerList, { ...props, search: "nothing" });
+  assert.equal(empty.queryByTestId("open-cycles"), null);
+  assert.ok(empty.getByRole("status"));
+  empty.unmount();
+
+  // Open Cycles Without A Choice Ask For One; An Empty List Offers Creation.
+  for (const [cycle, hasOpenCycles, label, message] of [
+    [cycles[1], true, "Change", cycles[1].shortId],
+    [null, true, "Choose", NO_CHOSEN_CYCLE],
+    [null, false, "New Cycle", NO_ACTIVE_CYCLE],
+  ] as const) {
+    const inline = render(ActiveCycleInline, { cycle, hasOpenCycles, onChange: () => {}, onNewCycle: () => {} });
+    const status = inline.getByRole("status");
+    assert.ok(status.textContent?.includes(message));
+    assert.equal(inline.getByRole("button", { name: label }).closest('[role="status"]'), status);
+    inline.unmount();
+  }
 });
 
 test("Generated Identifier and Artifact Labels Respect Word Positions", () => {
@@ -289,7 +309,7 @@ test("Canonical Host Catalog Preserves Typed Parameters and Exclusive Ranges", (
     ],
   });
   const suite = fromBinary(SuiteSchema, toBinary(SuiteSchema, definition));
-  const projected = mapHostSuite(suite);
+  const projected = mapSuite(suite);
   const [range, unsigned, names] = projected.members[0].parameter_definitions;
   assert.deepEqual(range.values, [4, 2, 0]);
   assert.equal(range.unit, "K");
@@ -312,7 +332,9 @@ test("Canonical Host Catalog Preserves Typed Parameters and Exclusive Ranges", (
       ["inspect", "Inspect Charger", 1],
     ],
   );
-  const procedure = renderToStaticMarkup(createElement(TemplateProcedure, { template }));
+  const view = render(TemplateProcedure, { template });
+  onTestFinished(() => view.unmount());
+  const procedure = view.container.textContent ?? "";
   assert.ok(procedure.indexOf("Energize Supply") < procedure.indexOf("Inspect Charger"));
-  assert.throws(() => mapHostSuite(create(SuiteSchema)));
+  assert.throws(() => mapSuite(create(SuiteSchema)));
 });

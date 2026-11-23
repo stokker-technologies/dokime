@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -14,6 +15,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { render } from "@testing-library/svelte";
 import { FieldDescriptorProto_Type, FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import {
   ArchiveScope,
@@ -27,23 +29,23 @@ import {
   Severity,
   StreamMatchOperator,
 } from "@generated/host/model";
-import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, test, vi } from "vitest";
+import { QueryClient, QueryObserver } from "@tanstack/svelte-query";
+import { createRawSnippet } from "svelte";
+import { beforeEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
 import { openNativeExecutionProgressStream, openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { previewNativeTestCycle } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
-import { NativeIntegerValue, NativeNumberValue } from "@dokime/plots/lib/api/native-values";
-import { jsonToNativeValue, nativeValueToJson } from "@dokime/plots/lib/host/values";
+import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
+import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
 import { fetchNativeDocument } from "../../../src/lib/api/native-document-session";
-import { projectExecutionStatus } from "@dokime/document/lib/api/native-planning-projection";
-import { ControlCard } from "@/features/cycle/ControlCard";
+import { projectExecutionStatus } from "@/lib/api/native-planning-projection";
+import ControlCard from "@/features/cycle/ControlCard.svelte";
 import { cycleControlState, executionControlState } from "@/features/cycle/control-model";
-import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
+import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries } from "@/features/cycle/server-state";
+import { workflowQueryKeys } from "@/features/cycle/workflow-query-keys";
 import {
   appendNativeCaseAttempt,
   sealNativeTestCycle,
@@ -225,16 +227,11 @@ test("Container Seal Controls", () => {
   for (const running of [null, { ordinal: 2, step: "Energize Charger" }]) {
     const state = cycleControlState({ phase: "active", running });
     assert.deepEqual(state.actions, ["Seal Cycle"]);
-    const html = renderToStaticMarkup(
-      createElement(ControlCard, {
-        actions: createElement("button", { type: "button" }, state.actions[0]),
-        label: "Cycle Controls",
-        state: state.line,
-      }),
-    );
-    assert.match(html, /Seal Cycle/);
-    assert.equal((html.match(/<button/g) ?? []).length, 1);
-    assert.doesNotMatch(html, /Start Cycle|Stop Cycle|Run Again|Pause Cycle|Resume Cycle/);
+    const actions = createRawSnippet(() => ({ render: () => `<button type="button">${state.actions[0]}</button>` }));
+    const { container, unmount } = render(ControlCard, { actions, label: "Cycle Controls", state: state.line });
+    assert.equal(container.querySelectorAll("button").length, 1);
+    assert.equal(container.querySelector("button")?.textContent, "Seal Cycle");
+    unmount();
   }
   // Sealing and Sealed Offer No Running Controls.
   assert.deepEqual(cycleControlState({ phase: "sealing", running: null }).actions, []);
@@ -253,17 +250,16 @@ test("Sealed Execution Without Its Plugin Has No New Attempt Button", () => {
     status: "passed",
     stopping: false,
   });
-  const html = renderToStaticMarkup(
-    createElement(ControlCard, {
-      actions: state.actions.map((action) => createElement("button", { key: action, type: "button" }, action)),
-      detail: state.detail,
-      label: "Execution Controls",
-      state: state.line,
-    }),
-  );
+  const actions = state.actions.length
+    ? createRawSnippet(() => ({
+        render: () => `<div>${state.actions.map((action) => `<button type="button">${action}</button>`).join("")}</div>`,
+      }))
+    : undefined;
+  const { container, unmount } = render(ControlCard, { actions, detail: state.detail, label: "Execution Controls", state: state.line });
+  onTestFinished(unmount);
   assert.equal(state.phase, "sealed");
-  assert.equal((html.match(/<button/g) ?? []).length, 0);
-  assert.equal((html.match(/data-control-state/g) ?? []).length, 1);
+  assert.equal(container.querySelectorAll("button").length, 0);
+  assert.equal(container.querySelectorAll("[data-control-state]").length, 1);
   assert.ok(state.detail);
 });
 
