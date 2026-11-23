@@ -1209,6 +1209,7 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "bytes",
  "futures-core",
@@ -1230,6 +1231,7 @@ dependencies = [
 [[package]]
 name = "harmos-domain"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "harmos-protocol",
  "harmos-sdk-derive",
@@ -1248,6 +1250,7 @@ dependencies = [
 [[package]]
 name = "harmos-operations"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -1273,6 +1276,7 @@ dependencies = [
 [[package]]
 name = "harmos-packaging"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "harmos-domain",
  "harmos-operations",
@@ -1290,6 +1294,7 @@ dependencies = [
 [[package]]
 name = "harmos-protocol"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "prost",
  "prost-reflect",
@@ -1304,6 +1309,7 @@ dependencies = [
 [[package]]
 name = "harmos-query"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -1326,6 +1332,7 @@ dependencies = [
 [[package]]
 name = "harmos-runtime"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "bytes",
  "futures-core",
@@ -1366,6 +1373,7 @@ dependencies = [
 [[package]]
 name = "harmos-sdk-derive"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1377,6 +1385,7 @@ dependencies = [
 [[package]]
 name = "harmos-storage"
 version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a"
 dependencies = [
  "arrow-array",
  "arrow-data",
