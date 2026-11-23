@@ -32,10 +32,19 @@ import {
 } from "@generated/host/model";
 
 import { NativeApiLimitError } from "@/lib/api/native-values";
-import type { DocumentAxisScale, DocumentDownsampleTechnique, DocumentViewPlot } from "@/lib/types";
+import type { DocumentAxisScale, DocumentDownsampleTechnique, DocumentPlotType, DocumentViewPlot } from "@/lib/types";
+import type { ReportDefaults } from "@/plots/plot-settings";
 import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import type { SummaryWindow } from "@/stores/summary-window-store";
 import type { Wire } from "@/lib/rpc/canonical";
+
+/* === Constants === */
+
+/** Device pixels a live plot's width rounds up to, so a small resize keeps its request. */
+const WIDTH_QUANTUM_PX = 64;
+
+/** The kinds `CartesianPlot` draws; their live point budget follows their width. */
+const WIDTH_BUDGETED_PLOTS: ReadonlySet<DocumentPlotType> = new Set(["time_series", "xy", "trajectory", "frequency_series"]);
 
 /* === Public Functions === */
 
@@ -47,10 +56,12 @@ export function plotRequestForDocumentPlot(
     summaryWindow?: SummaryWindow | null;
     panelWidth?: number;
     panelHeight?: number;
+    /** A live budget in place of the plot's own `display_points`. */
+    maxPoints?: number | null;
   },
 ): PlotRequest {
   const declared = displayPointBudget(plot.display_points);
-  const maximum = options.windowS == null && declared === 0 ? DEFAULT_PLOT_MAX_POINTS : declared;
+  const maximum = options.maxPoints ?? (options.windowS == null && declared === 0 ? DEFAULT_PLOT_MAX_POINTS : declared);
   return create(PlotRequestSchema, {
     arrangement: plot.arrangement ? (plot.arrangement === "grouped" ? BarArrangement.GROUPED : BarArrangement.STACKED) : undefined,
     pareto: plot.pareto ?? false,
@@ -154,6 +165,46 @@ export function displayPointBudget(displayPoints: number | null | undefined): nu
     return DEFAULT_PLOT_MAX_POINTS;
   }
   return Math.min(Math.max(0, Math.trunc(displayPoints)), NATIVE_PLOT_MAX_POINTS);
+}
+
+/**
+ * A document plot as the live view requests it. A cartesian plot carries only
+ * the count the operator saved, so its width sizes it otherwise; declared
+ * points and Report Points govern the sealed report.
+ */
+export function livePlotDefinition(plot: DocumentViewPlot, saved: number | null | undefined, defaults: ReportDefaults): DocumentViewPlot {
+  return {
+    ...plot,
+    display_points: widthBudgeted(plot) ? (saved ?? null) : (plot.display_points ?? defaults.plotPoints),
+    downsample: (plot.downsample ?? "auto") === "auto" ? defaults.plotDownsample : plot.downsample,
+  };
+}
+
+/** Whether a live plot sizes its points from its drawing width. */
+export function widthBudgeted(plot: Pick<DocumentViewPlot, "plot_type">): boolean {
+  return WIDTH_BUDGETED_PLOTS.has(plot.plot_type);
+}
+
+/**
+ * The points a live cartesian plot requests, or `null` while its own count stands.
+ *
+ * A saved count wins and a plot that keeps every sample asks for the host
+ * ceiling. Otherwise M4 draws every sample exactly from four points per device
+ * pixel column over the `width` in CSS pixels, rounded up to the next quantum;
+ * the default stands in until the width is measured.
+ */
+export function livePointBudget(plot: DocumentViewPlot, width: number | undefined, pixelRatio: number): number | null {
+  if (!widthBudgeted(plot) || (plot.display_points ?? 0) > 0) {
+    return null;
+  }
+  if (plot.display_points === 0 || plot.downsample === "raw") {
+    return NATIVE_PLOT_MAX_POINTS;
+  }
+  if (!width) {
+    return DEFAULT_PLOT_MAX_POINTS;
+  }
+  const columns = Math.ceil((width * pixelRatio) / WIDTH_QUANTUM_PX) * WIDTH_QUANTUM_PX;
+  return Math.min(4 * columns, NATIVE_PLOT_MAX_POINTS);
 }
 
 /* === Private Functions === */

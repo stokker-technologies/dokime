@@ -39,7 +39,8 @@ import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { applyPlotMessages, emptyLivePlotState } from "@/plots/live-frames";
 
-import { plotRequestForDocumentPlot } from "@/plots/live-data";
+import { livePlotDefinition, livePointBudget, plotRequestForDocumentPlot } from "@/plots/live-data";
+import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 
 /* === Re-Exports === */
 
@@ -330,7 +331,7 @@ test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => 
 test("Document XY Requests Preserve the Declared Display Budget and Technique", () => {
   const plot = { plot_id: "voltage", stream: "measurement", plot_type: "xy", x: "elapsed_s", y: ["voltage"] } as DocumentViewPlot;
   const defaults = plotRequestForDocumentPlot(plot, { scope: null });
-  assert.equal(defaults.maxPoints, 2000n);
+  assert.equal(defaults.maxPoints, BigInt(DEFAULT_PLOT_MAX_POINTS));
   assert.equal(defaults.technique, Downsample.AUTO);
   for (const [downsample, expected] of [
     ["auto", Downsample.AUTO],
@@ -343,6 +344,35 @@ test("Document XY Requests Preserve the Declared Display Budget and Technique", 
     assert.equal(native.technique, expected);
     assert.equal(native.xKey, "elapsed_s");
   }
+});
+
+test("Live Cartesian Plots Request Four Points per Quantized Device Pixel Column", () => {
+  const reportDefaults = { plotPoints: 2000, plotDownsample: "auto" } as const;
+  const plot = { plot_id: "voltage", stream: "measurement", plot_type: "time_series", x: "timestamp", y: ["voltage"] } as DocumentViewPlot;
+  // Declared points and Report Points govern the sealed report; a live cartesian plot keeps only a saved count.
+  const declared = livePlotDefinition({ ...plot, display_points: 500 }, null, reportDefaults);
+  assert.equal(declared.display_points, null);
+  assert.equal(livePlotDefinition({ ...plot, plot_type: "bar" }, 3000, reportDefaults).display_points, 2000);
+  for (const plot_type of ["time_series", "xy", "trajectory", "frequency_series"] as const) {
+    assert.equal(livePointBudget({ ...declared, plot_type }, 900, 1), 4 * 960);
+  }
+  assert.equal(livePointBudget(declared, 950, 1), 4 * 960, "a sub-quantum change keeps the budget");
+  assert.equal(livePointBudget(declared, 961, 1), 4 * 1024);
+  assert.equal(livePointBudget(declared, 900, 2), 4 * 1856);
+  assert.equal(livePointBudget(declared, 900, 1.25), 4 * 1152);
+  assert.equal(livePointBudget(declared, 40_000, 1), NATIVE_PLOT_MAX_POINTS);
+  assert.equal(livePointBudget(declared, undefined, 2), DEFAULT_PLOT_MAX_POINTS, "the default stands in until the width is measured");
+  const request = plotRequestForDocumentPlot(declared, { scope: null, windowS: 300, maxPoints: livePointBudget(declared, 900, 2) });
+  assert.equal(request.maxPoints, BigInt(4 * 1856));
+
+  const saved = livePlotDefinition(plot, 3000, reportDefaults);
+  assert.equal(livePointBudget(saved, 900, 1), null, "a saved count wins");
+  assert.equal(livePointBudget({ ...saved, downsample: "raw" }, 900, 1), null);
+  assert.equal(plotRequestForDocumentPlot(saved, { scope: null, windowS: 300, maxPoints: null }).maxPoints, 3000n);
+  const raw = livePlotDefinition(plot, null, { ...reportDefaults, plotDownsample: "raw" });
+  assert.equal(livePointBudget(raw, 900, 1), NATIVE_PLOT_MAX_POINTS, "a raw plot keeps every sample");
+  assert.equal(livePointBudget(livePlotDefinition(plot, 0, reportDefaults), 900, 1), NATIVE_PLOT_MAX_POINTS);
+  assert.equal(livePointBudget({ ...plot, plot_type: "bar" }, 900, 1), null);
 });
 
 test("Projected Record-Only Plots Request No Stream", () => {

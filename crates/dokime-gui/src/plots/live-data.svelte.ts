@@ -14,7 +14,7 @@ import { cutKey, type Wire } from "@/lib/rpc/canonical";
 import { summaryInFlight } from "@/lib/statistics";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { summaryWindowStore } from "@/stores/summary-window-store";
-import { displayPointBudget, plotRequestForDocumentPlot } from "./live-data";
+import { displayPointBudget, livePointBudget, plotRequestForDocumentPlot } from "./live-data";
 import {
   applyDocumentPlotMessages,
   applyPendingNotice,
@@ -106,10 +106,20 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
   const summaryKey = $derived(
     JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, measurements.windows[plot.plot_id]]))),
   );
+  // A Width-Sized Plot Re-Requests Only When Its Quantized Budget Changes.
+  const budgets = $derived.by(() => {
+    const pixelRatio = window.devicePixelRatio || 1;
+    return Object.fromEntries(
+      requestPlots.map((plot) => [plot.plot_id, livePointBudget(plot, measurements.widths[plot.plot_id], pixelRatio)]),
+    );
+  });
   const widthKey = $derived(
     JSON.stringify(
       Object.fromEntries(
-        requestPlots.map((plot) => [plot.plot_id, [measurements.widths[plot.plot_id], measurements.heights[plot.plot_id]]]),
+        requestPlots.map((plot) => [
+          plot.plot_id,
+          budgets[plot.plot_id] ?? [measurements.widths[plot.plot_id], measurements.heights[plot.plot_id]],
+        ]),
       ),
     ),
   );
@@ -239,13 +249,15 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
     for (const plots of selectedGroups) {
       const requests = plots.map((plot) => {
         const width = widths[plot.plot_id];
+        const budget = budgets[plot.plot_id];
         const maximum = displayPointBudget(plot.display_points) || DEFAULT_PLOT_MAX_POINTS;
         return plotRequestForDocumentPlot(plot, {
           scope: requestScope,
           windowS,
+          maxPoints: budget,
           summaryWindow: windows[plot.plot_id] ?? null,
-          // Widths Above The Point Ceiling Do Not Change The Served Selection.
-          panelWidth: !automatic || (width && width * 4 < maximum) ? (width ?? undefined) : undefined,
+          // A Width-Sized Budget Already Fits The Panel; Widths Above The Point Ceiling Do Not Change The Served Selection.
+          panelWidth: budget == null && (!automatic || (width && width * 4 < maximum)) ? (width ?? undefined) : undefined,
           panelHeight: plot.plot_type === "contour" ? heights[plot.plot_id] : undefined,
         });
       });

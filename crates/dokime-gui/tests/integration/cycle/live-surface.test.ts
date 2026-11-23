@@ -177,7 +177,7 @@ async function scrollingSurface(kinds: Record<string, DocumentViewPlot["plot_typ
     }),
   );
   serve([documentCard({ identifier: "plots", label: "Plots" }, "plots", { plots })]);
-  const watches: { requests: { plotId: string; panelWidth?: number }[]; stream: ReturnType<typeof plotStream> }[] = [];
+  const watches: { requests: { plotId: string; maxPoints?: bigint; panelWidth?: number }[]; stream: ReturnType<typeof plotStream> }[] = [];
   backend.watch.mockImplementation(async (_identity, requests) => {
     const stream = plotStream();
     watches.push({ requests, stream });
@@ -392,9 +392,12 @@ test("A Plot Scrolling In for the First Time Joins Its Group's Running Watch", a
   await scroll({ alpha: true, beta: false });
   assert.equal(watches.length, 1, "plots of one kind share a watch");
   assert.deepEqual(
-    watches[0].requests.map((request) => request.panelWidth),
-    [320, 320],
-    "the watch opens with every plot's width",
+    watches[0].requests.map((request) => [request.maxPoints, request.panelWidth]),
+    [
+      [4n * 320n, undefined],
+      [4n * 320n, undefined],
+    ],
+    "the watch opens sized to every plot's width",
   );
   watches[0].stream.push({ updates: ["alpha", "beta"].map((plot) => frame(plot, 1, "snapshot")) });
   await vi.advanceTimersByTimeAsync(1_000);
