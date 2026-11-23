@@ -1,34 +1,43 @@
 <!-- Dokime — SPDX-License-Identifier: Apache-2.0 -->
 <script lang="ts">
-  import type { SessionIdentity } from "../lib/rpc/transport";
+  import type { ConnectedSession } from "../app/native-session/session";
+  import { createRecordsQuery } from "../features/cycle/live-document.svelte";
+  import { failureOf } from "../lib/notification-details";
   import { storeState } from "../stores/store-state";
   import { uiStore } from "../stores/ui-store";
-  import { consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
+  import { consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
   import { observeConsoleRecords } from "./console-records";
-  import { resolvedConsoleScope } from "./console-view-model";
+  import { consoleRecordScope, recordsAfter } from "./console-view-model";
   import ConsoleDrawerView from "./ConsoleDrawerView.svelte";
 
-  let { identity, cycleId, executionId }: { identity: SessionIdentity; cycleId: string | null; executionId: string | null } = $props();
+  let { session, cycleId, executionId }: { session: ConnectedSession; cycleId: string | null; executionId: string | null } = $props();
   const readDrawer = storeState(uiStore, (state) => state.console);
   const drawer = $derived(readDrawer());
-  const scope = $derived(resolvedConsoleScope(drawer.scope, cycleId, executionId));
-  const scopedCycle = $derived(scope === "instance" ? null : cycleId);
-  const scopedExecution = $derived(scope === "execution" ? executionId : null);
   const level = $derived(drawer.level);
   const opened = $derived(drawer.open);
-  const key = $derived(consoleBufferKey({ cycleId: scopedCycle, executionId: scopedExecution, level }));
+  // Cycle and Execution Read the Records the Document Shows; the Instance Reads the Backend's Trace.
+  const scope = $derived(consoleRecordScope(drawer.scope, cycleId, executionId));
+  const records = createRecordsQuery(
+    () => session,
+    () => ({ enabled: opened && scope !== null, scope }),
+  );
   const readBuffers = storeState(consoleRecordsStore, (state) => state.buffers);
   const readFilter = storeState(consoleRecordsStore, (state) => state.filter);
-  const buffer = $derived(readBuffers().get(key) ?? EMPTY_CONSOLE_BUFFER);
   const { setConsoleState } = uiStore.getState();
-  const { setFilter, clear, bindSession } = consoleRecordsStore.getState();
+  const { setFilter, bindSession } = consoleRecordsStore.getState();
+  const trace = $derived(scope === null ? (readBuffers().get(level) ?? EMPTY_CONSOLE_BUFFER) : null);
+  const held = $derived(trace?.records ?? records.data ?? []);
+  // Both Sources Outlive the Drawer, so Clear Hides the Rows Already Held Instead of Dropping Them.
+  const clearKey = $derived(JSON.stringify(scope));
+  let cleared = $state<Record<string, string | undefined>>({});
 
   $effect(() => {
-    bindSession(identity.generation);
+    bindSession(session.identity.generation);
+    cleared = {};
   });
   $effect(() => {
-    if (opened) {
-      return observeConsoleRecords(identity, { cycleId: scopedCycle, executionId: scopedExecution, level });
+    if (opened && scope === null) {
+      return observeConsoleRecords(session.identity, level);
     }
   });
 </script>
@@ -40,5 +49,13 @@
   {setConsoleState}
   filter={readFilter()}
   {setFilter}
-  streamed={{ ...buffer, clear: () => clear(key) }}
+  streamed={{
+    clear: () => {
+      cleared[clearKey] = held.at(-1)?.record_id;
+    },
+    dropped: trace?.dropped ?? 0n,
+    error: trace?.error ?? null,
+    failure: trace ? trace.failure : records.error ? failureOf(records.error, "Records Unavailable") : undefined,
+    records: recordsAfter(held, cleared[clearKey]),
+  }}
 />

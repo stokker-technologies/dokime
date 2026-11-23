@@ -1,5 +1,8 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
+import type { EvidenceScope } from "@generated/host/model";
+import { recordMessage } from "../lib/dashboard";
 import { recordLevelLabel } from "../lib/record-display";
+import type { Wire } from "../lib/rpc/canonical";
 import type { HubRecord } from "../lib/types";
 
 const consoleLevels = ["trace", "debug", "info", "warning", "error"] as const;
@@ -14,18 +17,25 @@ export function visibleConsoleRecords(records: HubRecord[], level: ConsoleLevel,
     if (consoleLevels.indexOf(record.level) < threshold) {
       return false;
     }
-    return !needle || `${record.source} ${record.message ?? ""}`.toLowerCase().includes(needle);
+    return !needle || `${record.source} ${recordMessage(record)}`.toLowerCase().includes(needle);
   });
 }
 
-export function resolvedConsoleScope(scope: ConsoleScope, cycleId: string | null, executionId: string | null): ConsoleScope {
-  if (scope === "execution" && !executionId) {
-    return cycleId ? "cycle" : "instance";
+/**
+ * The evidence the chosen scope reads, or null for the instance, which reads
+ * the backend's trace. A scope the route cannot fill widens to the next one.
+ */
+export function consoleRecordScope(scope: ConsoleScope, cycleId: string | null, executionId: string | null): Wire<EvidenceScope> | null {
+  if (scope === "execution" && executionId) {
+    return cycleId ? { cycleId, executionId } : { executionId };
   }
-  if (scope === "cycle" && !cycleId) {
-    return "instance";
-  }
-  return scope;
+  return scope !== "instance" && cycleId ? { cycleId } : null;
+}
+
+/** The records after the last one cleared; all of them once it left the tail. */
+export function recordsAfter(records: HubRecord[], cleared: string | undefined): HubRecord[] {
+  const index = cleared === undefined ? -1 : records.findIndex((record) => record.record_id === cleared);
+  return records.slice(index + 1);
 }
 
 /** Warnings And Errors That Arrived After The Drawer Was Last Opened. */

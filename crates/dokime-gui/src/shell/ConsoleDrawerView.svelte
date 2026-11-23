@@ -143,7 +143,7 @@
       <Button
         onclick={streamed.clear}
         size="sm"
-        title="Clear the rows shown here; the backend retains its trace history."
+        title="Clear the rows shown here; the backend keeps its records and trace."
         variant="outline"
       >
         <Eraser data-icon="inline-start" />

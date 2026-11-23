@@ -164,7 +164,7 @@
     />
   {/snippet}
   {#snippet console()}
-    <ConsoleDrawer identity={session.identity} {cycleId} {executionId} />
+    <ConsoleDrawer {session} {cycleId} {executionId} />
   {/snippet}
   {#snippet statusBar()}
     <StatusBar

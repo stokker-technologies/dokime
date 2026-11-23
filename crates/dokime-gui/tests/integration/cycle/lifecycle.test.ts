@@ -717,7 +717,7 @@ test("Diagnostics Read Stable Ranges and Verify the Whole Archive", async () => 
   await assert.rejects(collectDiagnosticsBundle(session), /Digest/);
 });
 
-test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async () => {
+test("Trace Snapshot Hands Its Exact Position to Watch and Filters Level", async () => {
   const { openTraceStream, NativeTraceHistoryExpired } = await import("@/lib/api/native-logs");
   const at = { history: { store: "trace", epoch: "retained" }, sequence: 2n };
   fixture.extra.mockImplementation(async (path) => {
@@ -725,8 +725,8 @@ test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async
     return {
       resolvedAt: at,
       events: [
-        { sequence: 1n, level: "INFO", fields: { execution_id: "run", cycle_id: "cycle" } },
-        { sequence: 2n, level: "ERROR", fields: { execution_id: "other", cycle_id: "cycle" } },
+        { sequence: 1n, level: "INFO", fields: {} },
+        { sequence: 2n, level: "ERROR", fields: {} },
       ],
     };
   });
@@ -739,13 +739,13 @@ test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async
       async *[Symbol.asyncIterator]() {
         yield create(output, {
           resolvedAt: { ...at, sequence: 3n },
-          events: [{ sequence: 3n, level: "WARN", fields: { execution_id: "run", cycle_id: "cycle" } }],
+          events: [{ sequence: 3n, level: "WARN", fields: {} }],
         });
         throw new Error("history gap: resynchronize with List");
       },
     };
   });
-  const stream = await openTraceStream(session, { cycleId: "cycle", executionId: "run", minLevel: "info", afterSequence: 0n });
+  const stream = await openTraceStream(session, "warning");
   const pages = stream[Symbol.asyncIterator]();
   const first = await pages.next();
   assert.equal(first.value.records.length, 1);

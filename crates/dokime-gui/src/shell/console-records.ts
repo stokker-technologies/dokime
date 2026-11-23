@@ -7,11 +7,11 @@
  * ***
  */
 
-/* Streams the console's records into the session-scoped buffer store.
+/* Streams the backend's trace into the session-scoped buffer store.
  *
- * The hook owns the subscription, never the rows: a route change that moves
- * the drawer to another scope only swaps which buffer it reads and resumes,
- * and closing the drawer stops the stream without forgetting what it showed.
+ * The subscription owns no rows: changing the level only swaps which buffer
+ * the drawer reads, and closing the drawer stops the stream without
+ * forgetting what it showed.
  */
 
 /* === External Imports === */
@@ -22,7 +22,7 @@ import { toast } from "@/lib/notifications";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { openTraceStream, NativeTraceHistoryExpired, type TraceLevel } from "@/lib/api/native-logs";
 import { normalizeRpcError } from "@/lib/rpc/errors";
-import { consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "@/shell/console-buffer";
+import { consoleRecordsStore } from "@/shell/console-buffer";
 
 /* === Constants === */
 
@@ -31,21 +31,13 @@ const GUI_RECONNECT_MS = 1_000;
 
 /* === Public Functions === */
 
-export function observeConsoleRecords(
-  identity: SessionIdentity,
-  { cycleId, executionId, level }: { cycleId: string | null; executionId: string | null; level: TraceLevel },
-): () => void {
-  const key = consoleBufferKey({ cycleId, executionId, level });
+export function observeConsoleRecords(identity: SessionIdentity, level: TraceLevel): () => void {
   const store = consoleRecordsStore.getState;
   store().bindSession(identity.generation);
-  const held = store().buffers.get(key) ?? EMPTY_CONSOLE_BUFFER;
   let active = true;
   let retry: number | undefined;
   let stream: Awaited<ReturnType<typeof openTraceStream>> | undefined;
-  let afterSequence = held.afterSequence;
-  let epoch = held.epoch;
   let reconnectDelay = GUI_RECONNECT_MS;
-  let streamDropped = 0n;
 
   const connect = async () => {
     if (!active || !identity.isCurrent()) {
@@ -53,31 +45,21 @@ export function observeConsoleRecords(
     }
     let reconnect = true;
     try {
-      const opened = await openTraceStream(identity, {
-        cycleId,
-        executionId,
-        minLevel: level,
-        afterSequence,
-        epoch,
-      });
+      const opened = await openTraceStream(identity, level);
       if (!active || !identity.isCurrent()) {
         await opened.cancel();
         return;
       }
       stream = opened;
-      streamDropped = 0n;
       for await (const page of opened) {
         if (!active || !identity.isCurrent()) {
           break;
         }
-        afterSequence = page.nextSequence;
-        epoch = page.epoch;
-        streamDropped = page.dropped;
         reconnectDelay = GUI_RECONNECT_MS;
-        store().receive(key, page, streamDropped);
+        store().receive(level, page);
       }
       if (active) {
-        store().setError(key, "Trace stream ended; reconnecting.");
+        store().setError(level, "Trace stream ended; reconnecting.");
       }
     } catch (failure) {
       if (!active || !identity.isCurrent()) {
@@ -88,19 +70,15 @@ export function observeConsoleRecords(
       toast.error(record, { context: "background" });
       const cause = record.message;
       if (code === 11 || failure instanceof NativeTraceHistoryExpired) {
-        afterSequence = 0n;
-        epoch = undefined;
-        streamDropped = 0n;
-        store().rewind(key);
-        store().setError(key, `Trace history expired; replaying retained events. ${cause}`, record);
+        store().setError(level, `Trace history expired; replaying retained events. ${cause}`, record);
       } else if (code === 12 || unavailable(failure)) {
         reconnect = false;
-        store().setError(key, `Tracing is not available for this connection. ${cause}`, record);
+        store().setError(level, `Tracing is not available for this connection. ${cause}`, record);
       } else if (code === 3 || code === 7 || code === 16 || code === 8) {
         reconnect = false;
-        store().setError(key, `Trace subscription was refused by the backend. ${cause}`, record);
+        store().setError(level, `Trace subscription was refused by the backend. ${cause}`, record);
       } else {
-        store().setError(key, `Trace stream unavailable; reconnecting. ${cause}`, record);
+        store().setError(level, `Trace stream unavailable; reconnecting. ${cause}`, record);
       }
     } finally {
       const closing = stream;
