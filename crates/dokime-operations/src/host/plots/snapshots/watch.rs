@@ -98,14 +98,18 @@ impl Pacer {
 
 impl Plot {
     fn new(request: PlotRequest) -> Self {
-        let sources = request
+        let mut sources = request
             .sources()
             .into_iter()
             .map(|source| match source {
                 ExpressionSource::Stream(stream) => stream.to_owned(),
                 ExpressionSource::Record(record) => format!("record:{record}"),
             })
-            .collect();
+            .collect::<BTreeSet<_>>();
+        // A Step's Boundaries Bound the Rows a Step-Scoped Plot Reads.
+        if request.scope.as_ref().and_then(|scope| scope.step_id.as_deref()).is_some_and(|step| !step.is_empty()) {
+            sources.extend(["step:start".to_owned(), "step:end".to_owned()]);
+        }
         Self { request, sources }
     }
 
@@ -334,6 +338,7 @@ mod tests {
     use dokime_protocol::host::plots::PlotRequest;
     use dokime_protocol::model::{EvidenceScope, FieldReference};
     use dokime_storage::ExecutionState;
+    use harmos_protocol::model::{Position, ReadCut};
 
     /// A Live Plot of the Execution Under Test.
     fn plot(id: &str, request: PlotRequest) -> Plot {
@@ -371,6 +376,31 @@ mod tests {
     }
 
     #[test]
+    fn saved_and_cut_plots_wait_for_rows_they_can_read() {
+        let mut saved = plot("saved", PlotRequest { stream: "a".into(), ..Default::default() });
+        saved.request.window_s = None;
+        let cut = ReadCut {
+            positions: vec![Position { sequence: 150, ..Default::default() }],
+            ..Default::default()
+        };
+        let cut = plot(
+            "cut",
+            PlotRequest {
+                stream: "a".into(),
+                at: Some(cut),
+                ..Default::default()
+            },
+        );
+        let plots = [saved, cut];
+        let observed = BTreeMap::from([("saved".into(), 150), ("cut".into(), 150)]);
+
+        // A Pending Row Waits for Its Flush Without a Live Window, and a Cut Plot Never Reads Past Its Cut.
+        let pending = |_: &str, _: &Plot| Some(160);
+        assert_eq!(progress(&plots, &observed, pending, |_, _| Some((ExecutionState::Open, 150))), WatchProgress::Waiting);
+        assert_eq!(progress(&plots, &observed, pending, |_, _| Some((ExecutionState::Open, 165))), WatchProgress::Refresh(vec![0]));
+    }
+
+    #[test]
     fn only_plots_reading_a_published_stream_or_record_refresh() {
         let a = FieldReference::new("a");
         let b = FieldReference::new("b");
@@ -400,6 +430,17 @@ mod tests {
                     ..Default::default()
                 },
             ),
+            Plot::new(PlotRequest {
+                plot_id: Some("step".into()),
+                stream: "e".into(),
+                scope: Some(EvidenceScope {
+                    execution_id: Some("execution".into()),
+                    step_id: Some("step".into()),
+                    ..Default::default()
+                }),
+                window_s: Some(300.0),
+                ..Default::default()
+            }),
         ];
         let mut observed = plots.iter().map(|plot| (plot.id().to_owned(), 0)).collect();
         let mut published = BTreeMap::new();
@@ -409,6 +450,7 @@ mod tests {
             ("record:event", vec![3]),
             ("c", vec![3]),
             ("record:phase.started", vec![4]),
+            ("step:end", vec![5]),
             ("record:unrelated", vec![]),
         ] {
             published.insert(source.to_owned(), published.len() as u64 + 1);
