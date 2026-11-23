@@ -166,11 +166,7 @@ function handleRuntimeFrame(
   sessionGeneration: string,
   isActive: () => boolean,
 ): string | null {
-  setHubState({
-    error: null,
-    lastStreamFrameAt: Date.now(),
-    operations: EMPTY_OPERATIONS,
-  });
+  setHubState({ error: null, operations: EMPTY_OPERATIONS });
   if (frame.overview?.shuttingDown) {
     setHubState({ connection: "reconnecting" });
   }
