@@ -204,6 +204,20 @@ impl Intake {
             .ok_or(Error::Data("open the execution stream before publishing samples"))
     }
 
+    /// Record a Source's Last Published Position, Allocating Its Keys Only the First Time.
+    fn publish(&mut self, execution: &str, source: &str, position: u64) {
+        if !self.published.contains_key(execution) {
+            self.published.insert(execution.to_owned(), BTreeMap::new());
+        }
+        let sources = self.published.get_mut(execution).unwrap();
+        match sources.get_mut(source) {
+            Some(last) => *last = (*last).max(position),
+            None => {
+                sources.insert(source.to_owned(), position);
+            }
+        }
+    }
+
     /// The First Free Position of an Execution With Open Streams.
     fn next(&self, execution: &str) -> Result<u64> {
         let accepted = self.accepted.get(execution).ok_or(Error::Data("open the execution stream before publishing samples"))?;
@@ -270,9 +284,14 @@ impl Reservation {
         self.used.set(true);
         self.position
     }
-    /// Keep the Position Once the Transaction Holding Its Evidence Committed.
-    pub(crate) fn committed(&self) {
+    /// Keep the Position Once the Transaction Holding Its Evidence Committed, Publishing It for the Evidence's Kind.
+    pub(crate) fn committed(&self, kind: &str) {
         self.committed.set(true);
+        if self.used.get()
+            && let Ok(mut intake) = self.store.intake()
+        {
+            intake.publish(&self.execution, kind, self.position);
+        }
     }
 }
 
@@ -382,10 +401,17 @@ impl Store {
         intake.accepted.extend(accepted);
         Ok(())
     }
-    /// Forget a Closed Execution's Position Counter; It Accepts No More Samples.
+    /// Forget a Closed Execution's Position Counter and Published Sources; It Accepts No More Samples.
     pub(crate) fn retire_intake(&self, execution: &str) -> Result<()> {
-        self.intake()?.accepted.remove(execution);
+        let mut intake = self.intake()?;
+        intake.accepted.remove(execution);
+        intake.published.remove(execution);
         Ok(())
+    }
+    /// Read the Last Position Each Source of an Execution Published in This Process, Streams by Identifier and
+    /// Evidence by Kind, Under the Intake Lock; None Once the Execution Closed or Before It Published Anything.
+    pub fn published<T>(&self, execution: &str, read: impl FnOnce(&BTreeMap<String, u64>) -> T) -> Result<Option<T>> {
+        Ok(self.intake()?.published.get(execution).map(read))
     }
     /// Reserve an Execution's Next Position for Evidence; Intake Allocates From the Same Counter.
     pub(crate) fn reserve_position(&self, connection: &Connection, execution: &str) -> Result<u64> {
@@ -504,10 +530,13 @@ impl Store {
                 .ok_or(Error::Data("start a fresh execution before positions overflow"))?;
         }
         // Validate Every Row Before Admitting Any Part Of The Call.
-        let batches =
-            prepared.into_iter().map(|(stream, (codec, rows))| Ok((stream, codec.batch(&rows)?, codec))).collect::<Result<Vec<_>>>()?;
+        let batches = prepared
+            .into_iter()
+            .map(|(stream, (codec, rows))| Ok((stream, codec.batch(&rows)?, codec, rows.last().unwrap().position)))
+            .collect::<Result<Vec<_>>>()?;
         intake.accepted.insert(execution.to_owned(), position - 1);
-        for (stream, batch, codec) in batches {
+        for (stream, batch, codec, last) in batches {
+            intake.publish(execution, &stream, last);
             admit(&mut intake, execution, stream, codec, batch);
         }
         let (pressure, due) = (intake.pressure(), intake.due());
@@ -536,6 +565,7 @@ impl Store {
         sequence.checked_add(count).ok_or(Error::Data("restart the stream before its sequence overflows"))?;
         let batch = codec.assemble(first, sequence, &interval)?;
         intake.accepted.insert(execution.to_owned(), last);
+        intake.publish(execution, stream, last);
         admit(&mut intake, execution, stream.to_owned(), codec, batch);
         let (pressure, due) = (intake.pressure(), intake.due());
         drop(intake);
@@ -1037,7 +1067,7 @@ mod tests {
     use crate::Evidence;
     use crate::telemetry::{config::storage_defaults, previews::Envelope};
     use arrow_ipc::reader::FileReader;
-    use dokime_protocol::model::{Import, Origin, origin};
+    use dokime_protocol::model::{Import, Origin, Termination, origin};
     use harmos_protocol::model::StreamDeclaration;
     use prost_types::{
         DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
@@ -1289,6 +1319,13 @@ mod tests {
         assert_eq!(store.intake()?.pending.values().map(|pending| pending.rows).sum::<usize>(), round as usize);
         store.flush_samples()?;
         assert_eq!(saved_positions(&store, "execution")?, (1..=round).chain(round + 2..=2 * round + 1).collect::<Vec<_>>());
+        // Each Stream and Evidence Kind Publishes Its Own Last Position Until the Execution Closes.
+        let mut expected = (0..STREAMS).map(|index| (stream(index), 2 * round + 2 - (STREAMS - index) as u64)).collect::<BTreeMap<_, _>>();
+        expected.insert("note".into(), position);
+        assert_eq!(store.published("execution", Clone::clone)?, Some(expected));
+        store.close_streams("execution")?;
+        store.close("execution", Termination::Completed, Default::default())?;
+        assert_eq!(store.published("execution", Clone::clone)?, None);
         Ok(())
     }
 

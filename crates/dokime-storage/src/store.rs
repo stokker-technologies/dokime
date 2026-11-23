@@ -404,7 +404,7 @@ impl Store {
         let transaction = connection.transaction()?;
         insert_evidence(&transaction, execution, &evidence)?;
         transaction.commit()?;
-        reserved.committed();
+        reserved.committed(&evidence.kind);
         self.changed.send_modify(|revision| *revision += 1);
         Ok(evidence.position)
     }
@@ -440,7 +440,7 @@ impl Store {
         };
         transaction.execute("INSERT OR IGNORE INTO read_positions VALUES(?1,?2)", params![execution, position as i64])?;
         transaction.commit()?;
-        reserved.committed();
+        reserved.committed(&evidence.kind);
         self.changed.send_modify(|revision| *revision += 1);
         let durable = Position {
             history: Some(History {

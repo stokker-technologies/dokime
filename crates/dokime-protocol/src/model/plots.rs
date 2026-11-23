@@ -16,12 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::BTreeSet;
 
 // Third Party Imports
 
 // Local Imports
 use crate::host::plots::PlotRequest;
-use crate::model::{PlotKind, Reduction};
+use crate::model::{DataExpression, ExpressionSource, PlotKind, Reduction};
 
 /* === Constants === */
 
@@ -73,6 +74,32 @@ impl PlotKind {
 }
 
 impl PlotRequest {
+    /// Every Stream and Record Type the Plot Reads: Its Streams and the Sources of Every Expression It Evaluates.
+    ///
+    /// Marker record types are patterns, so they are not included.
+    pub fn sources(&self) -> BTreeSet<ExpressionSource<'_>> {
+        let grid = self.grid.iter().flat_map(|grid| {
+            [&grid.row, &grid.column, &grid.frame]
+                .into_iter()
+                .flatten()
+                .chain(grid.highlights.iter().flat_map(|highlight| highlight.row.iter().chain(&highlight.column)))
+        });
+        let expressions =
+            [&self.x_expression, &self.z_expression, &self.cell_expression, &self.facet_expression, &self.series_by_expression]
+                .into_iter()
+                .flatten()
+                .chain(&self.y_expressions)
+                .chain(self.filters.iter().filter_map(|filter| filter.expression.as_ref()))
+                .chain(grid);
+        [Some(&self.stream), self.z_stream.as_ref()]
+            .into_iter()
+            .flatten()
+            .filter(|stream| !stream.is_empty())
+            .map(|stream| ExpressionSource::Stream(stream.as_str()))
+            .chain(expressions.flat_map(DataExpression::sources))
+            .collect()
+    }
+
     pub fn validate_heat_strip(&self) -> Result<(), String> {
         let heat_strip = self.plot_type == PlotKind::HeatStrip as i32;
         if !heat_strip {

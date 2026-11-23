@@ -20,6 +20,7 @@ mod plots;
 /* === Re-Exports === */
 
 pub use crate::dokime::model::v1::*;
+pub use expressions::ExpressionSource;
 
 /* === Imports === */
 

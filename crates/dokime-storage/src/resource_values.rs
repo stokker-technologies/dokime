@@ -234,7 +234,7 @@ impl Store {
         };
         transaction.execute("INSERT OR IGNORE INTO read_positions VALUES (?1,?2)", params![execution, position as i64])?;
         transaction.commit()?;
-        reserved.committed();
+        reserved.committed(&evidence.kind);
         drop(connection);
         self.changed.send_modify(|revision| *revision += 1);
         let resolved_at = Position {

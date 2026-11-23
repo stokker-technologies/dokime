@@ -402,7 +402,8 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
             refreshFailures.delete(message.plot_id);
             refreshFailures.delete("stream");
             received.add(message.plot_id);
-            if (activePlots.every((plot) => received.has(plot.plot_id))) {
+            // The Opening Revision Completes Once Every Plot Arrived; Later Revisions Carry Only Plots Whose Data Changed.
+            if (!awaitingRefresh || activePlots.every((plot) => received.has(plot.plot_id))) {
               awaitingRefresh = false;
               for (const plot of activePlots) {
                 pending.delete(plot.plot_id);
