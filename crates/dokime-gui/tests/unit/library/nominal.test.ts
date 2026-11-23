@@ -15,9 +15,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { render } from "@testing-library/svelte";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { test } from "vitest";
+import { onTestFinished, test } from "vitest";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { SuiteSchema } from "@generated/host/model";
 
@@ -36,7 +34,7 @@ import { openCycles, resolveActiveCycle } from "@/features/library/active-cycle-
 import { caseAppend, NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
 import type { TestCycleSelection } from "@/lib/types";
 import type { SuiteTemplateEntry } from "@/lib/types";
-import { TemplateProcedure } from "@/features/library/TemplateDialog";
+import TemplateProcedure from "@/features/library/TemplateProcedure.svelte";
 import { mapSuite } from "@/lib/host/suites";
 
 /* === Re-Exports === */
@@ -100,7 +98,9 @@ test("Procedure Preview Uses Registered Step Order Without Mutating the Catalog"
       { step_id: "first", method_name: "first", order: 1 },
     ],
   } as SuiteTemplateEntry;
-  const markup = renderToStaticMarkup(createElement(TemplateProcedure, { template }));
+  const view = render(TemplateProcedure, { template });
+  onTestFinished(() => view.unmount());
+  const markup = view.container.innerHTML;
   assert.deepEqual(
     [...markup.matchAll(/data-step-id="([^"]+)"/g)].map((step) => step[1]),
     ["first", "second"],
@@ -109,7 +109,9 @@ test("Procedure Preview Uses Registered Step Order Without Mutating the Catalog"
     template.steps.map((step) => step.step_id),
     ["second", "first"],
   );
-  assert.equal(renderToStaticMarkup(createElement(TemplateProcedure, { template: { ...template, steps: [] } })), "");
+  const empty = render(TemplateProcedure, { template: { ...template, steps: [] } });
+  onTestFinished(() => empty.unmount());
+  assert.equal(empty.container.querySelector("section"), null);
 });
 
 test("Template Problems Keep Each Field and Its Validation Cause", () => {
@@ -330,7 +332,9 @@ test("Canonical Host Catalog Preserves Typed Parameters and Exclusive Ranges", (
       ["inspect", "Inspect Charger", 1],
     ],
   );
-  const procedure = renderToStaticMarkup(createElement(TemplateProcedure, { template }));
+  const view = render(TemplateProcedure, { template });
+  onTestFinished(() => view.unmount());
+  const procedure = view.container.textContent ?? "";
   assert.ok(procedure.indexOf("Energize Supply") < procedure.indexOf("Inspect Charger"));
   assert.throws(() => mapSuite(create(SuiteSchema)));
 });

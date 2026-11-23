@@ -11,12 +11,13 @@
     class?: string;
     id?: string;
     name?: string;
+    placeholder?: string;
     disabled?: boolean;
     size?: "sm" | "default";
     onChange: (value: Value) => void;
   };
 
-  let { label, value, options, class: style, id, name, disabled, size = "default", onChange }: Props = $props();
+  let { label, value, options, class: style, id, name, placeholder, disabled, size = "default", onChange }: Props = $props();
   const selected = $derived(options.find((option) => option.value === value)?.label);
 
   function choose(next: string) {
@@ -38,7 +39,7 @@
       style,
     )}
   >
-    <span data-slot="select-value" class="line-clamp-1 flex items-center gap-2">{selected}</span>
+    <span data-slot="select-value" class="line-clamp-1 flex items-center gap-2">{selected ?? placeholder}</span>
     <ChevronDown class="pointer-events-none size-4 shrink-0 text-muted-foreground" />
   </Select.Trigger>
   <Select.Portal>

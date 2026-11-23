@@ -22,7 +22,7 @@ import { selectionDraftKey, templateSelectionId } from "@/components/suite-picke
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Button } from "@/components/ui/button";
 import NewCycleDialog from "@/features/cycles-home/NewCycleDialog.svelte";
-import { TemplateDialog } from "@/features/library/TemplateDialog";
+import TemplateDialog from "@/features/library/TemplateDialog.svelte";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { useBrand } from "@/lib/brand-context";
@@ -107,18 +107,25 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
       />
 
       {openTemplate ? (
-        <TemplateDialog
-          activeCycle={active.cycle}
-          hasOpenCycles={openCycles.length > 0}
+        <SvelteMount
+          component={TemplateDialog}
           key={selectionDraftKey(openTemplate.suite.suite_id, templateSelectionId(openTemplate.template))}
-          onOpenChange={(next) => {
-            if (!next) setOpenTemplate(null);
+          props={{
+            activeCycle: active.cycle,
+            hasOpenCycles: openCycles.length > 0,
+            onOpenChange: (next) => {
+              if (!next) {
+                setOpenTemplate(null);
+              }
+            },
+            onChangeCycle: active.openPicker,
+            onNewCycle: () => setCreating(true),
+            open: true,
+            openCycle: (cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" }),
+            session,
+            suite: openTemplate.suite,
+            template: openTemplate.template,
           }}
-          onChangeCycle={active.openPicker}
-          onNewCycle={() => setCreating(true)}
-          open
-          suite={openTemplate.suite}
-          template={openTemplate.template}
         />
       ) : null}
 
