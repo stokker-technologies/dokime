@@ -202,7 +202,7 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                         };
                         let refresh = tokio::select! {
                             _ = sender.closed() => return,
-                            refresh = behind(&mut pacer, &mut changes, evaluate) => refresh,
+                            refresh = behind(&pacer, &mut changes, evaluate) => refresh,
                         };
                         let Some(refresh) = refresh else { return };
                         pacer = Pacer::start(pacer.interval);
@@ -212,6 +212,7 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                         selection.at = None;
                         selection.page.get_or_insert_default().page_token.clear();
                     }
+                    let query = time::Instant::now();
                     page = match Box::pin(list::handle(&context, selection.clone())).await {
                         Ok(page) => page,
                         Err(error) => {
@@ -228,6 +229,14 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                             return;
                         }
                     };
+                    let elapsed = query.elapsed();
+                    if elapsed > pacer.interval {
+                        tracing::info!(
+                            plots = selection.requests.len(),
+                            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+                            "Plot Refresh Outlasted Its Interval"
+                        );
+                    }
                 }
             };
             if time::timeout(context.settings.watch_timeout, work).await.is_err() {
@@ -243,20 +252,15 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
 
 /// Wait Until Some Plot Is Behind Its Own Sources and the Pacer Allows a Page; Changes Meanwhile Join That Refresh.
 /// None Once Every Plot Is Final or the Changes End.
-async fn behind(
-    pacer: &mut Pacer, changes: &mut [watch::Receiver<u64>; 2], mut evaluate: impl FnMut() -> WatchProgress,
-) -> Option<Vec<usize>> {
+async fn behind(pacer: &Pacer, changes: &mut [watch::Receiver<u64>; 2], mut evaluate: impl FnMut() -> WatchProgress) -> Option<Vec<usize>> {
     loop {
-        let due = pacer.due();
         match evaluate() {
             WatchProgress::Complete => return None,
-            WatchProgress::Refresh(plots) if due => return Some(plots),
-            WatchProgress::Refresh(_) => (),
+            // The Interval Runs From the Last Refresh; Changes While It Runs Join That Refresh.
+            WatchProgress::Refresh(plots) if pacer.due() => return Some(plots),
+            WatchProgress::Refresh(_) => pacer.wait().await,
+            // A Change No Watched Plot Reads Costs One Evaluation, a Lookup Without a Query, and Never Delays a Refresh.
             WatchProgress::Waiting => {
-                // Changes No Watched Plot Reads Cost at Most One Evaluation per Interval.
-                if due {
-                    *pacer = Pacer::start(pacer.interval);
-                }
                 let [storage, runtime] = changes;
                 let changed = tokio::select! {
                     changed = storage.changed() => changed,
@@ -267,7 +271,6 @@ async fn behind(
                 }
             }
         }
-        pacer.wait().await;
     }
 }
 
@@ -510,7 +513,7 @@ mod tests {
             for _ in 0..4 {
                 starts.push((Instant::now() - origin).as_millis());
                 time::sleep(Duration::from_millis(page)).await;
-                let refresh = behind(&mut pacer, &mut changes, || evaluate(&observed)).await.unwrap();
+                let refresh = behind(&pacer, &mut changes, || evaluate(&observed)).await.unwrap();
                 pacer = Pacer::start(pacer.interval);
                 assert_eq!(refresh, [0]);
                 shown(&plots, &refresh, &mut observed, &published.lock().unwrap());
@@ -518,7 +521,7 @@ mod tests {
             publisher.abort();
             assert_eq!(starts, expected);
 
-            // An Unrelated Source Costs One Evaluation, Which Spends the Interval; B Then Refreshes Alone After It.
+            // An Unrelated Source Costs One Evaluation Without Delaying B, Which Refreshes Alone as Soon as It Publishes.
             let (unrelated, b) = (source("c"), source("b"));
             let quiet = Instant::now();
             tokio::spawn(async move {
@@ -527,8 +530,8 @@ mod tests {
                 time::sleep(Duration::from_millis(150)).await;
                 b();
             });
-            assert_eq!(behind(&mut pacer, &mut changes, || evaluate(&observed)).await.unwrap(), [1]);
-            assert_eq!(quiet.elapsed(), Duration::from_millis(400));
+            assert_eq!(behind(&pacer, &mut changes, || evaluate(&observed)).await.unwrap(), [1]);
+            assert_eq!(quiet.elapsed(), Duration::from_millis(250));
         }
     }
 }
