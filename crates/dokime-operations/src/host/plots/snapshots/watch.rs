@@ -324,7 +324,7 @@ fn progress(
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use tokio::sync::watch;
@@ -435,17 +435,21 @@ mod tests {
         });
         let interval = Duration::from_millis(200);
         for (page, expected) in [(50, [0, 200, 400, 600]), (300, [0, 300, 600, 900])] {
-            let (publish, published) = watch::channel(BTreeMap::new());
-            let publish = Arc::new(publish);
+            let published = Arc::new(Mutex::new(BTreeMap::new()));
+            let (change, changed) = watch::channel(0);
+            let change = Arc::new(change);
             let (_runtime, runtime) = watch::channel(0);
-            let mut changes = [published.clone(), runtime];
+            let mut changes = [changed, runtime];
             let mut observed = BTreeMap::from([("a".to_owned(), 0), ("b".to_owned(), 0)]);
             let evaluate = |observed: &BTreeMap<String, u64>| {
-                progress(&plots, observed, |_, plot| Some(plot.latest(&published.borrow())), |_, _| panic!("Read No Execution"))
+                progress(&plots, observed, |_, plot| Some(plot.latest(&published.lock().unwrap())), |_, _| panic!("Read No Execution"))
             };
             let source = |source: &'static str| {
-                let publish = publish.clone();
-                move || publish.send_modify(|published| *published.entry(source.to_owned()).or_insert(0) += 1)
+                let (published, change) = (published.clone(), change.clone());
+                move || {
+                    *published.lock().unwrap().entry(source.to_owned()).or_insert(0) += 1;
+                    change.send_modify(|revision| *revision += 1);
+                }
             };
             // Stream A Publishes Every 10 ms Between Pages, Far More Often Than Pages; B Never Does Meanwhile.
             let a = source("a");
@@ -465,7 +469,7 @@ mod tests {
                 let refresh = behind(&mut pacer, &mut changes, || evaluate(&observed)).await.unwrap();
                 pacer = Pacer::start(pacer.interval);
                 assert_eq!(refresh, [0]);
-                shown(&plots, &refresh, &mut observed, &published.borrow());
+                shown(&plots, &refresh, &mut observed, &published.lock().unwrap());
             }
             publisher.abort();
             assert_eq!(starts, expected);
