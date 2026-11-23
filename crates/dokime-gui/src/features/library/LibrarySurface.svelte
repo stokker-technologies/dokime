@@ -51,6 +51,11 @@
       active.choose(requested);
     }
   });
+
+  function cycleCreated(cycleId: string) {
+    active.choose(cycleId);
+    addCases(cycleId);
+  }
 </script>
 
 <PageChrome title="Library" {actions} />
@@ -97,7 +102,7 @@
           }
         }}
         onChangeCycle={active.openPicker}
-        onNewCycle={() => (creating = true)}
+        onCycleCreated={cycleCreated}
         {openCycle}
         {session}
         suite={openTemplate.suite}
@@ -105,13 +110,5 @@
       />
     {/key}
   {/if}
-  <NewCycleDialog
-    {session}
-    open={creating}
-    onOpenChange={(open) => (creating = open)}
-    onCreated={(cycleId) => {
-      active.choose(cycleId);
-      addCases(cycleId);
-    }}
-  />
+  <NewCycleDialog {session} open={creating} onOpenChange={(open) => (creating = open)} onCreated={cycleCreated} />
 </div>

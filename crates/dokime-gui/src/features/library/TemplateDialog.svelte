@@ -23,6 +23,7 @@
   import Button from "../../components/ui/Button.svelte";
   import DialogContent from "../../components/ui/DialogContent.svelte";
   import { failureOf } from "../../lib/notification-details";
+  import NewCycleDialog from "../cycles-home/NewCycleDialog.svelte";
   import { toast } from "../../lib/notifications";
   import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, TestSuiteEntry } from "../../lib/types";
   import { parameterOverridesStatus, parameterOverridesStore } from "../../stores/parameter-overrides-store";
@@ -36,7 +37,7 @@
     activeCycle,
     hasOpenCycles,
     onChangeCycle,
-    onNewCycle,
+    onCycleCreated,
     onOpenChange,
     openCycle,
     open,
@@ -47,7 +48,7 @@
     activeCycle: OpenCycle | null;
     hasOpenCycles: boolean;
     onChangeCycle: () => void;
-    onNewCycle: () => void;
+    onCycleCreated: (cycleId: string) => void;
     onOpenChange: (open: boolean) => void;
     openCycle: (cycleId: string) => void;
     open: boolean;
@@ -56,6 +57,7 @@
     template: SuiteTemplateEntry;
   } = $props();
   const title = $derived(titleCaseIdentifier(template.name));
+  let creating = $state(false);
   const parameters = storeState(parameterOverridesStatus, (state) => state);
   const overrides = storeState(parameterOverridesStore, (state) => state.overrides);
   const { setParameterOverride, resetParameterOverride, clearTemplateOverrides } = parameterOverridesStore.getState();
@@ -328,7 +330,11 @@
       {:else if preview}
         {@render summary(preview)}
       {/if}
-      <div class="mx-4"><ActiveCycleInline cycle={activeCycle} {hasOpenCycles} onChange={onChangeCycle} {onNewCycle} /></div>
+      <div class="mx-4">
+        <ActiveCycleInline cycle={activeCycle} {hasOpenCycles} onChange={onChangeCycle} onNewCycle={() => (creating = true)} />
+      </div>
+      <!-- Nested in This Dialog's Tree, So It Stacks Above It as a Child Layer -->
+      <NewCycleDialog {session} open={creating} onOpenChange={(next) => (creating = next)} onCreated={onCycleCreated} />
       {#if error}
         <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} />
       {/if}
