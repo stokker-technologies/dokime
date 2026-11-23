@@ -50,7 +50,6 @@ type UiStoreState = {
   activeCycleId: string | null;
   /** Whether the active cycle picker is open; one picker serves the shell and the template dialog. */
   activeCyclePickerOpen: boolean;
-  desktopUpdateDialogOpen: boolean;
   leftRailCollapsed: boolean;
   noteText: string;
   rightRailCollapsed: boolean;
@@ -98,7 +97,6 @@ const initialUiStoreState: UiStoreState = {
   density: "comfortable",
   activeCycleId: null,
   activeCyclePickerOpen: false,
-  desktopUpdateDialogOpen: false,
   leftRailCollapsed: false,
   noteText: "",
   rightRailCollapsed: false,

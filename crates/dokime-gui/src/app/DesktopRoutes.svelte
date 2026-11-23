@@ -18,7 +18,7 @@
   import type { ActiveCycleState } from "../features/library/active-cycle-model";
   import NotificationsSurface from "../features/notifications/NotificationsSurface.svelte";
   import { installedPluginsListOptions } from "../features/settings/installed-plugins/installed-plugin-queries";
-  import { pluginsListQueryOptions, pluginStartFailure } from "../features/settings/plugins/plugin-queries";
+  import { pluginsListQueryOptions, pluginStartFailure, startNotification } from "../features/settings/plugins/plugin-queries";
   import PluginSettingsSurface from "../features/settings/PluginSettingsSurface.svelte";
   import SettingsSurface from "../features/settings/SettingsSurface.svelte";
   import { saveNativeDocument } from "../lib/api/native-document-delivery";
@@ -147,7 +147,7 @@
       return;
     }
     for (const entry of entries) {
-      if (!entry.failure) {
+      if (!startNotification(entry)) {
         continue;
       }
       const failure = pluginStartFailure(entry, session.identity.generation);
@@ -157,7 +157,7 @@
       seen.add(failure.id);
       toast.error(failure, {
         context: "background",
-        description: entry.failure.message,
+        description: entry.failure?.message,
         source: entry.description?.id || entry.name,
         pluginSettings: entry.name,
         action: { label: "Open Plugin Settings", onClick: () => openPlugin(entry.name) },

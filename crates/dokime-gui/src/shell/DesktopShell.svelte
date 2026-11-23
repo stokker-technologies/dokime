@@ -24,7 +24,6 @@
     title: string;
     back?: () => void;
     actions?: Snippet;
-    overflow?: Snippet;
     children?: Snippet;
     status: BackendStatus;
     operations: readonly BackendOperation[];
@@ -124,7 +123,7 @@
     >
       {#snippet actions()}
         {@render (nativeChrome?.actions ?? props.actions)?.()}
-        {@const overflow = nativeChrome?.overflow ?? props.overflow}
+        {@const overflow = nativeChrome?.overflow}
         {#if overflow}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger aria-label="Page Actions" class={buttonVariants({ size: "icon", variant: "ghost" })}>

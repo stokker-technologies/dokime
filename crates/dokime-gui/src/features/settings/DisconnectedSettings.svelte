@@ -42,7 +42,7 @@
           <Button variant="outline" aria-pressed={section === item.id} onclick={() => (section = item.id)}>{item.label}</Button>
         {/each}
       </nav>
-      <div class="grid w-full min-w-0 grid-cols-12 content-start gap-4 [&>*]:col-span-12 [&>.contents>*]:col-span-12">
+      <div class="grid w-full min-w-0 grid-cols-12 content-start gap-4 [&>*]:col-span-12">
         {#if section === "backends"}
           <BackendsTable {owner} />
         {:else}
