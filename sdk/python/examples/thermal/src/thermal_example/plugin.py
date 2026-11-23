@@ -61,8 +61,13 @@ class TemperatureObserver(Observer[Message]):
     row = Temperature
     interval_ms = 1000
 
+    def __init__(self) -> None:
+        self.temperature_celsius = 23.0
+
     def sample(self, ctx: operations.Context) -> Message:
-        return Temperature(celsius=84.0)
+        # Approach the Chamber Target on Each Granted Sample.
+        self.temperature_celsius += (84.0 - self.temperature_celsius) * 0.25
+        return Temperature(celsius=self.temperature_celsius)
 
 
 class ThermalCycleTestTemplate(TestTemplate):
