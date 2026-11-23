@@ -7,7 +7,6 @@ import { useBrand } from "@/lib/brand-context";
 import { useNavigationMode } from "@/shell/use-navigation-mode";
 import DisconnectedSettingsView from "./DisconnectedSettings.svelte";
 import { PluginsSection } from "./sections/PluginsSection";
-import AdvancedSwitch from "./SettingsAdvancedSwitch.svelte";
 import type { SettingsSectionId } from "./settings-sections";
 import SettingsView from "./SettingsSurface.svelte";
 import { useSettingsSections } from "./use-settings-sections";
@@ -42,10 +41,6 @@ export function SettingsSurface({ section }: { section?: SettingsSectionId }) {
       {portals}
     </>
   );
-}
-
-export function SettingsAdvancedSwitch() {
-  return <SvelteMount component={AdvancedSwitch} props={{}} />;
 }
 
 export function DisconnectedSettings({ close }: { close: () => void }) {

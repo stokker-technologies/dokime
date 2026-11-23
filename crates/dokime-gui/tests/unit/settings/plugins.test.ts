@@ -19,24 +19,24 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { beforeEach, onTestFinished, test, vi } from "vitest";
+import { tick } from "svelte";
 import { create } from "@bufbuild/protobuf";
-import { act, createElement, isValidElement, type ComponentProps, type ReactNode } from "react";
+import { createElement, isValidElement, type ComponentProps } from "react";
 import { QueryClient } from "@tanstack/svelte-query";
 import { fireEvent, render, within } from "@testing-library/svelte";
 import type { ConnectedSession } from "@/app/native-session/session";
 import InstalledPluginDetailView from "@/features/settings/installed-plugins/InstalledPluginDetail.svelte";
 import type { InstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
-import { PluginSettingsSurface } from "@/features/settings/PluginSettingsSurface";
+import PluginSettingsSurface from "@/features/settings/PluginSettingsSurface.svelte";
 import { PluginList, statusPresentation } from "@/features/settings/plugins/PluginList";
 import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { bundleSettingsPage, programRows } from "@/features/settings/plugins/PluginPrograms";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { startNotification } from "@/features/settings/plugins/plugin-queries";
+import { pluginQueryKeys, startNotification } from "@/features/settings/plugins/plugin-queries";
 import SecretsSection from "@/features/settings/sections/SecretsSection.svelte";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 import type { NotificationFailure } from "@/lib/notification-details";
@@ -60,7 +60,7 @@ const fixture = vi.hoisted(() => ({
   rows: [] as PluginTableRow[],
 }));
 const session = { generation: "1", isCurrent: () => true };
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const connected = { identity: session, queryClient } as unknown as ConnectedSession;
 const entry: ManagedPlugin = create(PluginEntrySchema, {
   name: "bench",
@@ -104,30 +104,34 @@ vi.mock("@/lib/api/native-secrets", () => ({
   previewSecrets: vi.fn(),
 }));
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => connected }));
-vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) => (open ? children : null),
-  DialogContent: ({ children }: { children: ReactNode }) => createElement("div", { role: "dialog" }, children),
-  DialogHeader: ({ children }: { children: ReactNode }) => children,
-  DialogTitle: ({ children }: { children: ReactNode }) => children,
-  DialogDescription: ({ children }: { children: ReactNode }) => children,
-  DialogFooter: ({ children }: { children: ReactNode }) => children,
+vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", async (original) => ({
+  ...(await original<typeof import("@/features/settings/installed-plugins/installed-plugin-queries")>()),
+  installedPluginDetailsOptions: (_session: ConnectedSession, pluginId: string) => ({
+    enabled: Boolean(pluginId),
+    queryKey: ["settings", "installed-plugins", "detail", session.generation, pluginId],
+    queryFn: async () => {
+      const result = fixture.detail(pluginId);
+      if (result.isError) {
+        throw result.error;
+      }
+      return result.data;
+    },
+  }),
+  installedPluginSettingsOptions: () => ({ mutationFn: (input: unknown) => fixture.save(input) }),
 }));
-vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
-  useInstalledPluginDetailQuery: fixture.detail,
-  useInstalledPluginSettingsMutation: () => ({ mutateAsync: fixture.save }),
-  useInstalledPluginSecretMutation: () => ({ mutateAsync: vi.fn() }),
-  usePluginRestartRefresh: vi.fn(),
+vi.mock("@/features/settings/settings-queries", async (original) => ({
+  ...(await original<typeof import("@/features/settings/settings-queries")>()),
+  settingsFrameQueryOptions: () => ({ queryKey: ["settings", "frame"], queryFn: async () => ({ sections: [], cards: [] }) }),
 }));
 vi.mock("@/features/settings/plugins/plugin-queries", async (original) => ({
   ...(await original<typeof import("@/features/settings/plugins/plugin-queries")>()),
-  usePluginsQuery: fixture.installations,
+  pluginsListQueryOptions: () => ({
+    queryKey: ["settings", "plugins", "list", session.generation],
+    queryFn: async () => fixture.installations().data,
+  }),
+  reloadPluginOptions: () => ({ mutationFn: fixture.reload }),
   useReloadPluginMutation: () => ({ mutate: fixture.reload, isPending: false, isError: false }),
 }));
-vi.mock("@/features/settings/use-settings-sections", () => ({ useSettingsSections: () => ({ frame: { sections: [], cards: [] } }) }));
-vi.mock("@/features/settings/SettingsSurface", () => ({ SettingsAdvancedSwitch: () => null }));
-vi.mock("@/features/settings/PluginSettingsCards", () => ({ PluginSettingsCards: () => null }));
-vi.mock("@/shell/page-chrome", () => ({ usePageChrome: vi.fn() }));
-vi.mock("@/lib/brand-context", () => ({ useBrand: () => ({ label: "Fixture" }) }));
 vi.mock("@/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 
 beforeEach(() => {
@@ -138,6 +142,7 @@ beforeEach(() => {
   fixture.save.mockResolvedValue(undefined);
   fixture.admitted.mockResolvedValue([]);
   fixture.installed.mockResolvedValue([entry]);
+  fixture.installations.mockReturnValue({ data: [] });
   fixture.detail.mockImplementation((pluginId: string) => ({
     data: {
       plugin_id: pluginId,
@@ -169,6 +174,12 @@ beforeEach(() => {
   });
 });
 
+function showPluginSettings() {
+  const view = render(PluginSettingsSurface, { pluginId: entry.name, session: connected, label: "Fixture" });
+  onTestFinished(() => view.unmount());
+  return view;
+}
+
 test("Inactive Entry Keeps Its Settings Navigation", () => {
   assert.equal(bundleSettingsPage(entry, [], null), entry.name);
   assert.equal(bundleSettingsPage({ ...entry, value: { enabled: false } }, [], null), entry.name);
@@ -187,46 +198,14 @@ test("Entry Settings Remain Available After Activation Failure", async () => {
 
 test("Failed Forms Keep Their Controls Editable", async () => {
   fixture.installations.mockReturnValue({ data: [entry] });
-  fixture.detail.mockImplementation((pluginId: string) => ({
-    data: {
-      plugin_id: pluginId,
-      label: pluginId,
-      version: "1.0.0",
-      runtime: "code",
-      status: "failed",
-      error: null,
-      settings: {
-        contributions: [
-          {
-            kind: "setting",
-            declaration: create(SettingDeclarationSchema, {
-              name: "address",
-              title: "Address",
-              default: { value: { case: "text", value: "" } },
-            }),
-          },
-        ],
-      },
-      values: { address: "corrected" },
-      secrets: [],
-    },
-  }));
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
-    vi.unstubAllGlobals();
-  });
-  await act(async () => root.render(createElement(PluginSettingsSurface, { pluginId: entry.name })));
+  const view = showPluginSettings();
+  await view.findByRole("textbox", { name: "Address" });
   assert.deepEqual(
     fixture.detail.mock.calls.map(([id]) => id),
     [entry.name],
   );
-  assert.equal(host.querySelectorAll("input").length, 1);
-  assert.equal(host.querySelector("[disabled]"), null);
+  assert.equal(view.container.querySelectorAll("input").length, 1);
+  assert.equal(view.container.querySelector("[disabled]"), null);
 });
 
 test("Entry States Follow Current Activation and Enablement", () => {
@@ -361,47 +340,45 @@ test("Missing Secret Action", async () => {
   assert.equal(view.queryByRole("dialog"), null);
 });
 
-test("Undescribed Plugin Waits Without Requesting Settings", () => {
-  fixture.installations.mockReturnValue({ data: [{ ...entry, failure: undefined, state: PluginState.CONNECTING }] });
-  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
-  assert.ok(html.includes('role="status"'));
-  assert.ok(!html.includes('role="alert"'));
+test("Undescribed Plugin Waits Without Requesting Settings", async () => {
+  const installation = { ...entry, failure: undefined, state: PluginState.CONNECTING };
+  queryClient.setQueryData(pluginQueryKeys.list(session.generation), [installation]);
+  queryClient.setQueryData(["settings", "frame"], { sections: [], cards: [] });
+  fixture.installations.mockReturnValue({ data: [installation] });
+  const view = showPluginSettings();
+  assert.ok(view.getByRole("status"));
+  assert.equal(view.queryByRole("alert"), null);
+  assert.equal(view.queryByRole("button", { name: "Reload" }), null);
   assert.equal(fixture.detail.mock.calls.length, 0);
 });
 
-test("Independent Failed Section Occupies Its Content Slot", () => {
+test("Independent Failed Section Occupies Its Content Slot", async () => {
   fixture.installations.mockReturnValue({
     data: [{ ...entry, failure: undefined, description: { id: "bench" }, state: PluginState.READY }],
   });
-  fixture.detail.mockReturnValue({ isError: true, error: new Error("bench_section"), refetch: vi.fn() });
-  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
-  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
-  assert.ok(html.includes("bench_section"));
+  const refusal = new Error("fixture-section");
+  fixture.detail.mockReturnValue({ isError: true, error: refusal });
+  const view = showPluginSettings();
+  const alert = await view.findByRole("alert");
+  assert.equal(view.getAllByRole("alert").length, 1);
+  assert.ok(alert.textContent?.includes(refusal.message));
 });
 
 test("Failed Plugin Settings Save the Corrected Value", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.useFakeTimers();
   fixture.installations.mockReturnValue({ data: [entry] });
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-  });
-  await act(async () => root.render(createElement(PluginSettingsSurface, { pluginId: entry.name })));
-  const input = host.querySelector("input");
-  assert.ok(input);
+  const view = showPluginSettings();
+  const input = await view.findByRole("textbox", { name: "Address" });
+  assert.ok(input instanceof HTMLInputElement);
   assert.equal(input.disabled, false);
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "repaired-address");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await act(async () => vi.advanceTimersByTimeAsync(100));
-  assert.deepEqual(fixture.save.mock.calls, [[{ pluginId: entry.name, values: { address: "repaired-address" } }]]);
+  vi.useFakeTimers();
+  try {
+    await fireEvent.input(input, { target: { value: "repaired-address" } });
+    await vi.advanceTimersByTimeAsync(100);
+    await tick();
+    assert.deepEqual(fixture.save.mock.calls, [[{ pluginId: entry.name, values: { address: "repaired-address" } }]]);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("Durations Format Compact Units and Parse Them Without Losing Nanoseconds", () => {

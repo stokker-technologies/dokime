@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
+import type { ConnectedSession } from "@/app/native-session/session";
 import type { InstallPluginProgress, PluginSource } from "@/lib/api/native-plugins";
 import {
   installNativePlugin,
@@ -89,11 +90,14 @@ export function startNotification(entry: ManagedPlugin): string | null {
 }
 
 export function usePluginsQuery() {
-  const session = useNativeSession();
-  return useQuery({
+  return useQuery(pluginsListQueryOptions(useNativeSession()));
+}
+
+export function pluginsListQueryOptions(session: ConnectedSession) {
+  return {
     queryFn: () => listNativePlugins(session.identity),
     queryKey: pluginQueryKeys.list(session.identity.generation),
-  });
+  };
 }
 
 export function useInstallPluginMutation() {
@@ -142,14 +146,17 @@ export function useRemovePluginMutation() {
 /** Reloads a plugin and its observers using saved settings. */
 export function useReloadPluginMutation() {
   const session = useNativeSession();
-  const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation(reloadPluginOptions(session));
+}
+
+export function reloadPluginOptions(session: ConnectedSession) {
+  return {
     mutationFn: (name: string) => restartNativePlugin(session.identity, name),
-    onError: (error) => toast.error(failureOf(error, "Plugin Reload Failed")),
+    onError: (error: unknown) => toast.error(failureOf(error, "Plugin Reload Failed")),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      await session.queryClient.invalidateQueries({ queryKey: ["settings"] });
     },
-  });
+  };
 }
 
 export function useSetPluginEnabledMutation() {
