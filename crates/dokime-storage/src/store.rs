@@ -40,7 +40,7 @@ use prost_reflect::DynamicMessage;
 use prost_types::Timestamp;
 use rusqlite::Transaction;
 use rusqlite::TransactionBehavior;
-use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
+use rusqlite::{Connection, InterruptHandle, OpenFlags, OptionalExtension, params, types::ValueRef};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch::{self, Sender};
 use uuid::Uuid;
@@ -92,11 +92,15 @@ pub struct Store {
     pub(crate) ranks: Arc<Mutex<RankCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub(crate) changed: Sender<u64>,
+
+    /// Parks This Store's Flush Syncs While a Story Holds It; Other Stores Never Pass It.
+    #[cfg(test)]
+    pub(crate) sync_gate: Arc<telemetry::SyncGate>,
 }
 
 pub struct ReadCancellation {
     cancelled: Arc<AtomicBool>,
-    interrupt: rusqlite::InterruptHandle,
+    interrupt: InterruptHandle,
 }
 
 /* === Enums === */
@@ -283,6 +287,8 @@ impl Store {
             ranks: Arc::default(),
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
+            #[cfg(test)]
+            sync_gate: Arc::default(),
         };
         store.restore_intake()?;
         Ok(store)
@@ -304,7 +310,7 @@ impl Store {
         Ok(connection)
     }
     pub fn read_session(&self) -> Result<(Self, ReadCancellation)> {
-        let connection = Connection::open_with_flags(self.database.as_path(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let connection = Connection::open_with_flags(self.database.as_path(), OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         connection.execute_batch("BEGIN")?;
         let interrupt = connection.get_interrupt_handle();
         let cancelled = Arc::new(AtomicBool::new(false));
@@ -324,6 +330,8 @@ impl Store {
             ranks: self.ranks.clone(),
             verified: self.verified.clone(),
             changed: self.changed.clone(),
+            #[cfg(test)]
+            sync_gate: self.sync_gate.clone(),
         };
         Ok((session, ReadCancellation { cancelled, interrupt }))
     }

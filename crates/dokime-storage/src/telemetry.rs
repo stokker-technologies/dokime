@@ -26,6 +26,9 @@ pub use reader::BatchSelection;
 pub(crate) use reader::LiveSamples;
 pub(crate) use reader::SampleReads;
 
+#[cfg(test)]
+pub(crate) use writer::SyncGate;
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -33,7 +36,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
 use arrow_array::RecordBatch;
-use tokio::time::Instant;
+use tokio::{task::JoinHandle, time::Instant};
 
 // Local Imports
 use crate::{Error, Result, ipc};
@@ -56,8 +59,10 @@ pub(crate) struct Telemetry {
     settings: StorageSettings,
     writers: BTreeMap<String, ipc::Writer>,
     codecs: BTreeMap<(String, String), Arc<Codec>>,
+
     /// A Background Round's Written Batches Awaiting Their Sync and Catalog Commit.
     unsynced: Option<writer::Unsynced>,
+
     rounds: u64,
 }
 
@@ -68,13 +73,16 @@ pub(crate) struct Telemetry {
 pub(crate) struct Intake {
     settings: StorageSettings,
     pending: BTreeMap<(String, String), Pending>,
+
     /// The Codec of Every Open Execution Stream; Only These Accept Samples.
     streams: BTreeMap<(String, String), Arc<Codec>>,
+
     /// The Last Position Each Execution Allocated to a Sample or Evidence.
     accepted: BTreeMap<String, u64>,
+
     running: bool,
     closed: bool,
-    workers: Vec<tokio::task::JoinHandle<()>>,
+    workers: Vec<JoinHandle<()>>,
 }
 
 /// Accepted Rows Awaiting Their Flush, Already in Their Stored Arrow Layout.

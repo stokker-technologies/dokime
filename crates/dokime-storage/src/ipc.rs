@@ -11,40 +11,6 @@
 
 /* === Modules === */
 
-/// A Test Gate That Parks Every Batch Sync Until Released, So Stories Can Act While a Sync Is in Progress.
-#[cfg(test)]
-pub(crate) mod gate {
-    use std::sync::{Condvar, Mutex};
-
-    /// Whether Syncs Are Held, and How Many Wait at the Gate.
-    static STATE: Mutex<(bool, usize)> = Mutex::new((false, 0));
-    static CHANGED: Condvar = Condvar::new();
-
-    pub(crate) fn hold() {
-        STATE.lock().unwrap().0 = true;
-    }
-    pub(crate) fn release() {
-        STATE.lock().unwrap().0 = false;
-        CHANGED.notify_all();
-    }
-    /// Wait Until a Sync Is Parked at the Gate.
-    pub(crate) fn parked() {
-        let mut state = STATE.lock().unwrap();
-        while state.1 == 0 {
-            state = CHANGED.wait(state).unwrap();
-        }
-    }
-    pub(super) fn pass() {
-        let mut state = STATE.lock().unwrap();
-        state.1 += 1;
-        CHANGED.notify_all();
-        while state.0 {
-            state = CHANGED.wait(state).unwrap();
-        }
-        state.1 -= 1;
-    }
-}
-
 mod projection;
 
 /* === Re-Exports === */
@@ -69,6 +35,7 @@ use arrow_buffer::Buffer;
 use arrow_ipc::{
     Block, MessageHeader, MetadataVersion,
     convert::IpcSchemaEncoder,
+    reader::StreamReader,
     writer::{DictionaryTracker, IpcDataGenerator, IpcWriteContext, IpcWriteOptions, write_message},
 };
 use arrow_schema::Schema;
@@ -77,6 +44,9 @@ use sha2::{
     Digest, Sha256,
     digest::common::hazmat::{SerializableState, SerializedState},
 };
+
+#[cfg(test)]
+use arrow_ipc::reader::FileDecoder;
 
 // Local Imports
 use super::{Error, Result};
@@ -160,10 +130,8 @@ impl SyncHandle {
     pub(crate) fn sync(self) -> Result<()> {
         #[cfg(test)]
         if self.fail {
-            return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
+            return Err(Error::Io(io::Error::other("injected batch sync failure")));
         }
-        #[cfg(test)]
-        gate::pass();
         let _span = tracing::debug_span!("ingest.ipc.sync").entered();
         self.file.sync_all()?;
         Ok(())
@@ -179,7 +147,7 @@ impl Writer {
         if &magic != b"ARROW1\0\0" {
             return Err(Error::Corrupt("IPC file magic differs"));
         }
-        let embedded = arrow_ipc::reader::StreamReader::try_new(&mut file, None)?;
+        let embedded = StreamReader::try_new(&mut file, None)?;
         if embedded.schema() != schema {
             return Err(Error::Corrupt("uncataloged IPC schema differs"));
         }
@@ -291,10 +259,8 @@ impl Writer {
     pub(crate) fn sync(&mut self) -> Result<()> {
         #[cfg(test)]
         if mem::take(&mut self.fail_sync) {
-            return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
+            return Err(Error::Io(io::Error::other("injected batch sync failure")));
         }
-        #[cfg(test)]
-        gate::pass();
         let _span = tracing::debug_span!("ingest.ipc.sync").entered();
         self.file.file.sync_all()?;
         Ok(())
@@ -392,7 +358,7 @@ pub(crate) fn encode(schema: &SchemaRef, batch: &RecordBatch) -> Result<Encoded>
 #[cfg(test)]
 pub(crate) fn read_batch(path: &Path, schema: SchemaRef, index: &BatchIndex) -> Result<RecordBatch> {
     let buffer = read_buffer(path, index)?;
-    let decoder = arrow_ipc::reader::FileDecoder::new(schema, MetadataVersion::V5);
+    let decoder = FileDecoder::new(schema, MetadataVersion::V5);
     let batch = decoder.read_record_batch(&index.block()?, &buffer)?.ok_or(Error::Corrupt("IPC block is not a record batch"))?;
     if batch.num_rows() as u64 != index.rows {
         return Err(Error::Corrupt("IPC batch row count differs"));
@@ -430,7 +396,7 @@ pub(crate) fn recover(path: &Path, schema: SchemaRef, indices: &[BatchIndex], ch
     if &magic != b"ARROW1\0\0" {
         return Err(Error::Corrupt("IPC file magic differs"));
     }
-    let embedded = arrow_ipc::reader::StreamReader::try_new(&mut file, None)?;
+    let embedded = StreamReader::try_new(&mut file, None)?;
     if embedded.schema() != schema {
         return Err(Error::Corrupt("IPC header schema differs from catalog"));
     }
@@ -545,6 +511,7 @@ pub(crate) fn sync_parent(path: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use arrow_array::{Int64Array, StringArray};
+    use arrow_ipc::{reader::FileReader, writer::FileWriter};
     use arrow_schema::{DataType, Field, Schema};
     use std::{fs, result, sync::Arc};
     fn batch() -> RecordBatch {
@@ -569,7 +536,7 @@ mod tests {
         writer.sync().unwrap();
         let ours = fs::read(&path).unwrap();
         let mut reference = Vec::new();
-        let mut file = arrow_ipc::writer::FileWriter::try_new_with_options(&mut reference, &batch.schema(), options().unwrap()).unwrap();
+        let mut file = FileWriter::try_new_with_options(&mut reference, &batch.schema(), options().unwrap()).unwrap();
         file.write(&batch).unwrap();
         file.write(&batch).unwrap();
         file.finish().unwrap();
@@ -606,7 +573,7 @@ mod tests {
         let bytes = fs::read(&path).unwrap();
         assert_eq!(length, bytes.len() as u64);
         assert_eq!(hash, <[u8; 32]>::from(Sha256::digest(&bytes)));
-        let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
+        let reader = FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
         assert_eq!(reader.num_batches(), 1);
     }
     #[test]
@@ -623,7 +590,7 @@ mod tests {
         writer.append(&batch).unwrap();
         writer.finish().unwrap();
         drop(writer);
-        let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
+        let reader = FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
         assert_eq!(reader.num_batches(), 1);
         assert_eq!(reader.collect::<result::Result<Vec<_>, _>>().unwrap(), [batch]);
     }
@@ -651,7 +618,7 @@ mod tests {
         assert_eq!(bytes.len() as u64, length);
         assert_eq!(Sha256::digest(&bytes).as_slice(), digest);
         assert_eq!(&bytes[..before.len()], before);
-        let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
+        let reader = FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
         let batches = reader.collect::<result::Result<Vec<_>, _>>().unwrap();
         assert_eq!(batches, vec![batch.clone(), batch]);
     }
