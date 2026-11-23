@@ -16,10 +16,13 @@
   const layout = $derived(grid && validContourGrid(grid) && grid.valid.some(Boolean) ? contourLayout(grid, plot) : null);
   const title = $derived(formatUnitLabel(plot.title, plot.unit));
   let element: SVGSVGElement | undefined = $state();
+  // Derived, so a revision of the props keeps the measured panel and its plot request instead of resetting them.
+  const plotKey = $derived(plot.key);
+  const measurePanel = $derived(setPanelSize);
 
   $effect(() => {
-    const measure = setPanelSize;
-    const key = plot.key;
+    const measure = measurePanel;
+    const key = plotKey;
     if (!element || !measure || typeof ResizeObserver === "undefined") {
       return;
     }

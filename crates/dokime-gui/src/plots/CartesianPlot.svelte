@@ -28,7 +28,7 @@
   import { isNumber } from "../lib/utils";
   import { formatBooleanState, formatCursorX, formatElapsedTick } from "./axis";
   import {
-    applyHeldViewport,
+    applyFrame,
     chartFrameFromCartesian,
     drawnData,
     type DrawnWindow,
@@ -37,9 +37,9 @@
     limitRenderedSeries,
     linearXRange,
     liveCartesianXRange,
+    liveXWindow,
     paddedYRange,
     referenceYValues,
-    setLiveXScale,
     usableCartesianFrame,
     windowServes,
   } from "./cartesian-frame";
@@ -137,8 +137,6 @@
      * row per trace with the backend's statistics of the shown window.
      */
     legend?: { summaries: SeriesSummary[]; pending: boolean } | null;
-    /** Reports the x range a zoom holds, or `null` once the plot follows again. */
-    onViewportChange?: (window: { from: number; to: number } | null) => void;
   };
 
   /** Where the pointer sits on x, and what the visible window spans. */
@@ -634,7 +632,6 @@
     windowS = null,
     viewportMode = "fit",
     legend = null,
-    onViewportChange,
     currentPosition = false,
     localViewport = false,
   }: CartesianPlotProps = $props();
@@ -653,21 +650,21 @@
 
   const setSummaryWindow = $derived(interaction.measurements?.setSummaryWindow);
 
-  const updateViewport = $derived(
-    onViewportChange ??
-      (!localViewport && !zoom && plotId && setSummaryWindow
-        ? (window: { from: number; to: number } | null) => setSummaryWindow(plotId, window)
-        : undefined),
-  );
+  /* Props resolve through the parent's per-revision spec, so effects read
+     values derived from them: an equal value re-runs no effect. */
+  const summaryPlotId = $derived(!localViewport && !zoom && setSummaryWindow ? plotId : undefined);
+
+  /** Reports the x range a zoom holds, or `null` once the plot follows again. */
+  function updateViewport(window: { from: number; to: number } | null) {
+    if (summaryPlotId) {
+      setSummaryWindow?.(summaryPlotId, window);
+    }
+  }
 
   $effect(() => {
-    void [localViewport, plotId, setSummaryWindow, zoom];
-    return untrack(() => {
-      if (!plotId || !setSummaryWindow || zoom || localViewport) {
-        return;
-      }
-      return () => setSummaryWindow(plotId, null);
-    });
+    const id = summaryPlotId;
+    const reset = setSummaryWindow;
+    return id && reset ? () => reset(id, null) : undefined;
   });
 
   const kinds = $derived(markerKinds(markers, promptMarkers));
@@ -703,8 +700,6 @@
   let resizeFrame: number | null = null;
 
   let redrawFrame: number | null = null;
-
-  let updateFrame: number | null = null;
 
   let plotConstructor = $state.raw<UPlotConstructor | null>(null);
 
@@ -766,7 +761,41 @@
 
   const densePoints = $derived(renderedPointCount > POINT_MARK_RENDER_LIMIT);
 
-  const liveXRange = $derived(liveCartesianXRange(backendCartesian, windowS));
+  const liveWindow = $derived(
+    viewportMode === "live" ? liveXWindow(liveCartesianXRange(backendCartesian, windowS), xScale, timeAxis) : null,
+  );
+
+  /*
+   * What the chart is built from: series set, colours, scales, style, mode,
+   * references, declared formats and reset or viewport switches. Keyed by
+   * value, so a revision never rebuilds the chart: a rebuild painted an
+   * auto-fitted x axis before the live window returned, and tripped the
+   * browser's scroll anchoring until the viewport drifted. Revisions reach the
+   * chart through `applyFrame` in the data effect below.
+   */
+  const structureKey = $derived(
+    JSON.stringify([
+      hasData,
+      laidOut,
+      zoom,
+      densePoints,
+      currentPosition,
+      style,
+      timeAxis,
+      booleanAxis,
+      xScale,
+      yScale,
+      viewportMode,
+      resetKey,
+      colorsKey,
+      seriesKey,
+      yReferenceKey,
+      chartMode,
+      formatsKey,
+      tableLegend,
+      syncKey,
+    ]),
+  );
 
   $effect(() => {
     let cancelled = false;
@@ -808,29 +837,7 @@
   });
 
   $effect(() => {
-    void [
-      rootElement,
-      hasData,
-      laidOut,
-      zoom,
-      densePoints,
-      currentPosition,
-      style,
-      timeAxis,
-      booleanAxis,
-      plotConstructor,
-      xScale,
-      yScale,
-      viewportMode,
-      resetKey,
-      colorsKey,
-      seriesKey,
-      yReferenceKey,
-      chartMode,
-      formatsKey,
-      tableLegend,
-      syncKey,
-    ];
+    void [rootElement, plotConstructor, structureKey];
     return untrack(() => {
       const CartesianChart = plotConstructor;
       if (!hasData || !laidOut || !rootElement || !chartFrame || !CartesianChart) {
@@ -926,7 +933,7 @@
               following = false;
               // A y-only zoom returns x to its live follow, so the statistics
               // return to the window too.
-              updateViewport?.(held.x ? { from: held.x.min, to: held.x.max } : null);
+              updateViewport(held.x ? { from: held.x.min, to: held.x.max } : null);
             },
           ],
           setCursor: [
@@ -1084,6 +1091,7 @@
       };
       // Keep Chart Initialization Failures Local To This Card.
       let plot: uPlot;
+      let data: uPlot.AlignedData;
       try {
         drawn = {
           source: chartFrame.data,
@@ -1092,7 +1100,8 @@
           range: null,
           everySample: true,
         };
-        plot = new CartesianChart(options, drawnData(drawn, null, measuredChartWidth(root), zoom), root);
+        data = drawnData(drawn, null, measuredChartWidth(root), zoom);
+        plot = new CartesianChart(options, data, root);
       } catch (error) {
         plotLoadError = failureOf(error, "Plot Unavailable");
         return;
@@ -1100,13 +1109,10 @@
       if (lastResetKey !== resetKey || lastViewportMode !== viewportMode) {
         heldRange = null;
         following = true;
-        updateViewport?.(null);
+        updateViewport(null);
       }
-      if (heldRange) {
-        applyHeldViewport(plot, heldRange, drawnData(drawn, null, plot.over.clientWidth, zoom), () =>
-          setLiveXScale(plot, liveXRange, xScale, timeAxis),
-        );
-      }
+      // uPlot draws in a microtask, so even its first draw shows the held or live window.
+      applyFrame(plot, data, heldRange, liveWindow);
       renderedSeries.forEach((item, index) => {
         if (hiddenTraces.has(item.key)) {
           plot.setSeries(index + 1, { show: false });
@@ -1128,7 +1134,7 @@
           const held = { x: next.x, y: next.y ?? heldRange?.y ?? null };
           heldRange = held;
           following = false;
-          updateViewport?.(held.x ? { from: held.x.min, to: held.x.max } : null);
+          updateViewport(held.x ? { from: held.x.min, to: held.x.max } : null);
         },
       });
       const resize = () => {
@@ -1159,17 +1165,12 @@
       const observer = new ResizeObserver(scheduleResize);
       observer.observe(root);
       window.addEventListener("resize", scheduleResize);
-      /* uPlot's own double click already auto-scaled both axes; the hold is
-         dropped so the next frame follows the run again instead of re-pinning. */
-      const resume = () => {
-        heldRange = null;
-        following = true;
-        updateViewport?.(null);
-      };
-      root.addEventListener("dblclick", resume);
+      /* A double click drops the hold and follows the run again, overriding
+         uPlot's own auto-scale before it is painted. */
+      root.addEventListener("dblclick", follow);
       return () => {
         detachPan();
-        root.removeEventListener("dblclick", resume);
+        root.removeEventListener("dblclick", follow);
         if (resizeFrame !== null) {
           window.cancelAnimationFrame(resizeFrame);
           resizeFrame = null;
@@ -1180,10 +1181,6 @@
         }
         observer.disconnect();
         window.removeEventListener("resize", scheduleResize);
-        if (updateFrame !== null) {
-          window.cancelAnimationFrame(updateFrame);
-          updateFrame = null;
-        }
         if (cursorFrame !== null) {
           window.cancelAnimationFrame(cursorFrame);
           cursorFrame = null;
@@ -1192,15 +1189,6 @@
         instance = null;
         lastDataSignature = null;
       };
-      // Recreate the uPlot instance only on STRUCTURAL changes (series set,
-      // colors, scales, style, mode, references, declared formats, reset/viewport
-      // switches). Data identities (`chartFrame`, `dataSignature`) are
-      // deliberately absent: per sample updates flow through `plot.setData` in
-      // the effect below. Keying on them destroyed and rebuilt the whole plot DOM
-      // on every stream frame, which tripped the browser's scroll anchoring
-      // ("too many consecutive adjustments") until it disabled itself and the
-      // viewport drifted. The effect body reads the current render's frame for
-      // the initial data.
     });
   });
 
@@ -1277,54 +1265,28 @@
     });
   });
 
+  // Live revisions already arrive one commit per animation frame; each is applied once, with its window.
   $effect(() => {
-    void [chartFrame, dataSignature, hasData, liveXRange, renderedSeries, resetKey, timeAxis, viewportMode, xScale, zoom];
-    return untrack(() => {
+    void dataSignature;
+    untrack(() => {
       const plot = instance;
-      if (!hasData || !plot || !chartFrame) {
+      if (!plot || !chartFrame || lastDataSignature === dataSignature) {
         return;
       }
-
-      if (updateFrame !== null) {
-        window.cancelAnimationFrame(updateFrame);
+      drawn.source = chartFrame.data;
+      drawn.preserveSamples = renderedSeries.every((item) => !item.downsampled);
+      try {
+        applyFrame(plot, drawnData(drawn, null, plot.over.clientWidth, zoom), heldRange, liveWindow);
+      } catch (error) {
+        plotLoadError = failureOf(error, "Plot Unavailable");
+        return;
       }
-      updateFrame = window.requestAnimationFrame(() => {
-        updateFrame = null;
-        drawn.source = chartFrame.data;
-        drawn.preserveSamples = renderedSeries.every((item) => !item.downsampled);
-        const fullRange = () => drawnData(drawn, null, plot.over.clientWidth, zoom);
-        const resetChanged = lastResetKey !== resetKey;
-        const viewportModeChanged = lastViewportMode !== viewportMode;
-        try {
-          if (heldRange && !resetChanged && !viewportModeChanged) {
-            applyHeldViewport(plot, heldRange, fullRange(), () => {
-              if (viewportMode === "live") {
-                setLiveXScale(plot, liveXRange, xScale, timeAxis);
-              }
-            });
-            lastDataSignature = dataSignature;
-            return;
-          }
-          if (!resetChanged && !viewportModeChanged && lastDataSignature === dataSignature) {
-            if (viewportMode === "live") {
-              setLiveXScale(plot, liveXRange, xScale, timeAxis);
-            }
-            return;
-          }
-          if (viewportMode === "live") {
-            plot.setData(fullRange(), false);
-            setLiveXScale(plot, liveXRange, xScale, timeAxis);
-          } else {
-            plot.setData(fullRange(), true);
-          }
-        } catch (error) {
-          plotLoadError = failureOf(error, "Plot Unavailable");
-          return;
-        }
-        lastResetKey = resetKey;
-        lastViewportMode = viewportMode;
-        lastDataSignature = dataSignature;
-      });
+      lastDataSignature = dataSignature;
+      // This commit draws the overlays as well; a redraw queued before it is redundant.
+      if (redrawFrame !== null) {
+        window.cancelAnimationFrame(redrawFrame);
+        redrawFrame = null;
+      }
     });
   });
 
@@ -1343,14 +1305,10 @@
   function follow() {
     heldRange = null;
     following = true;
-    updateViewport?.(null);
+    updateViewport(null);
     const plot = instance;
-    if (!plot || !chartFrame) {
-      return;
-    }
-    plot.setData(drawnData(drawn, null, plot.over.clientWidth, zoom), true);
-    if (viewportMode === "live") {
-      setLiveXScale(plot, liveXRange, xScale, timeAxis);
+    if (plot) {
+      applyFrame(plot, drawnData(drawn, null, plot.over.clientWidth, zoom), null, liveWindow);
     }
   }
 </script>

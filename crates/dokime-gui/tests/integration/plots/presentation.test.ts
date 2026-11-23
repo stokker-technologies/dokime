@@ -34,7 +34,8 @@ import PlotPlaceholder from "../../../src/plots/PlotPlaceholder.svelte";
 
 /* === Constants === */
 
-const charts = vi.hoisted(() => ({ options: [] as uPlot.Options[] }));
+/* uPlot draws once per microtask: `drawn` records the x range each draw shows, "auto" for a fit to the data. */
+const charts = vi.hoisted(() => ({ options: [] as uPlot.Options[], drawn: [] as unknown[] }));
 
 const descriptor = {
   plot_id: "position",
@@ -72,6 +73,7 @@ function stubChartSize() {
   onTestFinished(() => {
     cleanup();
     charts.options.length = 0;
+    charts.drawn.length = 0;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -86,15 +88,35 @@ vi.mock("uplot", () => ({
     static paths = {};
     over = document.createElement("div");
     series: uPlot.Series[];
+    pendingX: unknown;
     constructor(options: uPlot.Options) {
       charts.options.push(options);
       this.series = options.series;
+      this.draw("auto");
+    }
+    draw(x: unknown) {
+      if (this.pendingX === undefined) {
+        queueMicrotask(() => {
+          charts.drawn.push(this.pendingX);
+          this.pendingX = undefined;
+        });
+      }
+      this.pendingX = x;
     }
     setSize() {}
     setSeries(index: number, options: uPlot.Series) {
       Object.assign(this.series[index], options);
     }
-    setData() {}
+    setData(_data: uPlot.AlignedData, resetScales?: boolean) {
+      if (resetScales !== false) {
+        this.draw("auto");
+      }
+    }
+    setScale(key: string, range: { min: number; max: number }) {
+      if (key === "x") {
+        this.draw(range);
+      }
+    }
     destroy() {}
   },
 }));
@@ -255,6 +277,41 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
     assert.equal(toggle.getAttribute("aria-pressed"), "true");
     assert.equal(table.querySelectorAll("tbody tr").length, 12);
   }
+});
+
+test("Live Revisions Redraw One Chart Only Inside the Selected Window", async () => {
+  stubChartSize();
+  vi.useFakeTimers();
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const revision = (latest: number) =>
+    documentPlotSpec({
+      plot: { ...descriptor, plot_type: "time_series" },
+      payload: {
+        ...payload,
+        window_s: 60,
+        cartesian: {
+          mode: "aligned",
+          series: [{ x: [latest - 90, latest - 30, latest], y: [1, 2, 3] }],
+          point_count: 3,
+          signature: `${latest}`,
+        },
+      },
+    });
+  const { rerender } = render(TimeSeriesPlot, { plot: revision(1000), viewportMode: "live" });
+  await act(() => vi.dynamicImportSettled());
+  for (const latest of [1001, 1002]) {
+    await rerender({ plot: revision(latest) });
+    await vi.advanceTimersByTimeAsync(16);
+  }
+  assert.equal(charts.options.length, 1);
+  assert.deepEqual(
+    charts.drawn,
+    [1000, 1001, 1002].map((latest) => ({ min: latest - 60, max: latest })),
+  );
 });
 
 test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside Their Card", async () => {
