@@ -44,6 +44,20 @@ pub struct Administration {
     pub payload: Vec<u8>,
 }
 
+/// A Retained Read View's File, Kept Apart So Views Never Grow the Administration Population.
+#[derive(harmos_domain::Message, Clone, Debug, PartialEq)]
+pub struct View {
+    pub key: String,
+    pub scope: Identifier,
+    pub payload: Vec<u8>,
+}
+
+/// Product Protobuf Bytes Under a Key and Owner, Stored as One Object Kind.
+pub trait Entry: StoredObject<Key = str> + harmos_domain::Message + Sized {
+    fn new(key: String, scope: Identifier, payload: Vec<u8>) -> Self;
+    fn into_payload(self) -> Vec<u8>;
+}
+
 /// Frozen Planned Case, Owned Independently of Its Registration Replay.
 #[derive(harmos_domain::Message, Clone, Debug, PartialEq)]
 pub struct Case {
@@ -108,6 +122,35 @@ impl Scope<'_> {
     }
 }
 
+impl Entry for Administration {
+    fn new(key: String, scope: Identifier, payload: Vec<u8>) -> Self {
+        Self { key, scope, payload }
+    }
+    fn into_payload(self) -> Vec<u8> {
+        self.payload
+    }
+}
+impl Entry for View {
+    fn new(key: String, scope: Identifier, payload: Vec<u8>) -> Self {
+        Self { key, scope, payload }
+    }
+    fn into_payload(self) -> Vec<u8> {
+        self.payload
+    }
+}
+impl Identified for View {
+    const ID: &'static str = "dokime.view";
+}
+impl StoredObject for View {
+    type Key = str;
+    const RETENTION: ObjectRetention = ObjectRetention::All;
+    fn key(&self) -> &str {
+        &self.key
+    }
+    fn scope(&self) -> Option<&Identifier> {
+        Some(&self.scope)
+    }
+}
 impl Identified for Case {
     const ID: &'static str = "dokime.case";
 }
@@ -181,6 +224,7 @@ impl StoredObject for Command {
 pub fn catalog() -> ObjectCatalog {
     ObjectCatalog::new()
         .entry(ObjectDefinition::of::<Administration>())
+        .entry(ObjectDefinition::of::<View>())
         .entry(ObjectDefinition::of::<Case>())
         .entry(ObjectDefinition::of::<Plan>())
         .entry(ObjectDefinition::of::<Command>())

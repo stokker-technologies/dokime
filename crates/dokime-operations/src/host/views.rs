@@ -33,6 +33,7 @@ use crate::host::files::transfer;
 use crate::host::projection;
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
+use dokime_storage::persisted::View;
 
 /* === Constants === */
 
@@ -162,7 +163,7 @@ pub(crate) fn page<T: Message>(
 /* === Private Functions === */
 
 async fn retained(context: &Context, key: &str) -> Result<Option<Vec<u8>>> {
-    let (file, revision) = administration::message::<FileReference>(context, key).await?;
+    let (file, revision) = administration::message_in::<View, FileReference>(context, key).await?;
     if revision.is_empty() {
         return Ok(None);
     }
@@ -220,7 +221,7 @@ async fn retain_owned(
     if sender.is_closed() {
         return Err(Error::Cancelled("Retain View: Read Ended Before Publication".into()));
     }
-    let (saved, revision) = administration::message::<FileReference>(context, key).await?;
+    let (saved, revision) = administration::message_in::<View, FileReference>(context, key).await?;
     if !revision.is_empty() {
         return Ok(saved);
     }
@@ -251,7 +252,10 @@ async fn retain_owned(
         discard(context, file, &request_id).await?;
         return Err(Error::Cancelled("Retain View: Read Ended Before Indexing".into()));
     }
-    finish_file(file.clone(), administration::retain(context, key, scope.clone(), &file), |file| discard(context, file, &request_id)).await
+    finish_file(file.clone(), administration::retain_in::<View, _>(context, key, scope.clone(), &file), |file| {
+        discard(context, file, &request_id)
+    })
+    .await
 }
 
 async fn finish_file<F: Future<Output = Result<()>>>(

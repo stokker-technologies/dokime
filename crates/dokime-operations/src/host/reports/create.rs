@@ -116,6 +116,14 @@ pub(crate) fn prepare(
                 Error::Precondition("Create Report: Use a New Request ID After Replacing Incompatible Prepared Data".into())
             });
         }
+        // A Cycle Report Embeds Its Executions' Frozen Captures, So Each Freezes First or Joins Its Seal's Freeze.
+        if let Some(Kind::Cycle(cycle)) = request.subject.as_ref().and_then(|subject| subject.kind.as_ref()) {
+            for execution in context.host.store().cycle_executions(cycle)? {
+                if context.host.store().cut(&execution)?.state == ExecutionState::Sealed {
+                    freeze(context, &execution).await?;
+                }
+            }
+        }
         let (mut prepared, rendered) = render(context, &request).await?;
         let scope = match scope {
             Some(scope) => scope,
@@ -206,11 +214,17 @@ async fn materialize(context: &Context, execution: &str) -> Result<(String, File
         ..Default::default()
     };
     let (prepared, rendered) = render(context, &request).await?;
+    let phase = Instant::now();
     let file = upload(context, &rendered, rendered_scope(&rendered)?).await?;
+    tracing::debug!(phase = "upload", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let phase = Instant::now();
     let html = fs::read(&rendered.path).map_err(|source| Error::Invalid(format!("Freeze Report: Read Its Temporary HTML: {source}")))?;
     let document = prepared.document.ok_or_else(|| Error::Invalid("Freeze Report: Capture Its Document".into()))?;
     let report = super::publish::publish(context, execution, &prepared.execution_seal, document, html, &file).await?;
+    tracing::debug!(phase = "publish", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let phase = Instant::now();
     context.host.store().retain_ranks(execution)?;
+    tracing::debug!(phase = "ranks", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     context.host.signal_change();
     tracing::info!(%execution, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Frozen");
     Ok((report.identifier, file))

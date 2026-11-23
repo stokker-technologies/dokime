@@ -142,7 +142,10 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
     )?;
     let current = store.evidence_position(None)?;
     assert!(current.sequence > cut.sequence);
-    assert_eq!(store.evidence_entries(0, cut.sequence, NonZeroUsize::new(10).unwrap(), false)?.len(), 1);
+    assert_eq!(
+        store.evidence_entries(dokime_storage::EvidenceOwner::Store, 0, cut.sequence, NonZeroUsize::new(10).unwrap(), false)?.len(),
+        1
+    );
 
     // Deleting Sealed Evidence Explicitly Invalidates a Returned Global Cut.
     store.close("first", Termination::Completed, ExecutionOutcome::default())?;

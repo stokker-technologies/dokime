@@ -14,6 +14,7 @@
 mod live;
 mod publication;
 mod reports;
+mod seal;
 mod windows;
 
 /* === Re-Exports === */
@@ -433,6 +434,10 @@ fn main() {
     let _entered = executor.enter();
     let report_times = reports::Times::default();
     tracing::subscriber::set_global_default(tracing_subscriber::registry().with(report_times.clone())).unwrap();
+    if seal::selected() {
+        seal::measure(&executor, &report_times);
+        return;
+    }
     let mut criterion = Criterion::default().configure_from_args();
     let mut live_group = criterion.benchmark_group("live_visibility");
     live_group.sample_size(10);
