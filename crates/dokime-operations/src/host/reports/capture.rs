@@ -21,6 +21,7 @@ use std::num::NonZeroUsize;
 use std::time::Instant;
 
 // Third Party Imports
+use base64::{Engine, engine::general_purpose::STANDARD};
 use harmos_protocol::model::{Declarations, FileReference, History, PageRequest, Position, ReadCut};
 use prost::Message;
 
@@ -101,6 +102,15 @@ pub(super) async fn collect(
     };
     tracing::debug!(phase = "resolve_cut", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let phase = Instant::now();
+    // The Report Reads Only the Session and Revision; Store-Wide Overview Counts Would Scale With History.
+    let overview = host::backend::OverviewGetResponse {
+        overview: Some(host::backend::RuntimeShellSnapshot {
+            session_id: context.host.identity().epoch,
+            revision: *context.host.changes().borrow(),
+            ..Default::default()
+        }),
+        resolved_at: None,
+    };
     let mut capture = host::ReportCapture {
         report: Some(host::ReportMetadata {
             test_cycle_id: cycle.clone(),
@@ -110,7 +120,7 @@ pub(super) async fn collect(
             origin: host::ReportOrigin::Current as i32,
             ..Default::default()
         }),
-        overview: Some(crate::host::backend::overview::get::handle(context, host::backend::OverviewGetRequest::default()).await?),
+        overview: Some(overview),
         cycle: Some(
             crate::host::cycles::get::handle(
                 context,
@@ -185,19 +195,24 @@ pub(super) async fn collect(
                 }
             }
         }
+        if execution.is_none() {
+            // A Cycle Report Reuses Each Execution's Frozen Capture Instead of Rendering It Again.
+            let frozen = frozen_capture(context, id).await?;
+            capture.files.extend(frozen.files);
+            capture.executions.extend(frozen.executions);
+            continue;
+        }
         let scope = host::DocumentScope {
             cycle_id: cycle.clone(),
             execution_id: id.clone(),
         };
         let (document, _) = context.host.current_document(&scope, &request.document_id)?;
-        if execution.is_some() {
-            prepared = Some(PreparedReport {
-                execution: id.clone(),
-                execution_seal: cut.seal.clone(),
-                document: Some(document.clone()),
-                ..Default::default()
-            });
-        }
+        prepared = Some(PreparedReport {
+            execution: id.clone(),
+            execution_seal: cut.seal.clone(),
+            document: Some(document.clone()),
+            ..Default::default()
+        });
         let phase = Instant::now();
         let sections = document.sections.len();
         let document = documents::get::response_at_with_reader(
@@ -384,27 +399,6 @@ pub(super) async fn collect(
     capture.notes = crate::host::evidence::notes::list::capture(context, selection.clone()).await?;
     tracing::debug!(phase = "notes", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let phase = Instant::now();
-    let mut at = None;
-    let mut token = String::new();
-    loop {
-        let reply = crate::host::evidence::health_events::list::handle(
-            context,
-            evidence::HealthEventsListRequest {
-                selection: selection.clone(),
-                at: at.clone(),
-                page: Some(PageRequest { page_token: token, ..Default::default() }),
-            },
-        )
-        .await?;
-        at = reply.resolved_at.clone();
-        token = reply.next_page_token.clone();
-        capture.health.push(reply);
-        if token.is_empty() {
-            break;
-        }
-    }
-    tracing::debug!(phase = "health", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
-    let phase = Instant::now();
     let scope = EvidenceScope {
         cycle_id: Some(cycle),
         execution_id: execution,
@@ -486,10 +480,33 @@ pub(super) async fn collect(
         }
     }
     tracing::debug!(phase = "logos", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let mut embedded = BTreeSet::new();
+    capture.files.retain(|file| embedded.insert(file.file.as_ref().map(|file| (file.length, file.sha256.clone()))));
     Ok((capture, resolved_at, prepared))
 }
 
+/// The Capture a Frozen Report Embeds, Read Back From Its HTML.
+pub(super) fn embedded(html: &[u8]) -> Result<host::ReportCapture> {
+    let missing = || Error::Precondition("Create Report: Restore the Frozen Report's Embedded Data".into());
+    let element = b"id=\"hub-report-data\"";
+    let start = html.windows(element.len()).position(|window| window == element).ok_or_else(missing)?;
+    let start = start + html[start..].iter().position(|byte| *byte == b'>').ok_or_else(missing)? + 1;
+    let end = start + html[start..].iter().position(|byte| *byte == b'<').ok_or_else(missing)?;
+    let data = STANDARD.decode(&html[start..end]).map_err(|_| missing())?;
+    Ok(host::ReportCapture::decode(data.as_slice())?)
+}
+
 /* === Private Functions === */
+
+/// The Execution's Frozen Report Capture; Cycle Reports Freeze Their Executions Before Rendering.
+async fn frozen_capture(context: &Context, execution: &str) -> Result<host::ReportCapture> {
+    let (identifier, _) = super::create::frozen(context, execution)
+        .await?
+        .ok_or_else(|| Error::Precondition(format!("Create Report: Freeze Execution {execution}'s Report First")))?;
+    let report = context.host.store().reports(execution)?.into_iter().find(|report| report.identifier == identifier);
+    let report = report.ok_or_else(|| Error::Precondition("Create Report: Restore the Frozen Execution Report".into()))?;
+    embedded(&report.html)
+}
 
 async fn read_file(context: &Context, file: &FileReference) -> Result<host::ReportFile> {
     let mut captured = host::ReportFile {

@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 // Third Party Imports
@@ -33,7 +34,7 @@ use dokime_protocol::host::evidence::RecordsListResponse;
 use dokime_protocol::host::evidence::record_scope;
 use dokime_protocol::host::{Field, FieldType, Schema};
 use dokime_protocol::model::RecordContracts;
-use dokime_storage::ExecutionCut;
+use dokime_storage::{EvidenceOwner, ExecutionCut, Store};
 
 /* === Constants === */
 
@@ -157,8 +158,15 @@ pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, afte
     let store = context.host.store();
     let (reader, _cancellation) = store.read_session()?;
     reader.evidence_position(Some(&position))?;
+    // Scoped Selections Read Only Their Owner's Evidence, Never the Store's Whole History.
+    let owner = match (&scope.execution_id, &scope.cycle_id) {
+        (Some(execution), _) => EvidenceOwner::Execution(execution),
+        (None, Some(cycle)) => EvidenceOwner::Cycle(cycle),
+        (None, None) => EvidenceOwner::Store,
+    };
+    let mut executions = HashMap::new();
     let entries =
-        reader.evidence_entries(scanned, position.sequence, NonZeroUsize::new(context.settings.page_items + 1).unwrap(), false)?;
+        reader.evidence_entries(owner, scanned, position.sequence, NonZeroUsize::new(context.settings.page_items + 1).unwrap(), false)?;
     let mut response = RecordsListResponse {
         resolved_at: Some(cut),
         ..Default::default()
@@ -169,12 +177,12 @@ pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, afte
             more = true;
             break;
         }
-        let frozen = reader.metadata(&execution)?;
-        if !crate::host::evidence::selection::scope_matches(Some(&scope), &frozen, &evidence) {
+        let frozen = metadata(&reader, &mut executions, &execution)?;
+        if !crate::host::evidence::selection::scope_matches(Some(&scope), frozen, &evidence) {
             scanned = sequence;
             continue;
         }
-        let Some(record) = crate::host::evidence::selection::project(&frozen, &evidence)? else {
+        let Some(record) = crate::host::evidence::selection::project(frozen, &evidence)? else {
             scanned = sequence;
             continue;
         };
@@ -200,23 +208,24 @@ pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, afte
     let mut schema = None;
     let mut heterogeneous = false;
     loop {
-        let entries = reader.evidence_entries(cursor, position.sequence, NonZeroUsize::new(context.settings.page_items).unwrap(), false)?;
+        let entries =
+            reader.evidence_entries(owner, cursor, position.sequence, NonZeroUsize::new(context.settings.page_items).unwrap(), false)?;
         if entries.is_empty() {
             break;
         }
         for (sequence, execution, evidence) in entries {
             cursor = sequence;
-            let frozen = reader.metadata(&execution)?;
-            if !crate::host::evidence::selection::scope_matches(Some(&scope), &frozen, &evidence) {
+            let frozen = metadata(&reader, &mut executions, &execution)?;
+            if !crate::host::evidence::selection::scope_matches(Some(&scope), frozen, &evidence) {
                 continue;
             }
-            let Some(record) = crate::host::evidence::selection::project(&frozen, &evidence)? else {
+            let Some(record) = crate::host::evidence::selection::project(frozen, &evidence)? else {
                 continue;
             };
             if record_matches(&request, &record) {
                 response.count += 1;
                 if !heterogeneous {
-                    let candidate = record_schema(&frozen, &record.record_type)?;
+                    let candidate = record_schema(frozen, &record.record_type)?;
                     if schema.as_ref().is_some_and(|saved| Some(saved) != candidate.as_ref()) {
                         if !request.record_type.is_empty() {
                             return Err(Error::Invalid("List Records: Select One Frozen Record Schema Across Executions".into()));
@@ -240,6 +249,14 @@ pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, afte
 }
 
 /* === Private Functions === */
+
+/// Each Execution's Frozen Metadata, Read Once per Page.
+fn metadata<'a>(reader: &Store, executions: &'a mut HashMap<String, ExecutionCut>, execution: &str) -> Result<&'a ExecutionCut> {
+    if !executions.contains_key(execution) {
+        executions.insert(execution.to_owned(), reader.metadata(execution)?);
+    }
+    Ok(&executions[execution])
+}
 
 fn record_schema(cut: &ExecutionCut, kind: &str) -> Result<Option<Schema>> {
     let (types, message) = if kind == "dokime.log" {

@@ -146,17 +146,25 @@ pub(crate) fn materialize(
             Some(scope) => scope,
             None => subject_scope(&subject)?,
         };
-        let phase = Instant::now();
+        let mut phase = Instant::now();
         let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Create Temporary Evidence Export: {error}")))?;
         // Each Frozen Report Is Published Before the Archive's Read Snapshot Opens.
         match subject.kind.as_ref() {
             Some(evidence_subject::Kind::Execution(execution)) => {
                 let (_, report) = crate::host::reports::create::freeze(context, execution).await?;
+                tracing::debug!(phase = "archive_report", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
+                phase = Instant::now();
                 let cycle = context.host.store().metadata(execution)?.execution.cycle;
                 let mut contents = HashMap::from([(execution.clone(), content(context, execution).await?)]);
+                tracing::debug!(phase = "archive_content", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
+                phase = Instant::now();
                 inventory(context, &cycle, &mut contents, &mut ArchivedContent::default()).await?;
+                tracing::debug!(phase = "archive_inventory", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
+                phase = Instant::now();
                 let mut files = contents.remove(execution).unwrap();
                 files.report = Some(native_file(context, report, None).await?);
+                tracing::debug!(phase = "archive_report_file", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
+                phase = Instant::now();
                 let (store, _read_cancellation) = context.host.store().read_session()?;
                 store.write_execution_archive(
                     execution,
@@ -205,8 +213,8 @@ pub(crate) fn materialize(
             }
             None => return Err(Error::Invalid("Download Evidence: Select an Execution or Cycle".into())),
         }
-        tracing::debug!(phase = "archive_assembly", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
-        let phase = Instant::now();
+        tracing::debug!(phase = "archive_zip", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
+        phase = Instant::now();
         let (file, length, sha256) = crate::host::content::transfer::temporary(file)?;
         let digest =
             (0..sha256.len()).step_by(2).map(|index| u8::from_str_radix(&sha256[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
@@ -262,7 +270,8 @@ async fn content(context: &Context, execution: &str) -> Result<ArchivedContent> 
     let execution_files = crate::host::content::execution_files(context, execution).await?;
     let files = native_files(context, Scope::Execution(execution).identifier()?).await?;
     let snapshot = crate::host::execution_state::read(context, execution)?;
-    let template_label = crate::host::execution_state::template_metadata(&snapshot)?.map(|(_, template)| template.label);
+    let template_label =
+        crate::host::execution_state::template_metadata(&snapshot)?.map(|(_, template)| template.label).filter(|label| !label.is_empty());
     Ok(ArchivedContent {
         template_label,
         files,

@@ -40,6 +40,7 @@ mod telemetry;
 /* === Re-Exports === */
 
 pub use backend::{Backend, BackendLease};
+pub use client_reads::EvidenceOwner;
 pub use content::{ArchivedContent, ArchivedNativeFile, CONTENT_CHUNK_BYTES, StoredArtifact, StoredExecutionFile};
 pub use content_name::{validate_artifact_name, validate_execution_path};
 pub use error::Error;

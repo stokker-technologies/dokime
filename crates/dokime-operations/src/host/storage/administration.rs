@@ -34,7 +34,7 @@ use uuid::Uuid;
 use crate::host::Context;
 use crate::host::files::transfer;
 use crate::{Error, Result};
-use dokime_storage::persisted::{Administration, catalog};
+use dokime_storage::persisted::{Administration, Entry, catalog};
 
 /* === Constants === */
 
@@ -59,7 +59,10 @@ pub struct Snapshot {
 /* === Public Functions === */
 
 pub async fn read(context: &Context, key: &str, initial: &[u8], at: Option<ReadCut>) -> Result<Snapshot> {
-    let definition = ObjectDefinition::of::<Administration>();
+    read_in::<Administration>(context, key, initial, at).await
+}
+async fn read_in<O: Entry>(context: &Context, key: &str, initial: &[u8], at: Option<ReadCut>) -> Result<Snapshot> {
+    let definition = ObjectDefinition::of::<O>();
     let schema = definition.schema().map_err(|cause| invalid("Get Administration", cause))?;
     let request = GetObjectRequest {
         schema: Some(schema),
@@ -68,9 +71,7 @@ pub async fn read(context: &Context, key: &str, initial: &[u8], at: Option<ReadC
     };
     let response = context.storage::<GetObject>(request).await?;
     let payload = match response.value {
-        Some(value) => {
-            catalog().decode::<Administration>(&value, bound(context)?).map_err(|cause| invalid("Get Administration", cause))?.payload
-        }
+        Some(value) => catalog().decode::<O>(&value, bound(context)?).map_err(|cause| invalid("Get Administration", cause))?.into_payload(),
         None => initial.to_vec(),
     };
     Ok(Snapshot {
@@ -82,9 +83,14 @@ pub async fn read(context: &Context, key: &str, initial: &[u8], at: Option<ReadC
 pub async fn replace(
     context: &Context, key: &str, scope: Identifier, expected: Vec<u8>, request_id: &str, payload: Vec<u8>,
 ) -> Result<(Snapshot, Receipt)> {
-    let value = Administration { key: key.into(), scope, payload };
+    replace_in::<Administration>(context, key, scope, expected, request_id, payload).await
+}
+async fn replace_in<O: Entry>(
+    context: &Context, key: &str, scope: Identifier, expected: Vec<u8>, request_id: &str, payload: Vec<u8>,
+) -> Result<(Snapshot, Receipt)> {
+    let value = O::new(key.into(), scope, payload);
     let value = catalog().encode(&value, bound(context)?).map_err(|cause| invalid("Set Administration", cause))?;
-    let definition = ObjectDefinition::of::<Administration>();
+    let definition = ObjectDefinition::of::<O>();
     let graph = definition.graph(&Default::default()).map_err(|cause| invalid("Set Administration", cause))?;
     let mutation = transfer::mutation(context, key, request_id).await?;
     let request = SetObjectRequest {
@@ -103,7 +109,7 @@ pub async fn replace(
             let value = applied.value.ok_or_else(|| Error::Precondition("Set Administration: Return the Durable Value".into()))?;
             let receipt = applied.receipt.ok_or_else(|| Error::Precondition("Set Administration: Return Its Original Receipt".into()))?;
             let payload =
-                catalog().decode::<Administration>(&value, bound(context)?).map_err(|cause| invalid("Set Administration", cause))?.payload;
+                catalog().decode::<O>(&value, bound(context)?).map_err(|cause| invalid("Set Administration", cause))?.into_payload();
             Ok((
                 Snapshot {
                     payload,
@@ -188,23 +194,29 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
     Ok((entries, at))
 }
 pub async fn message<T: Message + Default>(context: &Context, key: &str) -> Result<(T, Vec<u8>)> {
+    message_in::<Administration, T>(context, key).await
+}
+pub async fn message_in<O: Entry, T: Message + Default>(context: &Context, key: &str) -> Result<(T, Vec<u8>)> {
     let initial = T::default().encode_to_vec();
-    let snapshot = read(context, key, &initial, None).await?;
+    let snapshot = read_in::<O>(context, key, &initial, None).await?;
     Ok((T::decode(snapshot.payload.as_slice())?, snapshot.revision))
 }
 
 /// Retain an Immutable Product Value, Returning the First Published Value on a Race.
 pub async fn retain<T: Message + Default>(context: &Context, key: &str, scope: Identifier, value: &T) -> Result<T> {
-    let (saved, revision) = message::<T>(context, key).await?;
+    retain_in::<Administration, T>(context, key, scope, value).await
+}
+pub async fn retain_in<O: Entry, T: Message + Default>(context: &Context, key: &str, scope: Identifier, value: &T) -> Result<T> {
+    let (saved, revision) = message_in::<O, T>(context, key).await?;
     if !revision.is_empty() {
         return Ok(saved);
     }
     let request_id = Uuid::now_v7().to_string();
     let payload = value.encode_to_vec();
-    match replace(context, key, scope, Vec::new(), &request_id, payload).await {
+    match replace_in::<O>(context, key, scope, Vec::new(), &request_id, payload).await {
         Ok((saved, _)) => Ok(T::decode(saved.payload.as_slice())?),
         Err(Error::Conflict(_)) => {
-            let (saved, revision) = message::<T>(context, key).await?;
+            let (saved, revision) = message_in::<O, T>(context, key).await?;
             if revision.is_empty() {
                 return Err(Error::Precondition(format!("Retain {key}: Restore Its Published Value")));
             }

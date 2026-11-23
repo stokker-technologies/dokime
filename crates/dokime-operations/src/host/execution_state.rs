@@ -120,15 +120,9 @@ pub(crate) fn case(origin: &Origin) -> Result<&TestCase> {
         _ => Err(Error::Invalid("Inspect Case: Select a PluginRun Origin".into())),
     }
 }
+/// The Cycle's Executions in Admission Order, Read Through the Cycle's Own Index.
 pub(crate) fn snapshots(context: &Context, cycle: &str) -> Result<Vec<ExecutionSnapshot>> {
-    let mut rows = Vec::new();
-    for id in context.host.store().identifiers()? {
-        let snapshot = read(context, &id)?;
-        if snapshot.execution.cycle == cycle {
-            rows.push(snapshot);
-        }
-    }
-    Ok(rows)
+    context.host.store().cycle_executions(cycle)?.iter().map(|id| read(context, id)).collect()
 }
 pub(crate) fn summary(context: &Context, snapshot: &ExecutionSnapshot) -> Result<ExecutionSummary> {
     let (case_id, _, archived) = context.host.store().execution_presentation(&snapshot.execution.identifier)?;
@@ -213,9 +207,7 @@ pub(crate) async fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
 }
 pub(crate) async fn cycles(context: &Context) -> Result<Vec<CycleSummary>> {
     let mut ids: BTreeSet<_> = context.host.store().client_cycles()?.into_iter().map(|cycle| cycle.cycle_id).collect();
-    for id in context.host.store().identifiers()? {
-        ids.insert(context.host.store().cut(&id)?.execution.cycle);
-    }
+    ids.extend(context.host.store().execution_cycles()?);
     let mut cycles = Vec::new();
     for id in ids {
         cycles.push(cycle(context, &id).await?);

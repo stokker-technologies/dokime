@@ -36,6 +36,14 @@ use crate::{Evidence, Execution, ExecutionCut, ExecutionState, Result, Store};
 
 /* === Enums === */
 
+/// Whose Evidence a Store-Ordered Read Selects.
+#[derive(Clone, Copy, Debug)]
+pub enum EvidenceOwner<'a> {
+    Store,
+    Cycle(&'a str),
+    Execution(&'a str),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -77,13 +85,22 @@ impl Store {
     pub fn evidence_frontier(&self) -> Result<u64> {
         Ok(self.lock()?.query_row("SELECT COALESCE(MAX(rowid),0) FROM evidence", [], |row| row.get::<_, i64>(0))? as u64)
     }
-    pub fn evidence_entries(&self, after: u64, through: u64, limit: NonZeroUsize, latest: bool) -> Result<Vec<(u64, String, Evidence)>> {
+    /// Evidence Entries After a Store Sequence, Read Through the Owner's Own Index When One Is Selected.
+    pub fn evidence_entries(
+        &self, owner: EvidenceOwner<'_>, after: u64, through: u64, limit: NonZeroUsize, latest: bool,
+    ) -> Result<Vec<(u64, String, Evidence)>> {
         let connection = self.lock()?;
         let order = if latest { "DESC" } else { "ASC" };
+        // An Execution Appends in Position Order, So Its Own Index Yields Store Order.
+        let (selection, key, owner) = match owner {
+            EvidenceOwner::Store => ("?4 IS NULL", "rowid", None),
+            EvidenceOwner::Cycle(cycle) => ("execution IN (SELECT id FROM executions WHERE cycle=?4)", "rowid", Some(cycle)),
+            EvidenceOwner::Execution(execution) => ("execution=?4", "position", Some(execution)),
+        };
         let mut query = connection.prepare(&format!(
-            "SELECT rowid,execution,payload FROM evidence WHERE rowid>?1 AND rowid<=?2 ORDER BY rowid {order} LIMIT ?3"
+            "SELECT rowid,execution,payload FROM evidence WHERE {selection} AND rowid>?1 AND rowid<=?2 ORDER BY {key} {order} LIMIT ?3"
         ))?;
-        let rows = query.query_map(params![after as i64, through as i64, limit.get() as i64], |row| {
+        let rows = query.query_map(params![after as i64, through as i64, limit.get() as i64, owner], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Vec<u8>>(2)?))
         })?;
         rows.map(|row| {

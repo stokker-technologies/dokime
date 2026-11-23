@@ -365,6 +365,18 @@ impl Store {
         let mut query = connection.prepare("SELECT id FROM executions WHERE cycle=?1 AND id>?2 ORDER BY id LIMIT ?3")?;
         Ok(query.query_map(params![cycle, after, limit.get() as i64], |row| row.get(0))?.collect::<result::Result<_, _>>()?)
     }
+    /// The Cycle's Executions in Admission Order.
+    pub fn cycle_executions(&self, cycle: &str) -> Result<Vec<String>> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare("SELECT id FROM executions WHERE cycle=?1 ORDER BY rowid")?;
+        Ok(statement.query_map([cycle], |row| row.get(0))?.collect::<result::Result<_, _>>()?)
+    }
+    /// Every Cycle That Holds an Execution.
+    pub fn execution_cycles(&self) -> Result<Vec<String>> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare("SELECT DISTINCT cycle FROM executions")?;
+        Ok(statement.query_map([], |row| row.get(0))?.collect::<result::Result<_, _>>()?)
+    }
     pub fn identifiers(&self) -> Result<Vec<String>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT id FROM executions ORDER BY rowid")?;
