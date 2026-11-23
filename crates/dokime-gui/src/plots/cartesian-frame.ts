@@ -209,7 +209,8 @@ export function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, c
   }
 
   const [x, ...traces] = source as unknown as [number[], ...(number | null | undefined)[][]];
-  const indices = windowIndices(x, traces, range, columns, fitPixels);
+  // The canvas draws device pixels, so M4 keeps each device column's extremes.
+  const indices = windowIndices(x, traces, range, Math.ceil(columns * (globalThis.devicePixelRatio || 1)), fitPixels);
   drawn.everySample = indices === null;
   if (!indices) {
     return source;
