@@ -438,6 +438,10 @@ fn main() {
         seal::measure(&executor, &report_times);
         return;
     }
+    if live::selected() {
+        live::stages(&executor, &report_times);
+        return;
+    }
     let mut criterion = Criterion::default().configure_from_args();
     let mut live_group = criterion.benchmark_group("live_visibility");
     live_group.sample_size(10);

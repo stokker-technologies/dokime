@@ -151,7 +151,7 @@ impl Visit for ReportEvent {
 
 impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for Times {
     fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
-        if ["plot.", "source.", "document."].iter().any(|prefix| attributes.metadata().name().starts_with(prefix)) {
+        if ["plot.", "source.", "document.", "storage.deletion."].iter().any(|prefix| attributes.metadata().name().starts_with(prefix)) {
             context.span(id).unwrap().extensions_mut().insert(Instant::now());
         }
     }

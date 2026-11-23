@@ -32,6 +32,7 @@ use prost_reflect::DescriptorPool;
 use prost_reflect::Kind;
 use sha2::{Digest, Sha256};
 use tokio::task::JoinSet;
+use tracing::Instrument;
 use tracing::dispatcher;
 
 // Local Imports
@@ -107,8 +108,41 @@ struct PlotRead<'a> {
 
 /* === Public Functions === */
 
-#[tracing::instrument(name = "plot.operation", skip_all)]
 pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<SnapshotsListResponse> {
+    serve(context, request, true).await
+}
+
+/// Serve a Watch Page. Unlike a List's, a Reply That Fits One Page Retains No View: a Watch Continues Only a Reply
+/// Spanning Pages, and Its Cut Asks a Later `at` Read to Resynchronize.
+pub(super) async fn watched(context: &Context, request: SnapshotsListRequest) -> Result<SnapshotsListResponse> {
+    serve(context, request, false).await
+}
+
+/// Serve Plot Responses at Their Cut, or at the Accepted Frontier While Their Execution Takes Data.
+pub async fn snapshots(
+    store: &Store, requests: Vec<PlotRequest>, maximum: usize, now_ns: i64, epoch: &str, message_bytes: Option<usize>,
+) -> Result<Vec<PlotEnvelope>> {
+    let live = requests.iter().any(|request| request.at.is_none());
+    let (store, _cancellation) = {
+        let _span = tracing::debug_span!("plot.session").entered();
+        if live { store.live_read_session()? } else { store.read_session()? }
+    };
+    batch(&store, requests, None, maximum, now_ns, epoch, message_bytes).await
+}
+
+/// Capture Complete Plot Responses at a Fixed Cut Without Live Reply Coarsening.
+pub async fn snapshots_at(
+    store: &Store, cut: &ExecutionCut, requests: Vec<PlotRequest>, maximum: usize, now_ns: i64, epoch: &str,
+) -> Result<Vec<PlotEnvelope>> {
+    batch(store, requests, Some(cut), maximum, now_ns, epoch, None).await
+}
+
+/* === Private Functions === */
+
+/// Serve One Page; a List Retains Every Current View So Its Cut Reads the Same Reply Again, a Watch Only a View It
+/// Continues.
+#[tracing::instrument(name = "plot.operation", skip_all)]
+async fn serve(context: &Context, request: SnapshotsListRequest, listed: bool) -> Result<SnapshotsListResponse> {
     host::complete(ID, context.settings.read_timeout, async {
         views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key = format!(
@@ -125,7 +159,7 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
         } else {
             Scope::Root(&context.host.identity().backend_id).identifier()?
         };
-        let (saved, cut) = views::read(context, scope, &key, request.at.as_ref(), async {
+        let (saved, cut, view) = views::resolve(context, scope, &key, request.at.as_ref(), async {
             let reply = SnapshotsListResponse {
                 envelopes: snapshots(
                     &context.host.store(),
@@ -143,6 +177,11 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
         .await?;
         let (envelopes, next_page_token) =
             views::page(saved.envelopes, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
+        if let Some(view) = view
+            && (listed || !next_page_token.is_empty())
+        {
+            view.retain(context).instrument(tracing::debug_span!("plot.retain")).await?;
+        }
         host::bounded_reply(
             context,
             SnapshotsListResponse {
@@ -154,24 +193,6 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
     })
     .await
 }
-
-/// Serve Plot Responses at Their Cut, or at the Accepted Frontier While Their Execution Takes Data.
-pub async fn snapshots(
-    store: &Store, requests: Vec<PlotRequest>, maximum: usize, now_ns: i64, epoch: &str, message_bytes: Option<usize>,
-) -> Result<Vec<PlotEnvelope>> {
-    let live = requests.iter().any(|request| request.at.is_none());
-    let (store, _cancellation) = if live { store.live_read_session()? } else { store.read_session()? };
-    batch(&store, requests, None, maximum, now_ns, epoch, message_bytes).await
-}
-
-/// Capture Complete Plot Responses at a Fixed Cut Without Live Reply Coarsening.
-pub async fn snapshots_at(
-    store: &Store, cut: &ExecutionCut, requests: Vec<PlotRequest>, maximum: usize, now_ns: i64, epoch: &str,
-) -> Result<Vec<PlotEnvelope>> {
-    batch(store, requests, Some(cut), maximum, now_ns, epoch, None).await
-}
-
-/* === Private Functions === */
 
 async fn batch(
     store: &Store, requests: Vec<PlotRequest>, fixed: Option<&ExecutionCut>, maximum: usize, now_ns: i64, epoch: &str,
