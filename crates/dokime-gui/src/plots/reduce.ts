@@ -17,7 +17,8 @@
 
 /* === Constants === */
 
-const DOCUMENTS_DEFAULT_PLOT_POINTS = 2_000;
+// M4 keeps four points per pixel column; a 4K-wide plot needs 4 x 3840 to draw every sample exactly.
+const DOCUMENTS_DEFAULT_PLOT_POINTS = 15_360;
 const DOCUMENTS_MAXIMUM_PLOT_POINTS = 100_000;
 
 /** The host display budget when a plot declares none. */

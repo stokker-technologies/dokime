@@ -74,7 +74,8 @@ use dokime_storage::{ExecutionCut, KindWindow, NumericWindow, Store};
 
 pub const ID: &str = "dokime.host.v1.plots.Snapshots/List";
 
-const DEFAULT_POINTS: u64 = 2000;
+// M4 Keeps Four Points per Pixel Column; a 4K-Wide Plot Needs 4 x 3840 to Draw Every Sample Exactly.
+const DEFAULT_POINTS: u64 = 15_360;
 
 /* === Macros === */
 
@@ -1030,7 +1031,7 @@ mod tests {
     use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, field_descriptor_proto::Type};
     use tempfile::TempDir;
 
-    use super::{PlotColumn, PlotPayload, Value, batch, order_categories, plot_analysis_result, snapshots_at, value};
+    use super::{DEFAULT_POINTS, PlotColumn, PlotPayload, Value, batch, order_categories, plot_analysis_result, snapshots_at, value};
     use dokime_protocol::host::evidence::RecordsAppendRequest;
     use dokime_protocol::host::plots::NullableNumber;
     use dokime_protocol::host::plots::{PlotRequest, PlotWindow, SnapshotsListResponse};
@@ -1508,7 +1509,7 @@ mod tests {
             let payload = snapshots_at(&reader, &cut, vec![request], 1000, 0, "epoch").await.unwrap().remove(0).payload.unwrap();
             let points = ys(&payload);
             assert_eq!((payload.summaries[0].count, payload.series[0].raw_points, payload.series[0].downsampled), (finite, finite, true));
-            assert!((2..=2000).contains(&points.len()) && points.iter().all(|y| y.is_some_and(f64::is_finite)));
+            assert!((2..=DEFAULT_POINTS as usize).contains(&points.len()) && points.iter().all(|y| y.is_some_and(f64::is_finite)));
         }
     }
 
