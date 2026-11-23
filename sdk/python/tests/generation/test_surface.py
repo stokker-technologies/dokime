@@ -107,6 +107,12 @@ async def client_surface(client: Client) -> None:
             assert_type(progress, Progress)
         assert_type(await execution.seal(), Outcome)
         assert_type(await execution.evidence(), bytes)
+        async for row in execution.records(ConfirmationTestTemplate.confirmation).follow():
+            assert_type(row.value, bool)
+        samples = execution.samples("example.counter", row_type=Int64Value)
+        assert_type(await samples.last(), Int64Value)
+        async for sample in samples.follow():
+            assert_type(sample.value, Int64Value)
     await cycle.seal()
     assert_type(await cycle.evidence(), bytes)
     await client.close()

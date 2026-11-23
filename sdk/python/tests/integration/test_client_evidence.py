@@ -6,18 +6,20 @@
 #
 # ***
 
-"""Frozen Client Evidence Queries"""
+"""Frozen and Followed Client Evidence Queries"""
 
 # === Imports === #
 
 # Standard Library Imports
 import unittest
+from collections.abc import AsyncIterator
 from hashlib import sha256
 
 # Third Party Imports
 from google.protobuf import descriptor_pool, message_factory
 from google.protobuf.descriptor_pb2 import FileDescriptorProto, FileDescriptorSet
 from google.protobuf.wrappers_pb2 import BoolValue, UInt64Value
+from grpc import StatusCode
 from grpc.aio import ServicerContext, server
 
 # Local Imports
@@ -60,16 +62,36 @@ class ClientEvidenceStory(unittest.IsolatedAsyncioTestCase):
             records=[{"record_type": "flag", "message_name": BoolValue.DESCRIPTOR.full_name}],
             streams=[{"stream": "counter", "message_name": UInt64Value.DESCRIPTOR.full_name}],
         )
-        detail = executions_pb2.ExecutionDetail(
-            summary={"execution_id": "execution", "case_id": "case"}, cycle_id="cycle", schemas=binding, resolved_at={"sequence": 7}
-        )
+
+        def captured(index: int) -> records_pb2.CapturedRecord:
+            return records_pb2.CapturedRecord(
+                record_id=f"record-{index}",
+                sequence=index,
+                record_type="flag",
+                schema_version=1,
+                timestamp={"seconds": 1, "nanos": index},
+                received_at={"seconds": 2, "nanos": index},
+                source="source",
+                scope={"execution_id": "execution"},
+                payload=BoolValue(value=index == 2).SerializeToString(),
+            )
 
         class Executions(ExecutionsServicer):
             async def Get(
                 self, request: executions_pb2.ExecutionsGetRequest, context: ServicerContext
             ) -> executions_pb2.ExecutionsGetResponse:
                 owner.trace.append("Get")
-                return executions_pb2.ExecutionsGetResponse(execution=detail)
+                # A Followed Execution Closes Once Its Third Watch Pass Has Opened.
+                closed = owner.trace.count("Watch") >= 3
+                state = executions_pb2.EXECUTION_STATE_CLOSED if closed else executions_pb2.EXECUTION_STATE_OPEN
+                return executions_pb2.ExecutionsGetResponse(
+                    execution=executions_pb2.ExecutionDetail(
+                        summary={"execution_id": "execution", "case_id": "case", "state": state},
+                        cycle_id="cycle",
+                        schemas=binding,
+                        resolved_at={"sequence": 7},
+                    )
+                )
 
         class Schemas(SchemasServicer):
             async def Get(self, request: schemas_pb2.SchemasGetRequest, context: ServicerContext) -> schemas_pb2.SchemasGetResponse:
@@ -83,18 +105,8 @@ class ClientEvidenceStory(unittest.IsolatedAsyncioTestCase):
                 owner.trace.append("Records")
                 owner.tokens.append((request.page.page_token, request.at.SerializeToString()))
                 index = 2 if request.page.page_token else 1
-                record = records_pb2.CapturedRecord(
-                    record_id=f"record-{index}",
-                    sequence=index,
-                    record_type="flag",
-                    schema_version=1,
-                    timestamp={"seconds": 1, "nanos": index},
-                    received_at={"seconds": 2, "nanos": index},
-                    source="source",
-                    scope={"execution_id": "execution"},
-                    payload=BoolValue(value=index == 2).SerializeToString(),
-                )
-                last = records_pb2.CapturedRecord.FromString(record.SerializeToString())
+                record = captured(index)
+                last = captured(index)
                 last.payload = BoolValue(value=True).SerializeToString()
                 return records_pb2.RecordsListResponse(
                     records=[record],
@@ -103,6 +115,18 @@ class ClientEvidenceStory(unittest.IsolatedAsyncioTestCase):
                     resolved_at={"positions": [{"sequence": 11 if owner.changed_cut and index == 2 else 10}]},
                     next_page_token="next" if index == 1 else "",
                 )
+
+            async def Watch(
+                self, request: records_pb2.RecordsWatchRequest, context: ServicerContext
+            ) -> AsyncIterator[records_pb2.RecordsWatchResponse]:
+                # Each Pass Replays One More Row, Then Asks to Resync, Hits Its Deadline or Ends.
+                owner.trace.append("Watch")
+                passes = owner.trace.count("Watch")
+                yield records_pb2.RecordsWatchResponse(records=[captured(index) for index in range(1, passes + 2)], opening=True)
+                if passes == 1:
+                    yield records_pb2.RecordsWatchResponse(resync_required={"code": "resync_required"})
+                elif passes == 2:
+                    await context.abort(StatusCode.DEADLINE_EXCEEDED, "Watch Records: Reopen After Its Deadline")
 
         class Samples(SamplesServicer):
             async def List(self, request: samples_pb2.SamplesListRequest, context: ServicerContext) -> samples_pb2.SamplesListResponse:
@@ -182,6 +206,11 @@ class ClientEvidenceStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(str(table["value"].dtype), "UInt64")
         self.assertEqual(frame["value"].to_list(), [2**64 - 1, 2**64 - 1])
         self.assertEqual(frame["timestamp"].cast(int).to_list(), [1_000_000_001, 1_000_000_002])
+
+    async def test_follow_reopens_without_repeats_until_a_pass_opened_after_close_ends(self) -> None:
+        rows = [row async for row in self.execution.records("flag", row_type=bool).follow()]
+        self.assertEqual([row.sequence for row in rows], [1, 2, 3, 4, 5])
+        self.assertEqual(self.trace.count("Watch"), 4)
 
 
 # === Public Functions === #
