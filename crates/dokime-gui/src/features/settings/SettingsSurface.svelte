@@ -47,7 +47,10 @@
   const showSection = $derived(mode !== "phone" || Boolean(selected));
 </script>
 
-<PageChrome title={showSection ? `Settings › ${SETTINGS_SECTIONS.find((item) => item.id === section)?.label ?? section}` : "Settings"} {overflow} />
+<PageChrome
+  title={showSection ? `Settings › ${SETTINGS_SECTIONS.find((item) => item.id === section)?.label ?? section}` : "Settings"}
+  {overflow}
+/>
 
 {#snippet overflow()}
   <SettingsAdvancedSwitch />

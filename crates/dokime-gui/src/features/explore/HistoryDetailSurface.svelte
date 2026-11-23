@@ -10,7 +10,10 @@
   };
 </script>
 
-<PageChrome actions={historyActions} title={selected?.metadata.title ?? entry?.title ?? (target.kind === "cycle" ? `Cycle ${target.id}` : `Execution ${target.id}`)} />
+<PageChrome
+  actions={historyActions}
+  title={selected?.metadata.title ?? entry?.title ?? (target.kind === "cycle" ? `Cycle ${target.id}` : `Execution ${target.id}`)}
+/>
 
 <script lang="ts">
   import { Dialog } from "bits-ui";
@@ -44,7 +47,6 @@
   let deletePending = $state(false);
   let deleteError = $state.raw<unknown>(null);
   let deleteNotice = $state<string | null>(null);
-
 
   function closeDelete(open: boolean) {
     if (!open && !deletePending) {

@@ -113,10 +113,7 @@
 <svelte:window onkeydown={leaveFocus} />
 <AppShellLayout>
   {#snippet header()}
-    <PanelHeader
-      title={props.focus.focused ? "" : (pageTitle() ?? props.title)}
-      onBack={props.focus.focused ? undefined : props.back}
-    >
+    <PanelHeader title={props.focus.focused ? "" : (pageTitle() ?? props.title)} onBack={props.focus.focused ? undefined : props.back}>
       {#snippet actions()}
         {@render props.actions?.()}
         <div class="contents" {@attach pageActionsSlot}></div>

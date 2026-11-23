@@ -23,7 +23,9 @@
   const facets = $derived(heatStripSample(playback.data.series, playback.instant));
   // A count or occupancy ramps from the neutral surface at zero to the plot palette's first color.
   const values = $derived(
-    playback.data.series.flatMap((series) => series.points.flatMap((point) => (point.y !== null && Number.isFinite(point.y) ? [point.y] : []))),
+    playback.data.series.flatMap((series) =>
+      series.points.flatMap((point) => (point.y !== null && Number.isFinite(point.y) ? [point.y] : [])),
+    ),
   );
   const min = $derived(values.reduce((low, value) => Math.min(low, value), 0));
   const max = $derived(values.reduce((high, value) => Math.max(high, value), min));

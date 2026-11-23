@@ -65,7 +65,6 @@
     observedOperations = current;
   });
 
-
   function reloadOwner() {
     const id = owning?.name ?? pluginId;
     if (id) {
