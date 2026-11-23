@@ -13,10 +13,9 @@ import type uPlot from "uplot";
 
 /* === Local Imports === */
 
-import { xValue } from "./axis";
 import type { DocumentAxisScale, DocumentReferenceBand, DocumentReferenceLine, PlotCartesianFrame, PlotSeries } from "../lib/types";
 import { isNumber } from "../lib/utils";
-import { windowIndices } from "./reduce";
+import { xValue } from "./axis";
 import type { HeldViewport } from "./viewport";
 
 /* === Constants === */
@@ -43,19 +42,6 @@ type ChartFrame = {
 export type PlotViewportRange = {
   min: number;
   max: number;
-};
-
-/**
- * What the canvas currently draws from the full frame: the frame itself, the
- * x range it was reduced for (`null` for the whole extent), and whether the
- * reduction kept every sample, in which case it serves any range.
- */
-export type DrawnWindow = {
-  source: uPlot.AlignedData | null;
-  aligned: boolean;
-  preserveSamples: boolean;
-  range: PlotViewportRange | null;
-  everySample: boolean;
 };
 
 /* === Functions === */
@@ -193,45 +179,6 @@ function isUsableSpan(min: number, max: number): boolean {
   }
   const scale = Math.max(Math.abs(min), Math.abs(max), Number.MIN_VALUE);
   return max - min > scale * 1e-9;
-}
-
-/**
- * The data the canvas draws for the x `range` (`null` for the whole extent),
- * reduced to four samples per pixel column of a `columns`-wide plot and
- * recorded as what is now drawn. A faceted frame is drawn whole.
- */
-export function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number, fitPixels: boolean): uPlot.AlignedData {
-  const source = drawn.source ?? ([[]] as unknown as uPlot.AlignedData);
-  drawn.range = range;
-  if (!drawn.aligned || drawn.preserveSamples) {
-    drawn.everySample = true;
-    return source;
-  }
-
-  const [x, ...traces] = source as unknown as [number[], ...(number | null | undefined)[][]];
-  // The canvas draws device pixels, so M4 keeps each device column's extremes.
-  const indices = windowIndices(x, traces, range, Math.ceil(columns * (globalThis.devicePixelRatio || 1)), fitPixels);
-  drawn.everySample = indices === null;
-  if (!indices) {
-    return source;
-  }
-
-  return [indices.map((index) => x[index]), ...traces.map((trace) => indices.map((index) => trace[index] ?? null))] as uPlot.AlignedData;
-}
-
-/** Whether what is drawn already resolves the visible x `range`. */
-export function windowServes(drawn: DrawnWindow, range: PlotViewportRange): boolean {
-  if (drawn.everySample) {
-    return true;
-  }
-  const drawnRange = drawn.range;
-  if (drawnRange) {
-    const tolerance = Math.max(Math.abs(range.max - range.min), Number.MIN_VALUE) * 1e-9;
-    return Math.abs(drawnRange.min - range.min) <= tolerance && Math.abs(drawnRange.max - range.max) <= tolerance;
-  }
-  // The whole-extent reduction serves only a view of the whole extent.
-  const x = (drawn.source?.[0] ?? []) as number[];
-  return x.length === 0 || (range.min <= x[0] && range.max >= x[x.length - 1]);
 }
 
 export function intervalRangeData(series: PlotSeries[], scales: { xScale: DocumentAxisScale; yScale: DocumentAxisScale }): IntervalRange[] {

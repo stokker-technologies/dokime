@@ -64,7 +64,6 @@ import type {
   TelemetryColumnSpec,
   TelemetryStream,
 } from "@/lib/types";
-import { drawnData } from "@/plots/cartesian-frame";
 import CartesianPlot, { cursorPointOptions, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot.svelte";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import BarPlot from "@/plots/catalog/BarPlot.svelte";
@@ -94,7 +93,7 @@ import LivePlotProbe from "./LivePlotProbe.svelte";
 import PlaybackFixture from "./PlaybackFixture.svelte";
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
-import { DEFAULT_PLOT_MAX_POINTS, m4Indices, windowIndices } from "@/plots/reduce";
+import { DEFAULT_PLOT_MAX_POINTS, m4Indices } from "@/plots/reduce";
 import { materializeThemeFamilyVariables } from "@/lib/theme-family";
 import { desktopPlotPalette } from "@/plots/desktop-plot-palette";
 import { heldViewport } from "@/plots/viewport";
@@ -791,66 +790,45 @@ test("Empty Snapshot", () => {
   assert.equal(applyPlotMessages(state, [streamMessage("replace", 0, empty)]).droppedBatches, 1);
 });
 
-test("Window Resampling", () => {
-  /* A 50 Hz sine sampled at 1 kHz for 60 s, drawn 800 CSS px wide. */
+test("Dense Marks Thin per Device Pixel Column at the Width They Draw", () => {
+  /* A 50 Hz sine sampled at 1 kHz for 60 s; a 15 s window of it is visible. */
   const rate = 1_000;
   const x = Array.from({ length: 60 * rate }, (_, index) => index / rate);
   const sine = x.map((t) => Math.sin(2 * Math.PI * 50 * t));
-  const columns = 800;
+  const visible: [number, number] = [20 * rate, 35 * rate - 1];
+  const filter = seriesPointMarks("points", false, "currentColor", "transparent").filter as (
+    plot: uPlot,
+    seriesIdx: number,
+    show: boolean,
+  ) => number[] | null;
+  const plotAt = (width: number, reduced: boolean, idxs: [number, number]) =>
+    ({ data: [x, sine], bbox: { width }, series: [{}, { spanGaps: reduced, idxs }] }) as unknown as uPlot;
 
-  // The Whole Run Is Cut to Four Samples per Pixel Column, Ends Included
-  const whole = windowIndices(x, [sine], null, columns);
-  assert.ok(whole);
-  assert.ok(whole.length <= 4 * columns + 2);
-  assert.equal(whole[0], 0);
-  assert.equal(whole.at(-1), x.length - 1);
-  assertAscending(whole);
-
-  // A 15 s Zoom Resamples The Window Itself And Keeps The Envelope Of Every Column
-  const zoom = { min: 20, max: 35 };
-  const zoomed = windowIndices(x, [sine], zoom, columns);
-  assert.ok(zoomed);
-  assertAscending(zoomed);
-  const inside = zoomed.filter((index) => x[index] >= zoom.min && x[index] <= zoom.max);
-  assert.ok(inside.length > 3 * columns, "the window gets the whole budget, not a slice of the run's");
-  const span = (zoom.max - zoom.min) / columns;
-  for (let column = 0; column < columns; column += 10) {
-    const from = zoom.min + column * span;
-    const to = from + span;
-    const truth = sine.filter((_, index) => x[index] >= from && x[index] < to);
-    const kept = inside.filter((index) => x[index] >= from && x[index] < to).map((index) => sine[index]);
-    assert.equal(Math.max(...kept), Math.max(...truth), `column ${column} keeps its peak`);
-    assert.equal(Math.min(...kept), Math.min(...truth), `column ${column} keeps its trough`);
+  // A Reduced Frame's Marks Keep Four per Device Column of the Visible Range, Each Column's Envelope Included
+  for (const width of [800, 1_600]) {
+    const kept = filter(plotAt(width, true, visible), 1, true) ?? [];
+    assert.ok(kept.length > 0 && kept.length <= 4 * width);
+    assertAscending(kept);
+    assert.ok(kept[0] >= visible[0] && (kept.at(-1) ?? 0) <= visible[1]);
+    const span = (x[visible[1]] - x[visible[0]]) / width;
+    for (let column = 0; column < width - 1; column += 10) {
+      const from = x[visible[0]] + column * span;
+      const to = x[visible[0]] + (column + 1) * span;
+      const truth = sine.filter((_, index) => x[index] >= from && x[index] < to);
+      const marks = kept.filter((index) => x[index] >= from && x[index] < to).map((index) => sine[index]);
+      assert.equal(Math.max(...marks), Math.max(...truth), `column ${column} keeps its peak`);
+      assert.equal(Math.min(...marks), Math.min(...truth), `column ${column} keeps its trough`);
+    }
   }
-  // The Line Reaches Both Frame Edges and a Reset Still Fits the Whole Run
-  assert.ok(zoomed.includes(Math.round(zoom.min * rate) - 1));
-  assert.ok(zoomed.includes(Math.round(zoom.max * rate) + 1));
-  assert.equal(zoomed[0], 0);
-  assert.equal(zoomed.at(-1), x.length - 1);
 
-  // A Window Within the Budget Draws Every Sample, a Short Run Is Never Reduced
-  const second = windowIndices(x, [sine], { min: 10, max: 11 }, columns);
-  assert.ok(second);
-  for (let index = 10 * rate; index <= 11 * rate; index += 1) {
-    assert.ok(second.includes(index));
-  }
-  assert.equal(windowIndices(x.slice(0, 3_000), [sine.slice(0, 3_000)], null, columns), null);
+  // A Full Frame, a Sparse Window or Hidden Marks Keep Every Mark at Any Width
+  assert.equal(filter(plotAt(1, false, [0, x.length - 1]), 1, true), null);
+  assert.equal(filter(plotAt(800, true, [10 * rate, 11 * rate]), 1, true), null);
+  assert.equal(filter(plotAt(800, true, visible), 1, false), null);
 
   // M4 Keeps First, Lowest, Highest and Last per Bucket and Skips Gaps
   assert.deepEqual(m4Indices([0, 1, 2, 3, 4, 5], [3, 9, null, 1, 4, 5], 0, 6, 1), [0, 1, 3, 5]);
   assert.deepEqual(m4Indices([0, 1, 2], [null, null, null], 0, 3, 1), []);
-
-  // Traces on One Axis Are Resampled Together
-  const cosine = x.map((t) => Math.cos(2 * Math.PI * 50 * t));
-  const fitted = windowIndices(x, [sine, cosine], null, columns, true);
-  assert.ok(fitted && fitted.length <= columns);
-  for (const trace of [sine, cosine]) {
-    assert.equal(Math.min(...fitted.map((index) => trace[index])), Math.min(...trace));
-    assert.equal(Math.max(...fitted.map((index) => trace[index])), Math.max(...trace));
-  }
-  const both = windowIndices(x, [sine, cosine], zoom, columns);
-  assert.ok(both);
-  assert.ok(zoomed.every((index) => both.includes(index)));
 
   // A Group Titled Like Its Only Plot Prints the Title Once
   const plot = { title: "AC Voltage" } as Parameters<typeof groupRepeatsPlotTitle>[1][number];
@@ -1376,23 +1354,15 @@ test("Point Marks", () => {
 test("Sparse Aligned Point Paths", () => {
   const x = Array.from({ length: 20 }, (_, index) => 1_700_000_000 + index * 11);
   const traces = [0, 1].map((parity) => x.map((_, index) => (index % 2 === parity ? index : null)));
-  for (const fitPixels of [false, true]) {
-    const data = drawnData(
-      { source: [x, ...traces], aligned: true, preserveSamples: false, range: null, everySample: true },
-      null,
-      640,
-      fitPixels,
-    );
-    assert.deepEqual(data, [x, ...traces]);
-    for (const style of ["points", "line", "line_points", "step"] as const) {
-      const marks = seriesPointMarks(style, false, "currentColor", "transparent");
-      for (let index = 1; index <= traces.length; index += 1) {
-        const plot = { data, series: [{}, { spanGaps: false }, { spanGaps: false }] } as unknown as uPlot;
-        const filter = (marks as uPlot.Series.Points).filter;
-        const selected = typeof filter === "function" ? filter(plot, index, marks.show) : filter;
-        const count = marks.show ? traces[index - 1].filter((value) => value !== null).length : (selected?.length ?? 0);
-        assert.equal(count, 10, `${style} retains every isolated aligned sample`);
-      }
+  const data = [x, ...traces];
+  for (const style of ["points", "line", "line_points", "step"] as const) {
+    const marks = seriesPointMarks(style, false, "currentColor", "transparent");
+    for (let index = 1; index <= traces.length; index += 1) {
+      const plot = { data, series: [{}, { spanGaps: false }, { spanGaps: false }] } as unknown as uPlot;
+      const filter = (marks as uPlot.Series.Points).filter;
+      const selected = typeof filter === "function" ? filter(plot, index, marks.show) : filter;
+      const count = marks.show ? traces[index - 1].filter((value) => value !== null).length : (selected?.length ?? 0);
+      assert.equal(count, 10, `${style} retains every isolated aligned sample`);
     }
   }
   for (const style of ["line", "line_points", "step"] as const) {
@@ -1443,12 +1413,6 @@ test("Sparse Faceted Point Paths", () => {
     bbox: { left: 0, top: 0, width: 100, height: 100 },
     valToPos: (value: number) => value * 10,
   } as unknown as uPlot;
-  const source = plot.data;
-  for (const range of [null, { min: 1, max: 4 }]) {
-    const drawn = { source, aligned: false, preserveSamples: false, range: null, everySample: false };
-    assert.equal(drawnData(drawn, range, 1, true), source);
-    assert.equal(drawn.everySample, true);
-  }
   for (const style of ["points", "line", "line_points", "step"] as const) {
     circles.length = 0;
     facetedSeriesPaths(style, seriesPointMarks(style, false, "currentColor", "transparent"), "currentColor")(plot, 1, 0, 5);
@@ -1461,27 +1425,6 @@ test("Sparse Faceted Point Paths", () => {
       ],
       `${style} draws only finite pairs`,
     );
-  }
-});
-
-test("Window Reduction Retains Gaps", () => {
-  const x = Array.from({ length: 100 }, (_, index) => index);
-  const y = x.map((index) => (index === 49 ? 1_000 : [0, 99].includes(index) ? index : null));
-  for (const range of [null, { min: 40, max: 60 }]) {
-    for (const fitPixels of [false, true]) {
-      const indices = windowIndices(x, [y], range, 1, fitPixels);
-      assert.ok(indices?.includes(49));
-      const data = drawnData(
-        { source: [x, y], aligned: true, preserveSamples: false, range: null, everySample: true },
-        range,
-        1,
-        fitPixels,
-      );
-      const reduced = data[1];
-      const middle = data[0].indexOf(49);
-      assert.equal(reduced[middle - 1], null);
-      assert.equal(reduced[middle + 1], null);
-    }
   }
 });
 
@@ -1881,7 +1824,6 @@ test("Bounded Report Envelopes", () => {
     assert.ok(html.includes("fixture-network / radio-2 / 6"));
     const missingFrame = plotMarkup(CartesianPlot, { title: "Signal", series }, false);
     assert.doesNotMatch(missingFrame, /<button\b[^>]*(?=[^>]*data-slot="button")(?=[^>]*aria-pressed="true")/);
-    assert.deepEqual(windowIndices(x, values, null, 640, true), null);
   }
 });
 
@@ -2590,18 +2532,5 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
     cancel.mockRestore();
     vi.useRealTimers();
     vi.unstubAllGlobals();
-  }
-});
-
-test("Unreduced Aligned Frames Keep Every Sample at Any Pixel Width", () => {
-  const x = Array.from({ length: 11801 }, (_, index) => index / 1000);
-  const y = x.map((value) => Math.sin(2 * Math.PI * 50 * value));
-  const source: uPlot.AlignedData = [x, y];
-  for (const range of [null, { min: 1, max: 2 }]) {
-    for (const fitPixels of [false, true]) {
-      const drawn: Parameters<typeof drawnData>[0] = { source, aligned: true, preserveSamples: true, range: null, everySample: false };
-      assert.equal(drawnData(drawn, range, 1, fitPixels), source);
-      assert.equal(drawn.everySample, true);
-    }
   }
 });

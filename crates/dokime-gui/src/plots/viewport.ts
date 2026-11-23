@@ -147,12 +147,13 @@ export function attachPan(
       return;
     }
     event.preventDefault();
-    options.onPan({ x, y });
+    // A scale `onPan` sets joins the pan's own commit.
     plot.batch(() => {
       plot.setScale("x", x);
       if (y) {
         plot.setScale("y", y);
       }
+      options.onPan({ x, y });
     });
     const { left, top } = plot.cursor;
     if (left != null && top != null) plot.setCursor({ left, top });
