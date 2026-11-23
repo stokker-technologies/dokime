@@ -14,6 +14,7 @@
 # Standard Library Imports
 import argparse
 import hashlib
+import json
 import runpy
 import shutil
 import subprocess
@@ -83,13 +84,21 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
 
 
 def inputs(root: Path) -> Path:
-    """Stage Protocol Sources From the Same Local Library as the Product Build."""
-    manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-    dependency = manifest["workspace"]["dependencies"]["harmos"]
-    patch = manifest.get("patch", {}).get(dependency["git"], {}).get("harmos", {}).get("path")
-    if not isinstance(patch, str):
-        raise ValueError("Stage Library Protocol: Configure the Workspace Harmos Path Patch")
-    library = (root / patch).resolve().parents[1] / "proto/harmos"
+    """Stage Protocol Sources From the Library Cargo Resolved for the Product Build: Its Pin or a Local Patch."""
+    metadata = subprocess.run(
+        ["cargo", "metadata", "--locked", "--format-version", "1"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        creationflags=spawn_flags(),
+    )
+    packages = json.loads(metadata.stdout)["packages"]
+    protocol = next((Path(package["manifest_path"]) for package in packages if package["name"] == "harmos-protocol"), None)
+    if protocol is None:
+        raise ValueError("Stage Library Protocol: Depend on harmos-protocol Through the Workspace")
+    # The Crate Lives at crates/harmos-protocol; Its Repository Owns proto/harmos.
+    library = protocol.parents[2] / "proto/harmos"
     output = root / "target/protocol"
     sync_output(library, output / "harmos")
     sync_output(root / "proto/dokime", output / "dokime")
