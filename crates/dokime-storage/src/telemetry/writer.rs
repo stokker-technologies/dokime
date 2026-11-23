@@ -36,6 +36,9 @@ use std::{
     },
 };
 
+#[cfg(test)]
+use std::sync::Condvar;
+
 // Third Party Imports
 use arrow_array::{Array, Int64Array, RecordBatch, StructArray, UInt64Array};
 use arrow_select::concat::concat_batches;
@@ -123,6 +126,16 @@ pub(crate) struct Reservation {
 struct Round {
     id: u64,
     handles: Vec<ipc::SyncHandle>,
+}
+
+/// A Test Gate That Parks One Store's Flush Syncs Until Released, So a Story Can Act While Its Own Sync Is in Progress.
+#[cfg(test)]
+#[derive(Default)]
+pub(crate) struct SyncGate {
+    /// Whether Syncs Are Held, and How Many Wait at the Gate.
+    state: Mutex<(bool, usize)>,
+
+    changed: Condvar,
 }
 
 /* === Enums === */
@@ -273,6 +286,28 @@ impl Drop for Reservation {
         {
             *accepted -= 1;
         }
+    }
+}
+
+#[cfg(test)]
+impl SyncGate {
+    fn hold(&self) {
+        self.state.lock().unwrap().0 = true;
+    }
+    fn release(&self) {
+        self.state.lock().unwrap().0 = false;
+        self.changed.notify_all();
+    }
+    /// Wait Until a Sync Is Parked at the Gate.
+    fn parked(&self) {
+        drop(self.changed.wait_while(self.state.lock().unwrap(), |(_, parked)| *parked == 0).unwrap());
+    }
+    fn pass(&self) {
+        let mut state = self.state.lock().unwrap();
+        state.1 += 1;
+        self.changed.notify_all();
+        state = self.changed.wait_while(state, |(held, _)| *held).unwrap();
+        state.1 -= 1;
     }
 }
 
@@ -743,6 +778,8 @@ impl Store {
     fn sync_and_catalog(&self, connection: &mut Connection, telemetry: &mut Telemetry, unsynced: Unsynced) -> Result<()> {
         let work =
             telemetry.writers.iter_mut().filter(|(id, _)| unsynced.files.contains_key(id.as_str())).map(|(_, writer)| writer).collect();
+        #[cfg(test)]
+        self.sync_gate.pass();
         if let Err(error) = parallel(work, |writer: &mut ipc::Writer| writer.sync()).into_iter().collect::<Result<()>>() {
             return Err(rollback(telemetry, &unsynced.befores, error));
         }
@@ -1149,22 +1186,23 @@ mod tests {
     }
 
     /// Releases the Sync Gate Even When a Story's Assertion Fails, So Its Parked Sync Can Finish.
-    struct Released;
+    struct Released<'a>(&'a SyncGate);
 
-    impl Drop for Released {
+    impl Drop for Released<'_> {
         fn drop(&mut self) {
-            ipc::gate::release();
+            self.0.release();
         }
     }
 
-    /// Run `path` on Its Own Thread, Run `during` Once Its Batch Sync Is Parked, Then Let the Sync Finish.
-    fn while_syncing<T: Send>(path: impl FnOnce() -> T + Send, during: impl FnOnce()) -> T {
-        ipc::gate::hold();
+    /// Run `path` on Its Own Thread, Run `during` Once Its Store's Flush Sync Is Parked, Then Let the Sync Finish.
+    fn while_syncing<T: Send>(store: &Store, path: impl FnOnce() -> T + Send, during: impl FnOnce()) -> T {
+        let gate = &store.sync_gate;
+        gate.hold();
         std::thread::scope(|scope| {
             let running = scope.spawn(path);
             {
-                let _released = Released;
-                ipc::gate::parked();
+                let _released = Released(gate);
+                gate.parked();
                 during();
             }
             running.join().unwrap()
@@ -1196,6 +1234,7 @@ mod tests {
         let (_root, store) = opened(storage_defaults())?;
         store.sample_batch("execution", &samples(0))?;
         while_syncing(
+            &store,
             || store.flush_samples(),
             || {
                 assert!(store.intake.try_lock().is_ok());
@@ -1218,6 +1257,7 @@ mod tests {
             ..Default::default()
         };
         let position = while_syncing(
+            &store,
             || store.append("execution", evidence),
             || {
                 assert!(store.intake.try_lock().is_ok());
@@ -1242,6 +1282,7 @@ mod tests {
         store.open_streams("other", &(0..STREAMS).map(stream).collect::<Vec<_>>())?;
         store.sample_batch("execution", &samples(0))?;
         while_syncing(
+            &store,
             || store.close_streams("execution"),
             || {
                 assert!(store.intake.try_lock().is_ok());
@@ -1262,6 +1303,7 @@ mod tests {
         store.sample_batch("execution", &samples(0))?;
         let runtime = tokio::runtime::Builder::new_current_thread().build()?;
         while_syncing(
+            &store,
             || runtime.block_on(store.shutdown_samples()),
             || {
                 // Rows Arriving During the Final Flush's Sync Are Refused, Not Accepted and Left Unsaved.
@@ -1278,6 +1320,7 @@ mod tests {
         settings.pending_bytes = NonZeroUsize::new(1).unwrap();
         let (_root, store) = opened(settings)?;
         while_syncing(
+            &store,
             || store.sample_batch("execution", &samples(0)),
             || {
                 // The Pressured Caller Waits for Its Own Flush; Intake State Stays Readable and Its Rows Stay Counted.

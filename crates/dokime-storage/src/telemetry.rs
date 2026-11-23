@@ -26,6 +26,9 @@ pub use reader::BatchSelection;
 pub(crate) use reader::LiveSamples;
 pub(crate) use reader::SampleReads;
 
+#[cfg(test)]
+pub(crate) use writer::SyncGate;
+
 /* === Imports === */
 
 // Standard Library Imports

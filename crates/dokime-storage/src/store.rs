@@ -92,6 +92,10 @@ pub struct Store {
     pub(crate) ranks: Arc<Mutex<RankCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub(crate) changed: Sender<u64>,
+
+    /// Parks This Store's Flush Syncs While a Story Holds It; Other Stores Never Pass It.
+    #[cfg(test)]
+    pub(crate) sync_gate: Arc<telemetry::SyncGate>,
 }
 
 pub struct ReadCancellation {
@@ -283,6 +287,8 @@ impl Store {
             ranks: Arc::default(),
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
+            #[cfg(test)]
+            sync_gate: Arc::default(),
         };
         store.restore_intake()?;
         Ok(store)
@@ -324,6 +330,8 @@ impl Store {
             ranks: self.ranks.clone(),
             verified: self.verified.clone(),
             changed: self.changed.clone(),
+            #[cfg(test)]
+            sync_gate: self.sync_gate.clone(),
         };
         Ok((session, ReadCancellation { cancelled, interrupt }))
     }
