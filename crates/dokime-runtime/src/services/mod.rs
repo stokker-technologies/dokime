@@ -331,6 +331,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     };
     let context = Arc::new(Context {
         administration,
+        frozen: Arc::default(),
         host: Arc::new(state),
         settings: settings.clone(),
         operations: runtime.operations.clone(),

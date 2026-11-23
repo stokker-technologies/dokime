@@ -15,7 +15,7 @@
 
 // Local Imports
 import { failureOf, type NotificationFailure } from "@/lib/notification-details";
-import { reportsCreate, reportsPublish } from "@/lib/host/client";
+import { reportsCreate } from "@/lib/host/client";
 import { required } from "@/lib/rpc/canonical";
 import { commands } from "@/lib/desktop/commands";
 import type { ArtifactSource } from "@/lib/contracts/delivery";
@@ -55,13 +55,12 @@ export async function downloadNativeReport(
         ? ({ case: "execution", value: source.executionId } as const)
         : ({ case: "cycle", value: source.cycleId } as const),
   };
+  // A sealed execution's report was frozen when it sealed; Create returns it (or freezes it once for older executions).
   const prepared = await reportsCreate(session, { subject, documentId: "", requestId: crypto.randomUUID() });
-  const file = required(prepared.file, "Create Report");
-  let name = required(file.metadata, "Create Report File").id;
-  if (source.kind === "execution_report") {
-    const published = await reportsPublish(session, { subject, name, expectedRevision: file.sha256, requestId: crypto.randomUUID() });
-    name = required(published.report, "Publish Report").identifier;
-  }
+  const name =
+    source.kind === "execution_report"
+      ? required(prepared.report, "Create Report").identifier
+      : required(required(prepared.file, "Create Report").metadata, "Create Report File").id;
   const delivered = await deliverNativeContent(session, { source: { ...source, name }, kind: "html_report", filename, action: "save" });
   if (!delivered) return null;
   try {

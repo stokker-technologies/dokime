@@ -105,6 +105,8 @@ pub struct ClientSettings {
 #[derive(Clone)]
 pub struct Context {
     pub administration: Arc<Mutex<()>>,
+    /// Admits One Frozen Report or Evidence Archive Build at a Time, So a Download Joins the Seal's.
+    pub frozen: Arc<Mutex<()>>,
     pub host: Arc<dyn Host>,
     pub settings: ClientSettings,
     pub operations: OperationManager,

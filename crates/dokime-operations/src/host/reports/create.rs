@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::fs::File;
+use std::fs::{self, File};
 use std::future::Future;
 use std::io::{Seek, Write};
 use std::pin::Pin;
@@ -24,21 +24,24 @@ use std::time::Instant;
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
-use harmos_protocol::model::{FileMetadata, FileReference};
+use harmos_protocol::model::{FileMetadata, FileReference, History, Position, ReadCut};
 use harmos_runtime::Identifier;
 use prost::Message;
+use tokio::sync::oneshot;
+use uuid::Uuid;
 
 // Local Imports
 use super::{PreparedReport, capture};
 use crate::host::files::transfer;
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
+use dokime_protocol::host::ReportSubject;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsCreateResponse;
 use dokime_protocol::host::ReportsGetRequest;
 use dokime_protocol::host::report_subject::Kind;
-use dokime_storage::ArchivedNativeFile;
 use dokime_storage::persisted::Scope;
+use dokime_storage::{ArchivedNativeFile, ExecutionState};
 
 /* === Constants === */
 
@@ -60,28 +63,46 @@ pub const ID: &str = "dokime.host.v1.Reports/Create";
 
 pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<ReportsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        if request.document_id.is_empty()
-            && let Some(Kind::Cycle(cycle)) = request.subject.as_ref().and_then(|subject| subject.kind.as_ref())
-            && context.host.store().client_cycle(cycle)?.is_some_and(|cycle| cycle.sealed)
-        {
-            let saved = super::get::handle(
-                context,
-                ReportsGetRequest {
-                    subject: request.subject,
-                    ..Default::default()
+        // A Sealed Subject's Default Report Is Frozen Once; Download Delivers That File.
+        if request.document_id.is_empty() {
+            let store = context.host.store();
+            let frozen = match request.subject.as_ref().and_then(|subject| subject.kind.as_ref()) {
+                Some(Kind::Cycle(cycle)) if store.client_cycle(cycle)?.is_some_and(|cycle| cycle.sealed) => Some((String::new(), None)),
+                Some(Kind::Execution(execution)) => match store.cut(execution)? {
+                    cut if cut.state == ExecutionState::Sealed => {
+                        Some((freeze(context, execution).await?.0, Some(sealed_cut(context, execution, cut.frontier))))
+                    }
+                    _ => None,
                 },
-            )
-            .await?;
-            return Ok(ReportsCreateResponse {
-                report: saved.report,
-                file: saved.file,
-                resolved_at: saved.resolved_at,
-                receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
-            });
+                _ => None,
+            };
+            if let Some((name, resolved_at)) = frozen {
+                let saved = super::get::handle(context, ReportsGetRequest { subject: request.subject, name, at: None }).await?;
+                return Ok(ReportsCreateResponse {
+                    report: saved.report,
+                    file: saved.file,
+                    resolved_at: resolved_at.or(saved.resolved_at),
+                    receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
+                });
+            }
         }
         prepare(context, request, None).await
     })
     .await
+}
+
+/// The Sealed Execution's Frozen Report Identity and File, Materialized Once by Its Seal or First Reader.
+pub async fn freeze(context: &Context, execution: &str) -> Result<(String, FileReference)> {
+    if let Some(frozen) = frozen(context, execution).await? {
+        return Ok(frozen);
+    }
+    // The Host Settles Admitted Materialization After a Caller's Deadline Drops Its Receiver.
+    let (sender, receiver) = oneshot::channel();
+    let (owned, execution) = (context.clone(), execution.to_owned());
+    context.host.spawn_work(Box::pin(async move {
+        let _ = sender.send(materialize(&owned, &execution).await);
+    }))?;
+    receiver.await.map_err(|_| Error::Cancelled("Freeze Report: Reconnect After the Host Stops".into()))?
 }
 
 pub(crate) fn prepare(
@@ -100,34 +121,12 @@ pub(crate) fn prepare(
             });
         }
         let (mut prepared, rendered) = render(context, &request).await?;
-        let metadata = rendered.reference.metadata.as_ref().unwrap();
         let scope = match scope {
             Some(scope) => scope,
-            None => {
-                Identifier::new(metadata.scope.clone().unwrap()).map_err(|source| Error::Invalid(format!("Create Report: {source}")))?
-            }
+            None => rendered_scope(&rendered)?,
         };
-        let length = rendered.reference.length;
-        let digest = rendered.reference.sha256;
-        let retained =
-            File::open(&rendered.path).map_err(|source| Error::Invalid(format!("Create Report: Reopen Its Temporary HTML: {source}")))?;
         let phase = Instant::now();
-        let reference = transfer::publication(
-            context,
-            "Create Report",
-            &format!("{ID}/{name}"),
-            FileMetadata {
-                id: name.clone(),
-                scope: Some(scope.to_string()),
-                media_type: "text/html".into(),
-                expected_length: Some(length),
-                expected_sha256: Some(digest),
-            },
-            |offset, data| crate::host::content::transfer::read_temporary(&retained, offset, data),
-            || false,
-        )
-        .await?;
-
+        let reference = upload(context, &rendered, scope.clone()).await?;
         let response = prepared.response.as_mut().unwrap();
         response.file = Some(reference);
         response.receipt = Some(crate::host::views::receipt(context, &request.request_id)?);
@@ -196,6 +195,80 @@ pub(crate) async fn render(context: &Context, request: &ReportsCreateRequest) ->
 }
 
 /* === Private Functions === */
+
+async fn materialize(context: &Context, execution: &str) -> Result<(String, FileReference)> {
+    let _admitted = context.frozen.lock().await;
+    if let Some(frozen) = frozen(context, execution).await? {
+        return Ok(frozen);
+    }
+    let started = Instant::now();
+    let request = ReportsCreateRequest {
+        subject: Some(ReportSubject {
+            kind: Some(Kind::Execution(execution.into())),
+        }),
+        request_id: Uuid::now_v7().to_string(),
+        ..Default::default()
+    };
+    let (prepared, rendered) = render(context, &request).await?;
+    let file = upload(context, &rendered, rendered_scope(&rendered)?).await?;
+    let html = fs::read(&rendered.path).map_err(|source| Error::Invalid(format!("Freeze Report: Read Its Temporary HTML: {source}")))?;
+    let document = prepared.document.ok_or_else(|| Error::Invalid("Freeze Report: Capture Its Document".into()))?;
+    let report = super::publish::publish(context, execution, &prepared.execution_seal, document, html, &file).await?;
+    context.host.store().retain_extents(execution)?;
+    context.host.signal_change();
+    tracing::info!(%execution, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Frozen");
+    Ok((report.identifier, file))
+}
+
+/// The First Published Report Whose Native File Is Retained, Whether Sealing or a Download Published It.
+pub(super) async fn frozen(context: &Context, execution: &str) -> Result<Option<(String, FileReference)>> {
+    for identifier in context.host.store().report_identifiers(execution)? {
+        let (file, revision) = administration::message::<FileReference>(context, &format!("published-report/{identifier}")).await?;
+        if !revision.is_empty() {
+            return Ok(Some((identifier, file)));
+        }
+    }
+    Ok(None)
+}
+
+async fn upload(context: &Context, rendered: &ArchivedNativeFile, scope: Identifier) -> Result<FileReference> {
+    let metadata = rendered.reference.metadata.clone().unwrap();
+    let retained =
+        File::open(&rendered.path).map_err(|source| Error::Invalid(format!("Create Report: Reopen Its Temporary HTML: {source}")))?;
+    transfer::publication(
+        context,
+        "Create Report",
+        &format!("{ID}/{}", metadata.id),
+        FileMetadata {
+            scope: Some(scope.to_string()),
+            expected_length: Some(rendered.reference.length),
+            expected_sha256: Some(rendered.reference.sha256.clone()),
+            ..metadata
+        },
+        |offset, data| crate::host::content::transfer::read_temporary(&retained, offset, data),
+        || false,
+    )
+    .await
+}
+
+/// The Cut a Sealed Execution's Report Captured: Its Fixed Frontier in Its Own History.
+fn sealed_cut(context: &Context, execution: &str, frontier: u64) -> ReadCut {
+    ReadCut {
+        positions: vec![Position {
+            history: Some(History {
+                store: context.host.identity().backend_id,
+                epoch: execution.into(),
+            }),
+            sequence: frontier,
+        }],
+        revisions: Vec::new(),
+    }
+}
+
+fn rendered_scope(rendered: &ArchivedNativeFile) -> Result<Identifier> {
+    let scope = rendered.reference.metadata.as_ref().and_then(|metadata| metadata.scope.clone()).unwrap();
+    Identifier::new(scope).map_err(|source| Error::Invalid(format!("Create Report: {source}")))
+}
 
 /* === Tests === */
 

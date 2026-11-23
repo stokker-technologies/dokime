@@ -189,7 +189,6 @@ test("Saved Report Browser", async () => {
   let refuseOpen = false;
   const saved: string[] = [];
   const created: unknown[] = [];
-  const published: unknown[] = [];
   vi.resetModules();
   vi.doMock("@/lib/surface-environment", async (original) => ({
     ...(await original<object>()),
@@ -199,9 +198,6 @@ test("Saved Report Browser", async () => {
     reportsCreate: async (_session: unknown, request: unknown) => {
       created.push(request);
       return { file: { metadata: { id: "prepared-report/one" }, sha256: new Uint8Array([1]) } };
-    },
-    reportsPublish: async (_session: unknown, request: unknown) => {
-      published.push(request);
     },
   }));
   vi.doMock("@/lib/desktop/commands", () => ({
@@ -242,7 +238,6 @@ test("Saved Report Browser", async () => {
     assert.equal(delivered?.openFailure?.message, "no default browser");
     assert.deepEqual(saved, ["bench.html", "cancelled.html", "night.html"]);
     assert.equal(created.length, 3);
-    assert.equal(published.length, 0);
   } finally {
     vi.doUnmock("@/lib/host/client");
     vi.doUnmock("@/lib/surface-environment");
@@ -251,20 +246,13 @@ test("Saved Report Browser", async () => {
   }
 });
 
-test("Execution Report Save Creates Once and Downloads the Published File", async () => {
+test("Execution Report Save Downloads the Report Frozen at Seal", async () => {
   const actions: string[] = [];
-  const digest = new Uint8Array([1, 2, 3]);
   vi.resetModules();
   vi.doMock("@/lib/host/client", () => ({
     reportsCreate: async () => {
       actions.push("create");
-      return { file: { metadata: { id: "prepared-report/one" }, sha256: digest } };
-    },
-    reportsPublish: async (_session: unknown, request: { name: string; expectedRevision: Uint8Array }) => {
-      actions.push("publish");
-      assert.equal(request.name, "prepared-report/one");
-      assert.deepEqual(request.expectedRevision, digest);
-      return { report: { identifier: "published" } };
+      return { report: { identifier: "published" }, file: { metadata: { id: "prepared-report/frozen" } } };
     },
   }));
   vi.doMock("@/lib/api/native-delivery", () => ({
@@ -286,7 +274,7 @@ test("Execution Report Save Creates Once and Downloads the Published File", asyn
     const session = { generation: "generation", isCurrent: () => true } as never;
     const result = await downloadNativeReport(session, { kind: "execution_report", executionId: "execution" }, "report.html");
     assert.deepEqual(result, { path: "/saved/report.html", openFailure: null });
-    assert.deepEqual(actions, ["create", "publish", "download", "open"]);
+    assert.deepEqual(actions, ["create", "download", "open"]);
   } finally {
     vi.doUnmock("@/lib/host/client");
     vi.doUnmock("@/lib/api/native-delivery");
