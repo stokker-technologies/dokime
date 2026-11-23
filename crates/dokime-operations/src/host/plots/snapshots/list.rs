@@ -1466,6 +1466,46 @@ mod tests {
 
         // Check Heat Strip Cells Show No Value for Nonfinite Samples
         assert_eq!(ys(&heat_strip), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), None, None, None, Some(5.0)]);
+
+        // Lose the Target for One Second in Every Ten of Two Minutes Sampled at 1 kHz
+        let (_dense_root, dense) = readings(&[("value", Type::Double)]);
+        let value = |index: i64| match index % 10_000 {
+            0..1000 => f64::NAN,
+            5000 => f64::INFINITY,
+            _ => (index as f64 / 100.0).sin(),
+        };
+        for chunk in (0..120_000).collect::<Vec<i64>>().chunks(10_000) {
+            let samples = chunk
+                .iter()
+                .map(|index| Sample {
+                    stream: "readings".into(),
+                    source_ns: index * 1_000_000,
+                    sequence: *index as u64,
+                    row: Tracking {
+                        value: value(*index),
+                        ..Default::default()
+                    }
+                    .encode_to_vec(),
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>();
+            dense.sample_batch("execution", &samples).unwrap();
+        }
+        dense.flush_samples().unwrap();
+
+        // Check Every Downsampling Technique Renders Only the Finite Samples
+        let finite = (0..120_000).filter(|index| value(*index).is_finite()).count() as u64;
+        let (cut, (reader, _cancellation)) = (dense.cut("execution").unwrap(), dense.read_session().unwrap());
+        for technique in [Downsample::Auto, Downsample::MinMax, Downsample::Lttb] {
+            let request = PlotRequest {
+                technique: technique as i32,
+                ..request(PlotKind::TimeSeries, "value")
+            };
+            let payload = snapshots_at(&reader, &cut, vec![request], 1000, 0, "epoch").await.unwrap().remove(0).payload.unwrap();
+            let points = ys(&payload);
+            assert_eq!((payload.summaries[0].count, payload.series[0].raw_points, payload.series[0].downsampled), (finite, finite, true));
+            assert!((2..=2000).contains(&points.len()) && points.iter().all(|y| y.is_some_and(f64::is_finite)));
+        }
     }
 
     #[test]
