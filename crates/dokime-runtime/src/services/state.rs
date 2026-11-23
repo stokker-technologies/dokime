@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
@@ -149,8 +150,18 @@ impl host::Host for State {
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, dokime_storage::ExecutionCut)> {
         self.host.current_document(scope, identifier).map_err(convert)
     }
-    fn report_template(&self) -> &'static [u8] {
-        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/generated/report/report.html"))
+    fn report_template(&self) -> Cow<'static, [u8]> {
+        macro_rules! template {
+            () => {
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/generated/report/report.html")
+            };
+        }
+        // Debug Runtimes Read the Template the Development Watcher Rewrites, So Renderer Edits Need No Rebuild.
+        #[cfg(debug_assertions)]
+        if let Ok(bytes) = std::fs::read(template!()) {
+            return Cow::Owned(bytes);
+        }
+        Cow::Borrowed(include_bytes!(template!()))
     }
     async fn plugins(&self) -> Result<Vec<PluginEntry>> {
         let reply = self

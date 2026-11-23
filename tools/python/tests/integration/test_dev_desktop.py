@@ -40,16 +40,16 @@ from dokime_tools.dev import desktop, runtime
 
 
 class DevelopmentDesktopTests(unittest.TestCase):
-    def test_report_source_changes_regenerate_before_runtime_rebuild(self) -> None:
-        # Register Report Inputs With the Existing Tauri Watcher
+    def test_rust_rebuilds_regenerate_the_report_and_frontend_edits_never_restart(self) -> None:
+        # Frontend Sources Are Not Tauri Inputs: Their Edits Hot-Reload Without Restarting the Runtime
         command = desktop.command({"DOKIME_DEV_PORT": "5180"})
         build = json.loads(command[command.index("--config") + 1])["build"]
-        folders = [Path(folder) for folder in build["additionalWatchFolders"]]
+        self.assertNotIn("additionalWatchFolders", build)
         self.assertEqual(build["devUrl"], "http://127.0.0.1:5180")
         self.assertEqual(build["runner"]["cmd"], "uv")
         self.assertEqual(build["runner"]["args"][-2:], ["-m", runtime.__name__])
 
-        # Each Source Event Reaches the Runner; Generation Completes Before Cargo Runs
+        # Each Rust Rebuild Completes Generation Before Cargo Runs
         actions = Mock()
         actions.cargo.return_value = subprocess.CompletedProcess([], 0)
         generation_patch = patch.object(runtime.frontend, "build_report", actions.generate)
@@ -58,14 +58,10 @@ class DevelopmentDesktopTests(unittest.TestCase):
         cargo_patch.start()
         try:
             arguments = ["--features", "console", "--no-default-features", "--", "--example"]
-            for source in ("report", "plots", "components/document"):
-                changed = desktop.ROOT / "crates/dokime-gui/src" / source / "renderer.tsx"
-                self.assertTrue(any(changed.is_relative_to(folder) for folder in folders))
-                actions.reset_mock()
-                self.assertEqual(runtime.main(arguments), 0)
-                self.assertEqual([action[0] for action in actions.mock_calls], ["generate", "cargo"])
-                actions.generate.assert_called_once_with([])
-                self.assertEqual(actions.cargo.call_args.args[0], ["cargo", "run", *arguments])
+            self.assertEqual(runtime.main(arguments), 0)
+            self.assertEqual([action[0] for action in actions.mock_calls], ["generate", "cargo"])
+            actions.generate.assert_called_once_with([])
+            self.assertEqual(actions.cargo.call_args.args[0], ["cargo", "run", *arguments])
 
             # Failed Generation Must Never Launch a Runtime With a Stale Template
             actions.reset_mock()

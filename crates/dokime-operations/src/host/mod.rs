@@ -160,7 +160,7 @@ pub trait Host: Send + Sync {
     fn register_sensitive(&self, value: &str) -> Result<()>;
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
-    fn report_template(&self) -> &'static [u8];
+    fn report_template(&self) -> std::borrow::Cow<'static, [u8]>;
     async fn plugins(&self) -> Result<Vec<PluginEntry>>;
     fn plugin_admission_failures(&self) -> Result<Vec<(String, String)>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
