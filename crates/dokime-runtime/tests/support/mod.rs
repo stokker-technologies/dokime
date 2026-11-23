@@ -35,7 +35,7 @@ use std::process::Stdio;
 
 // Third Party Imports
 use dokime_protocol::host::{PluginEntry, PluginState};
-use harmos_protocol::model::{ReadCut, StorageTransferSettings};
+use harmos_protocol::model::StorageTransferSettings;
 use harmos_runtime::plugin::grpc::Launches;
 use sha2::{Digest, Sha256};
 use tokio::process::Child;
@@ -45,8 +45,8 @@ use tokio::process::Command;
 use dokime::Value;
 use dokime::{FileMetadata, FileReference, Metadata};
 use dokime_client_internal::{
-    Client, ClientSettings, ExecutionsListOptions, PlannedCase, Plugins, PluginsWatchOptions, RegisteredSelection,
-    RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues,
+    Client, ClientSettings, PlannedCase, Plugins, PluginsWatchOptions, RegisteredSelection, RegisteredSelectionParametersEntry,
+    SelectionPlan, SelectionValues,
 };
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
@@ -159,7 +159,7 @@ pub async fn materialize(
 }
 
 pub async fn admit(client: &Client, cases: Vec<PlannedCase>) -> Result<Vec<String>, Box<dyn Error>> {
-    // Admit Frozen Origins and Read the Executions at the Admission Receipt
+    // Admit Frozen Origins and Read the Executions the Durable Admission Created
     let origins = cases.into_iter().map(|case| case.origin.ok_or("Admit Story Cases: Missing Frozen Origin")).collect::<Result<_, _>>()?;
     let metadata = Metadata {
         label: "Story Cycle".into(),
@@ -167,12 +167,7 @@ pub async fn admit(client: &Client, cases: Vec<PlannedCase>) -> Result<Vec<Strin
     };
     let admitted = client.cycles.create(origins, metadata, true, String::new()).await?;
     let parent = admitted.cycle.ok_or("Admit Story Cases: Missing Cycle")?.cycle_id;
-    let at = admitted.receipt.and_then(|receipt| receipt.durable_at).map(|position| ReadCut {
-        positions: vec![position],
-        revisions: Vec::new(),
-    });
-    let options = ExecutionsListOptions { at, ..Default::default() };
-    let executions = client.executions.list_with(parent, Default::default(), Default::default(), Default::default(), options).await?;
+    let executions = client.executions.list(parent, Default::default(), Default::default(), Default::default()).await?;
     executions
         .executions
         .into_iter()
