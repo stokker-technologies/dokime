@@ -132,7 +132,7 @@ fn main() -> Result<()> {
     }
 
     // Declare Three Protocol Fixtures Without an Authoring SDK.
-    let mut plugin = Plugin::new("content_fixture", "1.0.0").register(|registrar| {
+    let mut plugin = Plugin::new("content", "1.0.0").register(|registrar| {
         registrar.register(Dependency::<Wire<TraceabilityGetRequest>>::new())?;
         registrar.register(Dependency::<Wire<TraceabilitySetRequest>>::new())?;
         registrar.register(Dependency::<Wire<UploadsCreateRequest>>::new())?;
