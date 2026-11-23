@@ -36,7 +36,7 @@
   import ExecutionStepsCriteria from "./ExecutionStepsCriteria.svelte";
   import { executionDocumentSections, executionParameterRows } from "./execution-sections-model";
   import NodeSummary from "./NodeSummary.svelte";
-  import type { PlotWindowState } from "./plot-window";
+  import type { PlotWindow } from "./plot-window-state";
   import PlotWindowControl from "./PlotWindowControl.svelte";
   import PromptHistory from "./PromptHistory.svelte";
   import RecordsSection from "./RecordsSection.svelte";
@@ -51,7 +51,7 @@
     started: TestExecution | null;
     surface: DocumentSurface;
     pane: ReturnType<typeof evidencePaneState>;
-    plotWindow?: PlotWindowState;
+    plotWindow?: PlotWindow;
     onRetry?: (cardId?: string) => void;
     control?: Snippet;
     promptQueue?: Snippet;

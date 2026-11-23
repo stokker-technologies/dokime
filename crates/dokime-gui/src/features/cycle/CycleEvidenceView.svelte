@@ -17,7 +17,6 @@
   import { BUSY_NOTICE, type evidencePaneState } from "./document-query-model";
   import type { DocumentSurface } from "./document-view-model";
   import DocumentViewPresentation from "./DocumentViewPresentation.svelte";
-  import type { PlotWindowState } from "./plot-window";
   import PromptHistory from "./PromptHistory.svelte";
   import RecordsSection from "./RecordsSection.svelte";
 
@@ -25,14 +24,13 @@
     live: boolean;
     surface: DocumentSurface;
     pane: ReturnType<typeof evidencePaneState>;
-    plotWindow?: PlotWindowState;
     onRetry?: (cardId?: string) => void;
     documentView?: Snippet;
     lead?: Snippet;
     promptQueue?: Snippet;
   };
 
-  let { live, surface, pane, plotWindow, onRetry, documentView, lead, promptQueue }: Props = $props();
+  let { live, surface, pane, onRetry, documentView, lead, promptQueue }: Props = $props();
   const cycleRecords = $derived(surface.view.records.filter((record) => !record.scope?.executionId));
 </script>
 
@@ -61,7 +59,7 @@
         {#if documentView}
           {@render documentView()}
         {:else}
-          <DocumentViewPresentation cardFilter={isCycleEvidenceCard} {plotWindow} {surface} {onRetry} />
+          <DocumentViewPresentation cardFilter={isCycleEvidenceCard} {surface} {onRetry} />
         {/if}
         <RecordsSection {live} records={surface.view.records} />
         {#if !surface.options.live}

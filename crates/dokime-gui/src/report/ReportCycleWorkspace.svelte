@@ -13,7 +13,6 @@
   import { documentSurface, documentView, type DocumentSurfaceOptions } from "../features/cycle/document-view-model";
   import ExecutionSectionsView from "../features/cycle/ExecutionSectionsView.svelte";
   import NodeSummary from "../features/cycle/NodeSummary.svelte";
-  import { defaultPlotWindowIndex, plotWindows } from "../features/cycle/plot-window";
   import type { CycleSnapshotSource } from "../features/cycle/snapshot-source";
   import { reportOutcome } from "./native-report";
 
@@ -40,7 +39,6 @@
       scope,
       parameters: { case: row?.case.testCase?.parameters, execution: execution?.parameters },
       noteElapsedStart: started?.started_at ?? plan.test_cycle.started_at ?? null,
-      plotWindow: plotWindows[defaultPlotWindowIndex] ?? plotWindows[0],
       traceabilityExportName: row ? { cycleLabel: plan.test_cycle.title, executionOrdinal: row.ordinal } : null,
     };
     const view = documentView(

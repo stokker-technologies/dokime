@@ -1,10 +1,14 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { createStore } from "zustand/vanilla";
+import { storeState } from "../../stores/store-state";
 import { defaultPlotWindowIndex, plotWindows, type PlotWindowState } from "./plot-window";
 
-/** One Document's Window Selection And Explicit Refresh Status. */
+/**
+ * One Document's Window Selection And Explicit Refresh Status. Each Reader
+ * Selects What It Follows, So Refresh Status Reaches Only Its Control.
+ */
 export function createPlotWindow() {
-  return createStore<PlotWindowState>((set) => ({
+  const store = createStore<PlotWindowState>((set) => ({
     index: defaultPlotWindowIndex,
     option: plotWindows[defaultPlotWindowIndex] ?? plotWindows[0],
     choose(next) {
@@ -29,4 +33,12 @@ export function createPlotWindow() {
       },
     },
   }));
+  return {
+    ...store,
+    state: storeState(store, (state) => state),
+    option: storeState(store, (state) => state.option),
+    refreshKey: storeState(store, (state) => state.refresh.key),
+  };
 }
+
+export type PlotWindow = ReturnType<typeof createPlotWindow>;

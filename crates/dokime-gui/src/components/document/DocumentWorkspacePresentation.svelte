@@ -3,7 +3,7 @@
   import type { Snippet } from "svelte";
   import type { EvidenceScope } from "@generated/host/model";
   import type { Wire } from "@/lib/rpc/canonical";
-  import type { PlotRefreshState, PlotWindowState } from "../../features/cycle/plot-window";
+  import type { PlotWindow } from "../../features/cycle/plot-window-state";
   import type { DocumentCardContentProps } from "./DocumentCardContent.svelte";
   import type { DocumentBlockChrome } from "./DocumentViewRenderer.svelte";
   import type { MediaGalleryArtifact } from "../media-gallery-model";
@@ -22,7 +22,7 @@
     TelemetryStream,
     TraceabilitySnapshot,
   } from "@/lib/types";
-  import type { LivePlotStateMap } from "@/plots/live-frames";
+  import type { LivePlotStates } from "@/plots/live-frames";
   import type { PlotMeasurements } from "@/plots/plot-interaction";
   import type { ReportDefaults } from "@/plots/plot-settings";
   import type { PlotSettingsChange } from "./PlotGroupGrid.svelte";
@@ -52,13 +52,11 @@
   };
 
   type LiveDocumentWorkspaceView = DocumentWorkspaceViewBaseProps & {
-    livePlotStates?: LivePlotStateMap;
+    livePlotStates?: LivePlotStates;
     onPlotSettingsChange?: PlotSettingsChange;
     plotContextTelemetry: Record<string, TelemetryStream> | null;
     plotResetKey: string;
-    plotWindowS?: number | null;
-    plotRefresh?: PlotRefreshState;
-    sectionWindow?: { sectionId: string; elapsedUnit: string | null; window: PlotWindowState };
+    sectionWindow?: { sectionId: string; elapsedUnit: string | null; window: PlotWindow };
     measurements?: PlotMeasurements | null;
     reportDefaults?: ReportDefaults;
     renderMode: "live";
@@ -73,6 +71,9 @@
 
   export type DocumentWorkspaceView = LiveDocumentWorkspaceView | ReportDocumentWorkspaceView;
 
+  const noLivePlots: LivePlotStates = new Map();
+
+  /** Each Card Reads Only The Props It Draws, So Records Or Plot States Reach Only Their Cards. */
   function documentCardContentProps(
     props: DocumentWorkspaceView,
     card: DocumentViewCard,
@@ -80,45 +81,68 @@
     onRetry?: (cardId?: string) => void,
   ): DocumentCardContentProps {
     const shared = {
-      artifacts: props.artifacts,
       card,
       sectionTitle: section?.label ?? card.title,
-      streams: props.streams,
-      criterionRecords: props.criterionRecords,
-      documentId: props.document?.document_id,
-      records: props.records,
-      health: props.health,
-      mediaArtifacts: props.mediaArtifacts,
-      notes: props.notes,
       onRetry,
-      plotPalette: props.plotPalette,
-      plotParameterContext: props.plotParameterContext ?? null,
-      runDir: props.runDir,
-      stepRecords: props.stepRecords,
-      traceability: props.traceability,
+      get artifacts() {
+        return props.artifacts;
+      },
+      get streams() {
+        return props.streams;
+      },
+      get criterionRecords() {
+        return props.criterionRecords;
+      },
+      get documentId() {
+        return props.document?.document_id;
+      },
+      get records() {
+        return props.records;
+      },
+      get health() {
+        return props.health;
+      },
+      get mediaArtifacts() {
+        return props.mediaArtifacts;
+      },
+      get notes() {
+        return props.notes;
+      },
+      get plotPalette() {
+        return props.plotPalette;
+      },
+      get plotParameterContext() {
+        return props.plotParameterContext ?? null;
+      },
+      get runDir() {
+        return props.runDir;
+      },
+      get stepRecords() {
+        return props.stepRecords;
+      },
+      get traceability() {
+        return props.traceability;
+      },
     };
 
     if (props.renderMode === "report") {
-      return {
-        ...shared,
-        renderMode: "report",
-        reportPlots: props.reportPlots,
-        reportTelemetry: props.reportTelemetry,
-      };
+      return Object.defineProperties(shared, {
+        renderMode: { value: "report", enumerable: true },
+        reportPlots: { get: () => props.reportPlots, enumerable: true },
+        reportTelemetry: { get: () => props.reportTelemetry, enumerable: true },
+      }) as DocumentCardContentProps;
     }
-
-    return {
-      ...shared,
-      captureScope: props.scope?.cycleId && props.scope.executionId ? props.scope : null,
-      livePlotStates: props.livePlotStates ?? {},
-      measurements: props.measurements,
-      reportDefaults: props.reportDefaults,
-      onPlotSettingsChange: props.onPlotSettingsChange,
-      noteScope: props.scope?.cycleId ? props.scope : null,
-      plotContextTelemetry: props.plotContextTelemetry,
-      plotResetKey: props.plotResetKey,
-      renderMode: "live",
-    };
+    return Object.defineProperties(shared, {
+      renderMode: { value: "live", enumerable: true },
+      captureScope: { get: () => (props.scope?.cycleId && props.scope.executionId ? props.scope : null), enumerable: true },
+      livePlotStates: { get: () => props.livePlotStates ?? noLivePlots, enumerable: true },
+      measurements: { get: () => props.measurements, enumerable: true },
+      reportDefaults: { get: () => props.reportDefaults, enumerable: true },
+      onPlotSettingsChange: { get: () => props.onPlotSettingsChange, enumerable: true },
+      noteScope: { get: () => (props.scope?.cycleId ? props.scope : null), enumerable: true },
+      plotContextTelemetry: { get: () => props.plotContextTelemetry, enumerable: true },
+      plotResetKey: { get: () => props.plotResetKey, enumerable: true },
+    }) as DocumentCardContentProps;
   }
 
   export function visibleDocumentPlots(sections: DocumentViewSection[], cardFilter: (card: DocumentViewCard) => boolean) {

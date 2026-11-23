@@ -2,7 +2,6 @@
 import type { EvidenceScope } from "@generated/host/model";
 import { createQuery } from "@tanstack/svelte-query";
 import type { ConnectedSession } from "../../app/native-session/session";
-import { isDocumentSurfaceCard } from "../../components/document/document-surface-policy";
 import { fetchNativeHealth, fetchNativeNotes } from "../../lib/api/native-annotations";
 import { fetchNativeExecutionFiles } from "../../lib/api/native-content";
 import { fetchNativeRecordTail } from "../../lib/api/native-evidence";
@@ -10,7 +9,16 @@ import { fetchNativeTraceability } from "../../lib/api/native-observation";
 import { orderedDocumentSections } from "../../lib/document-layout";
 import type { Wire } from "../../lib/rpc/canonical";
 import { scopeVisibleIn } from "../../lib/scope";
-import { documentSurface, documentView, type DocumentSurfaceOptions } from "./document-view-model";
+import {
+  type DocumentSurface,
+  type DocumentSurfaceOptions,
+  executionRecords,
+  scopedNotes,
+  surfaceArtifacts,
+  surfaceCards,
+  surfacePlots,
+} from "./document-view-model";
+import { mergeParameterContexts, plotContextTelemetrySnapshot, uniqueArtifacts } from "./model-document";
 import { holdRecordTail, type RecordTailDelivery, selectRecords } from "./server-state";
 import { workflowQueryKeys } from "./workflow-query-keys";
 
@@ -51,21 +59,34 @@ export function createRecordsQuery(
   return query;
 }
 
-export function createLiveDocumentSurface(session: () => ConnectedSession, read: () => DocumentSurfaceOptions, source?: RecordTailSource) {
-  const options = $derived(read());
-  const scope = $derived(options.scope);
+/**
+ * The Live Evidence Surface. `options` Reads Through Getters And Every Field
+ * Of The Result Is Its Own Derivation, So A Snapshot, Record Or Document Change
+ * Reaches Only Its Readers And Query Options Follow Only Their Own Inputs.
+ */
+export function createLiveDocumentSurface(
+  session: () => ConnectedSession,
+  options: DocumentSurfaceOptions,
+  source?: RecordTailSource,
+): DocumentSurface {
+  // A New Object With the Same Scope Keeps Its Queries.
+  const scopeKey = $derived(JSON.stringify(options.scope));
+  const scope = $derived(JSON.parse(scopeKey) as Wire<EvidenceScope>);
   const executionId = $derived(scope.executionId ?? null);
-  const kinds = $derived.by(() => {
-    const sections = orderedDocumentSections(options.document);
-    const cards = sections.flatMap((section) => section.cards).filter(isDocumentSurfaceCard);
-    return new Set(cards.map((card) => card.kind));
-  });
+  const sections = $derived(orderedDocumentSections(options.document));
+  const cards = $derived(surfaceCards(sections));
+  const shows = (...kinds: string[]) => cards.some((card) => kinds.includes(card.kind));
+  const filesShown = $derived(shows("artifacts", "media"));
+  const notesShown = $derived(shows("notes"));
+  const healthShown = $derived(shows("health"));
+  const traceabilityShown = $derived(shows("traceability"));
+  const recordsShown = $derived(shows("records", "plots"));
   const client = () => session().queryClient;
   const files = createQuery(() => {
     const { identity } = session();
     const id = executionId;
     return {
-      enabled: Boolean(id && (kinds.has("artifacts") || kinds.has("media"))),
+      enabled: Boolean(id && filesShown),
       queryFn: () => fetchNativeExecutionFiles(identity, id ?? ""),
       queryKey: [...workflowQueryKeys.executionFiles(id), identity.generation],
       staleTime: Infinity,
@@ -75,7 +96,7 @@ export function createLiveDocumentSurface(session: () => ConnectedSession, read:
     const { identity } = session();
     const at = scope;
     return {
-      enabled: kinds.has("notes") && Boolean(at.cycleId),
+      enabled: notesShown && Boolean(at.cycleId),
       queryFn: () => fetchNativeNotes(identity, at),
       queryKey: [...workflowQueryKeys.notes(), identity.generation, at],
     };
@@ -84,7 +105,7 @@ export function createLiveDocumentSurface(session: () => ConnectedSession, read:
     const { identity } = session();
     const at = scope;
     return {
-      enabled: kinds.has("health") && Boolean(at.cycleId),
+      enabled: healthShown && Boolean(at.cycleId),
       queryFn: () => fetchNativeHealth(identity, at),
       queryKey: [...workflowQueryKeys.health(), identity.generation, at],
     };
@@ -93,42 +114,121 @@ export function createLiveDocumentSurface(session: () => ConnectedSession, read:
     const { identity } = session();
     const at = scope;
     return {
-      enabled: kinds.has("traceability"),
+      enabled: traceabilityShown,
       queryFn: () => fetchNativeTraceability(identity, at),
       queryKey: [...workflowQueryKeys.traceability(at), identity.generation],
       gcTime: GUI_EVIDENCE_GC_MS,
     };
   }, client);
-  const records = createRecordsQuery(
-    session,
-    () => ({
-      enabled: kinds.has("records") || kinds.has("plots"),
-      scope,
-    }),
-    source,
-  );
-  const base = $derived(
-    documentSurface(
-      options,
-      documentView(
-        { ...options, document: options.document ?? null, liveSnapshot: options.snapshot },
-        {
-          artifacts: files.data ?? [],
-          notes: notes.data ?? [],
-          health: health.data ?? [],
-          records: [],
-          traceability: traceability.data ?? null,
-          reportPayloads: null,
-        },
-      ),
-      true,
-    ),
-  );
+  const records = createRecordsQuery(session, () => ({ enabled: recordsShown, scope }), source);
+
+  const artifacts = $derived(uniqueArtifacts(files.data ?? []));
+  const linked = $derived(surfaceArtifacts(artifacts, true));
+  const visibleNotes = $derived(scopedNotes(notes.data ?? [], scope, options.noteElapsedStart));
+  const visibleHealth = $derived((health.data ?? []).filter((item) => scopeVisibleIn(item.scope, scope)));
   const visibleRecords = $derived((records.data ?? []).filter((record) => scopeVisibleIn(record.scope, scope)));
-  const surface = $derived({
-    ...base,
-    view: { ...base.view, records: visibleRecords },
-    shared: { ...base.shared, records: visibleRecords },
+  const stepRecords = $derived(executionRecords(options.execution, "step"));
+  const criterionRecords = $derived(executionRecords(options.execution, "criterion"));
+  const streams = $derived(options.snapshot ? Object.values(options.snapshot.telemetry) : []);
+  // Each Scope's Parameters Keep Their Identity While Other Execution Fields Change.
+  const caseParameters = $derived(options.parameters.case);
+  const executionParameters = $derived(options.parameters.execution);
+  const parameterContext = $derived(mergeParameterContexts(caseParameters, executionParameters));
+  const plots = $derived(surfacePlots(cards));
+  // A Snapshot That Leaves The Plotted Streams Unchanged Keeps Their Telemetry.
+  let heldTelemetry: ReturnType<typeof plotContextTelemetrySnapshot> = null;
+  const plotContextTelemetry = $derived.by(() => {
+    const next = plotContextTelemetrySnapshot(options.snapshot, plots);
+    const held = heldTelemetry;
+    const same =
+      next === held ||
+      (next !== null &&
+        held !== null &&
+        Object.keys(next).length === Object.keys(held).length &&
+        Object.entries(next).every(([stream, telemetry]) => held[stream] === telemetry));
+    heldTelemetry = same ? held : next;
+    return heldTelemetry;
   });
-  return () => surface;
+  const trace = $derived(traceability.data ?? null);
+
+  return {
+    options,
+    view: {
+      get artifacts() {
+        return artifacts;
+      },
+      get criterionRecords() {
+        return criterionRecords;
+      },
+      get health() {
+        return visibleHealth;
+      },
+      get records() {
+        return visibleRecords;
+      },
+      reportPayloads: null,
+      get stepRecords() {
+        return stepRecords;
+      },
+      get streams() {
+        return streams;
+      },
+      get traceability() {
+        return trace;
+      },
+      get notes() {
+        return visibleNotes;
+      },
+      get parameterContext() {
+        return parameterContext;
+      },
+      get plotContextTelemetry() {
+        return plotContextTelemetry;
+      },
+      get sections() {
+        return sections;
+      },
+    },
+    shared: {
+      get artifacts() {
+        return linked.artifacts;
+      },
+      get mediaArtifacts() {
+        return linked.mediaArtifacts;
+      },
+      get streams() {
+        return streams;
+      },
+      get criterionRecords() {
+        return criterionRecords;
+      },
+      get document() {
+        return options.document;
+      },
+      get notes() {
+        return visibleNotes;
+      },
+      get plotParameterContext() {
+        return parameterContext;
+      },
+      get records() {
+        return visibleRecords;
+      },
+      get health() {
+        return visibleHealth;
+      },
+      get sections() {
+        return sections;
+      },
+      get stepRecords() {
+        return stepRecords;
+      },
+      get traceability() {
+        return trace;
+      },
+      get traceabilityExportName() {
+        return options.traceabilityExportName;
+      },
+    },
+  };
 }

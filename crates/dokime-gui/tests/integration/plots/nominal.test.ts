@@ -38,7 +38,7 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import PlotWindowControlView from "@/features/cycle/PlotWindowControl.svelte";
 import { createPlotWindow } from "@/features/cycle/plot-window-state";
-import { plotWindowOptions, plotWindows, type PlotWindowState } from "@/features/cycle/plot-window";
+import { plotWindowOptions, plotWindows } from "@/features/cycle/plot-window";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import type { RuntimeAppearanceFrame, RuntimeThemeFamily } from "@/lib/types/appearance";
@@ -87,8 +87,8 @@ import { plotInteractionContext } from "@/plots/plot-interaction";
 import { plotRequestForDocumentPlot } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
 import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
-import { instantTime, orderedInstants } from "@/plots/instants";
-import type { plotPlayback } from "@/plots/playback.svelte";
+import { instantTime } from "@/plots/instants";
+import { PLAYBACK_FRAME_MS, type plotPlayback } from "@/plots/playback.svelte";
 import LivePlotProbe from "./LivePlotProbe.svelte";
 import PlaybackFixture from "./PlaybackFixture.svelte";
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
@@ -279,13 +279,14 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
   const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
   const windowStore = createPlotWindow();
   const commits: number[][] = [];
+  const reads: string[] = [];
   let states: LivePlotStateMap = {};
   let options = { enabled: true, renderActive: true, plots, scope };
   function onRender(next: LivePlotStateMap) {
     states = next;
     commits.push(Object.values(next).map((plot) => plot.revision));
   }
-  const view = render(LivePlotProbe, { options, session, onRender, windowStore });
+  const view = render(LivePlotProbe, { options, session, onRender, onPlot: (id: string) => void reads.push(id), windowStore });
 
   onTestFinished(() => {
     view.unmount();
@@ -307,6 +308,7 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
     window: windowStore.getState,
     states: () => states,
     commits,
+    reads,
     button: () => view.getByRole("button") as HTMLButtonElement,
     async choose(index: number) {
       windowStore.getState().choose(index);
@@ -367,18 +369,18 @@ test("Window Presets", () => {
 
 test("Window Selection", async () => {
   const choose = vi.fn();
-  const refresh = { key: 0, refreshing: false, updatedAt: null, request: vi.fn(), onChange: vi.fn() };
-  const initial: PlotWindowState = { index: 2, option: plotWindows[2], choose, refresh };
-  const view = render(PlotWindowControlView, { live: true, elapsedUnit: null, window: initial });
+  const plotWindow = createPlotWindow();
+  plotWindow.setState({ index: 2, option: plotWindows[2], choose });
+  const view = render(PlotWindowControlView, { live: true, elapsedUnit: null, window: plotWindow });
   const slider = view.getByRole("slider");
   assert.equal(slider.getAttribute("aria-valuenow"), "2");
   slider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
   assert.deepEqual(choose.mock.calls, [[6]]);
-  const selected = { ...initial, index: 6, option: plotWindows[6] };
-  await view.rerender({ live: true, elapsedUnit: null, window: selected });
+  plotWindow.setState({ index: 6, option: plotWindows[6] });
+  await tick();
   assert.equal(view.getByRole("slider").getAttribute("aria-valuenow"), "6");
-  assert.equal(selected.option.value, null);
-  await view.rerender({ live: false, elapsedUnit: null, window: initial });
+  assert.equal(plotWindow.getState().option.value, null);
+  await view.rerender({ live: false, elapsedUnit: null, window: plotWindow });
   assert.equal(view.container.childElementCount, 0);
 });
 
@@ -402,6 +404,18 @@ test("A Complete Watch Revision Commits Every Chart in One Animation Frame", asy
   assert.ok(Object.values(view.states()).every((plot) => plot.revision === 2));
   assert.ok(view.commits.length > 0);
   assert.ok(view.commits.every((revisions) => new Set(revisions).size === 1));
+});
+
+test("One Plot's Revision Reaches Only That Plot", async () => {
+  const view = await mountPlotView();
+  const initial = snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }));
+  await updatePlots(async () => view.streams[0].push(...initial));
+  await view.advance();
+  view.reads.length = 0;
+  await updatePlots(async () => view.streams[0].push({ ...initial[0], revision: 2, kind: "replace" }));
+  await view.advance();
+  assert.equal(view.states().pulse.revision, 2);
+  assert.deepEqual(view.reads, ["pulse"]);
 });
 
 test("Manual All Refresh", async () => {
@@ -1698,7 +1712,7 @@ test("Stream Errors Replace Retained Charts", () => {
     PlotGroupGrid,
     {
       documentPlots: [descriptor],
-      liveStates: { pulse: failed },
+      liveStates: new Map([["pulse", failed]]),
       title: "Signals",
       viewportMode: "fit",
     },
@@ -1747,11 +1761,11 @@ test("Plot Edits Survive Presentation Changes", async () => {
   };
   const { container: host, rerender } = render(PlotGroupGrid, {
     documentPlots: [descriptor],
-    liveStates: { pulse: emptyLivePlotState() },
+    liveStates: new Map([["pulse", emptyLivePlotState()]]),
     title: "Signals",
     onPlotSettingsChange: submit,
   });
-  const update = (state = emptyLivePlotState()) => rerender({ liveStates: { pulse: state } });
+  const update = (state = emptyLivePlotState()) => rerender({ liveStates: new Map([["pulse", state]]) });
   assert.equal(host.querySelector("[data-live-mounted]"), null, "off-screen plots mount lazily");
   await show(true);
   const trigger = host.querySelector<HTMLButtonElement>("button[aria-label^='Plot Settings for ']");
@@ -2378,17 +2392,17 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
     trajectory.replay();
     await tick();
     assert.equal(trajectory.instant, first);
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(PLAYBACK_FRAME_MS);
     await tick();
     assert.equal(trajectory.instant, held[1]);
     trajectory.pause();
     await tick();
-    await vi.advanceTimersByTimeAsync(600);
+    await vi.advanceTimersByTimeAsync(3 * PLAYBACK_FRAME_MS);
     await tick();
     assert.equal(trajectory.instant, held[1]);
     trajectory.play();
     await tick();
-    await vi.advanceTimersByTimeAsync(600);
+    await vi.advanceTimersByTimeAsync(3 * PLAYBACK_FRAME_MS);
     await tick();
     assert.equal(trajectory.instant, last);
     assert.equal(trajectory.playing, false);
@@ -2455,12 +2469,13 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
   const second = session("2");
   const replacement = session("3");
   const states = new Map<number, LivePlotStateMap>();
-  const options = { enabled: true, plots, scope: { cycleId: "cycle", executionId: "execution" }, windowS: 300 };
+  const options = { enabled: true, plots, scope: { cycleId: "cycle", executionId: "execution" } };
   const probes = [first, second].map((owner, index) =>
     render(LivePlotProbe, {
       options,
       session: owner,
       onRender: (state) => states.set(index, state),
+      windowStore: createPlotWindow(),
     }),
   );
   try {

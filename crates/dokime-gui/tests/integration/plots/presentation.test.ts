@@ -211,7 +211,7 @@ test("Document Plot Titles Remain in Their Cards Through Loading, Empty and Fail
       };
       const { container: host } = render(PlotGroupGrid, {
         documentPlots: [plot],
-        liveStates: { position: state },
+        liveStates: new Map([["position", state]]),
         showGroupHeaders: false,
         title: plot.title,
         viewportMode: "fit",
@@ -350,7 +350,7 @@ test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside 
       const { container: host } = render(PlotGroupGrid, {
         title: "Distributions",
         documentPlots: [plot],
-        liveStates: { [plot.plot_id]: state },
+        liveStates: new Map([[plot.plot_id, state]]),
         viewportMode,
       });
       const card = host.querySelector("article.plot-card") as HTMLElement;

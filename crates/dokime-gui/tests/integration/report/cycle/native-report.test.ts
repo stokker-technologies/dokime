@@ -341,7 +341,7 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
         title: "Values",
         documentPlots: [descriptor],
         viewportMode: "fit",
-        liveStates: { [metadata.identifier]: { ...emptyLivePlotState(), payload } },
+        liveStates: new Map([[metadata.identifier, { ...emptyLivePlotState(), payload }]]),
       });
       onTestFinished(unmount);
       assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 9 · "));

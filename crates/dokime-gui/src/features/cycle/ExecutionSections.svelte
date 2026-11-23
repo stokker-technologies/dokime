@@ -13,7 +13,6 @@
   import type { HubLiveState, PromptRequest, TestCyclePlan } from "../../lib/types";
   import type { FocusMode } from "../../shell/focus-mode";
   import PageChrome from "../../shell/PageChrome.svelte";
-  import { storeState } from "../../stores/store-state";
   import { type createCycleCommands, executionDetailQueryOptions } from "./cycle-queries";
   import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
   import DocumentPagination from "./DocumentPagination.svelte";
@@ -67,8 +66,7 @@
 
   const session = () => context.session;
   const client = () => session().queryClient;
-  const windowState = storeState(createPlotWindow(), (state) => state);
-  const plotWindow = $derived(windowState());
+  const plotWindow = createPlotWindow();
   const suites = createQuery(() => testSuitesQueryOptions(session().identity), client);
   const pluginAvailable = $derived(
     suites.data?.some((suite) => suite.members.some((template) => template.template_id === row.case.templateId)),
@@ -80,19 +78,31 @@
   const execution = $derived(detail.data ?? started);
   const documentQuery = createScopedDocumentQuery(session, () => ({ cycleId, executionId: startedId, enabled: Boolean(startedId) }));
   const document = $derived(started ? (documentQuery.data ?? null) : null);
-  const readSurface = createLiveDocumentSurface(session, () => ({
-    document,
-    execution,
+  const surface = createLiveDocumentSurface(session, {
+    get document() {
+      return document;
+    },
+    get execution() {
+      return execution;
+    },
     live: true,
-    snapshot,
-    scope,
-    parameters: { case: row.case.testCase?.parameters, execution: execution?.parameters },
-    noteElapsedStart: started?.started_at ?? plan.test_cycle.started_at,
-    plotWindow: plotWindow.option,
-    plotRefresh: plotWindow.refresh,
-    traceabilityExportName: { cycleLabel: plan.test_cycle.title, executionOrdinal: row.ordinal },
-  }));
-  const surface = $derived(readSurface());
+    get snapshot() {
+      return snapshot;
+    },
+    get scope() {
+      return scope;
+    },
+    get parameters() {
+      return { case: row.case.testCase?.parameters, execution: execution?.parameters };
+    },
+    get noteElapsedStart() {
+      return started?.started_at ?? plan.test_cycle.started_at;
+    },
+    plotWindow,
+    get traceabilityExportName() {
+      return { cycleLabel: plan.test_cycle.title, executionOrdinal: row.ordinal };
+    },
+  });
   const pane = $derived(
     evidencePaneState({
       hasDocument: document !== null,

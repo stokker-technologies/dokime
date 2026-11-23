@@ -1,9 +1,10 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import type { EvidenceScope, PlotRequest } from "@generated/host/model";
 import { onMount, untrack } from "svelte";
-import { createSubscriber } from "svelte/reactivity";
+import { createSubscriber, SvelteMap } from "svelte/reactivity";
 import type { ConnectedSession } from "@/app/native-session/session";
 import type { PlotRefreshState } from "@/features/cycle/plot-window";
+import type { PlotWindow } from "@/features/cycle/plot-window-state";
 import { fetchNativePlotPayloads, NATIVE_PLOT_MAX_REQUESTS, type NativePlotStream, openNativePlotStream } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import { failureOf } from "@/lib/notification-details";
@@ -13,7 +14,14 @@ import { summaryInFlight } from "@/lib/statistics";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { summaryWindowStore } from "@/stores/summary-window-store";
 import { displayPointBudget, plotRequestForDocumentPlot } from "./live-data";
-import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "./live-frames";
+import {
+  applyDocumentPlotMessages,
+  applyPendingNotice,
+  emptyLivePlotState,
+  type LivePlotState,
+  type LivePlotStateMap,
+  type LivePlotStates,
+} from "./live-frames";
 import { DEFAULT_PLOT_MAX_POINTS } from "./reduce";
 
 const HIDDEN_PLOT_STREAM_FLUSH_MS = 1_000;
@@ -24,13 +32,13 @@ export type LivePlotOptions = {
   enabled: boolean;
   plots: DocumentViewPlot[];
   renderActive?: boolean;
-  refresh?: PlotRefreshState;
   scope: Wire<EvidenceScope> | null;
-  windowS?: number | null;
+  /** The Window And Refresh Control; Without One Every Sample Is Read Once. */
+  window?: PlotWindow;
 };
 
 export function createLivePlotPayloads(options: () => LivePlotOptions, getSession: () => ConnectedSession | null) {
-  let state = $state.raw<LivePlotStateMap>({});
+  const states = new SvelteMap<string, LivePlotState>();
   let model: LivePlotStateMap = {};
   let pageVisible = $state(document.visibilityState !== "hidden");
   const subscribe = createSubscriber((update) => summaryWindowStore.subscribe(update));
@@ -43,12 +51,12 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
   const enabled = $derived(options().enabled);
   const plots = $derived(options().plots);
   const scope = $derived(options().scope);
-  const windowS = $derived(options().windowS);
-  const refresh = $derived(options().refresh);
+  const plotWindow = $derived(options().window);
+  const windowS = $derived(plotWindow?.option().value);
   const automatic = $derived(windowS != null);
-  const refreshKey = $derived(refresh?.key ?? 0);
+  const refreshKey = $derived(plotWindow?.refreshKey() ?? 0);
   const requestVisible = $derived(!automatic || pageVisible);
-  const onRefreshChange = $derived(refresh?.onChange);
+  const onRefreshChange = $derived(plotWindow?.getState().refresh.onChange);
   const renderActive = $derived(options().renderActive ?? true);
   const visible = $derived(measurements.visible);
 
@@ -86,7 +94,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
   );
   // Visible Groups Finish Loading Before Prefetch Starts.
   const visibleReady = $derived(
-    requestGroups.every((group, index) => !visibleGroups[index] || group.every((plot) => state[plot.plot_id]?.payload)),
+    requestGroups.every((group, index) => !visibleGroups[index] || group.every((plot) => states.get(plot.plot_id)?.payload)),
   );
   const shownGroups = $derived(requestGroups.filter((_, index) => visibleGroups[index] || (visibleReady && visibleGroups[index - 1])));
   const shownPlots = $derived(shownGroups.flat());
@@ -146,9 +154,20 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
     untrack(() => reconcile(nativeSession, activeOptions));
   });
 
+  // Only Plots Whose State Changed Reach Their Readers.
   function commit(update: (current: LivePlotStateMap) => LivePlotStateMap) {
+    const previous = model;
     model = update(model);
-    state = model;
+    for (const [id, plot] of Object.entries(model)) {
+      if (previous[id] !== plot) {
+        states.set(id, plot);
+      }
+    }
+    for (const id of Object.keys(previous)) {
+      if (!Object.hasOwn(model, id)) {
+        states.delete(id);
+      }
+    }
   }
 
   function reconcile(
@@ -165,7 +184,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
     }: {
       enabled: boolean;
       requestScope: LivePlotOptions["scope"];
-      windowS: LivePlotOptions["windowS"];
+      windowS: number | null | undefined;
       requestVisible: boolean;
       automatic: boolean;
       refreshKey: number;
@@ -601,11 +620,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
     }
   }
 
-  return {
-    get states() {
-      return state;
-    },
-  };
+  return { states: states as LivePlotStates };
 }
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {

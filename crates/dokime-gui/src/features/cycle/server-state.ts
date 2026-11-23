@@ -11,7 +11,7 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
-import type { Query, QueryClient } from "@tanstack/svelte-query";
+import { type Query, type QueryClient, replaceEqualDeep } from "@tanstack/svelte-query";
 
 /* === Local Imports === */
 
@@ -130,7 +130,10 @@ export function selectDocument(document: RootDocument): DocumentViewPayload {
   return document.mapped;
 }
 
-/** Root query data owns native captures and their stable display projection. */
+/**
+ * Root query data owns native captures and their stable display projection:
+ * a refresh keeps every unchanged card and plot of the projection as it was.
+ */
 export async function capturedDocument(
   queryClient: QueryClient,
   queryKey: readonly unknown[],
@@ -139,13 +142,13 @@ export async function capturedDocument(
   const held = queryClient.getQueryData<RootDocument>(queryKey);
   let progress = held?.mapped;
   const completed = await capture(held?.completed ?? null, (document) => {
-    progress = mergeDocumentProgress(mapNativeDocument(document), progress);
+    progress = replaceEqualDeep(progress, mergeDocumentProgress(mapNativeDocument(document), progress));
     queryClient.setQueryData<RootDocument>(queryKey, { completed: held?.completed, current: document, mapped: progress });
   });
   if (held && completed === held.completed) {
     return held;
   }
-  return { completed, current: completed, mapped: mapNativeDocument(completed) };
+  return { completed, current: completed, mapped: replaceEqualDeep(progress, mapNativeDocument(completed)) };
 }
 
 /* === Record Tails === */
