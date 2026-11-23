@@ -25,8 +25,10 @@
     session,
     reportDefaults,
     plotWindow,
+    complete,
     ...workspace
-  }: Workspace & { session: ConnectedSession | null; reportDefaults: ReportDefaults; plotWindow?: PlotWindow } = $props();
+  }: Workspace & { session: ConnectedSession | null; reportDefaults: ReportDefaults; plotWindow?: PlotWindow; complete?: boolean } =
+    $props();
   const transfers = $derived(session ? nativeMediaTransfers(session) : undefined);
   const resolvedCardFilter = $derived(workspace.cardFilter ?? isDocumentSurfaceCard);
   const plotResetKey = $derived(plotWindow?.option().label ?? "");
@@ -57,7 +59,7 @@
     })),
   );
   const live = createLivePlotPayloads(
-    () => ({ enabled: true, plots, scope: workspace.scope, window: plotWindow }),
+    () => ({ complete, enabled: true, plots, scope: workspace.scope, window: plotWindow }),
     () => session,
   );
 

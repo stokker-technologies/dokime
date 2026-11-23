@@ -30,6 +30,8 @@ const RECONNECT_INITIAL_MS = 1_000;
 const RECONNECT_MAX_MS = 10_000;
 
 export type LivePlotOptions = {
+  /** The Scope Can No Longer Change, So A Watch The Host Ends Stays Closed. */
+  complete?: boolean;
   enabled: boolean;
   plots: DocumentViewPlot[];
   renderActive?: boolean;
@@ -59,6 +61,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
   const requestVisible = $derived(!automatic || pageVisible);
   const onRefreshChange = $derived(plotWindow?.getState().refresh.onChange);
   const renderActive = $derived(options().renderActive ?? true);
+  const complete = $derived(options().complete ?? false);
   const visible = $derived(measurements.visible);
 
   const scopeKey = $derived(cutKey(scope));
@@ -215,31 +218,16 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
       }
       groups.clear();
     }
+    // A Paused Watch Keeps Every Retained Frame And Its Status For The Plot's Return.
     if (!enabled || !testCycleId || selectedPlots.length === 0) {
       onRefreshChange?.({ refreshing: false, updatedAt: null });
-      commit((current) => {
-        if (!testCycleId || requestPlots.length === 0) {
-          return {};
-        }
-        return Object.fromEntries(
-          requestPlots.map((plot) => {
-            const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
-            return [plot.plot_id, currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot];
-          }),
-        );
-      });
+      commit((current) =>
+        testCycleId ? Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, current[plot.plot_id] ?? emptyLivePlotState()])) : {},
+      );
       return;
     }
     if (!requestVisible) {
       onRefreshChange?.({ refreshing: false });
-      commit((current) =>
-        Object.fromEntries(
-          selectedPlots.map((plot) => {
-            const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
-            return [plot.plot_id, currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot];
-          }),
-        ),
-      );
       return;
     }
 
@@ -308,7 +296,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
         }
       };
 
-      // A new watch numbers its frames from its own origin.
+      // A new watch numbers its frames from its own origin; a retained frame stays live until the host says otherwise.
       commit((current) => ({
         ...current,
         ...Object.fromEntries(
@@ -320,7 +308,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
                 ...currentPlot,
                 revision: 0,
                 error: null,
-                status: currentPlot.payload ? "stale" : "loading",
+                status: currentPlot.payload ? "live" : "loading",
                 summaryInFlight: summaryInFlight("requested"),
               },
             ];
@@ -421,6 +409,11 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
         }
         clearScheduledFlush();
         flush();
+        // The Host Ends A Watch Once Its Scope Is Complete; A Running Scope Reopens Its Watch.
+        if (!complete) {
+          scheduleReopen();
+          return;
+        }
         if (awaitingRefresh) {
           reportRefreshFailure(new Error("The plot stream ended before the view finished refreshing."));
         }
@@ -428,17 +421,10 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
         commit((current) => ({
           ...current,
           ...Object.fromEntries(
-            activePlots.map((plot) => {
-              const plotState = current[plot.plot_id] ?? emptyLivePlotState();
-              return [
-                plot.plot_id,
-                {
-                  ...plotState,
-                  status: plotState.status === "error" ? "error" : ("stale" as const),
-                  summaryInFlight: plotState.summaryInFlight && summaryInFlight("ended"),
-                },
-              ];
-            }),
+            activePlots.map((plot) => [
+              plot.plot_id,
+              { ...(current[plot.plot_id] ?? emptyLivePlotState()), summaryInFlight: summaryInFlight("ended") },
+            ]),
           ),
         }));
       };

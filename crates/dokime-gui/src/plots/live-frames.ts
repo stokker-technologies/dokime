@@ -22,7 +22,7 @@ import type { PlotPayload, PlotPayloadStreamMessage } from "../lib/types";
 
 /* === Types === */
 
-export type LivePlotStatus = "idle" | "loading" | "waiting" | "live" | "stale" | "reconnecting" | "error";
+export type LivePlotStatus = "idle" | "loading" | "waiting" | "live" | "reconnecting" | "error";
 
 export type LivePlotState = {
   /** The retained frame the renderer draws. */

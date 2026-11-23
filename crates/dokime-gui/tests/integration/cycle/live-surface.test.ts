@@ -28,7 +28,7 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import { createPlotWindow } from "@/features/cycle/plot-window-state";
 import type { NativePlotStreamMessage } from "@/lib/api/native-plots";
 import { documentCard, documentView } from "@/lib/document-presentation";
-import type { DocumentViewCard, DocumentViewPayload, DocumentViewPlot, HubLiveState, PlotPayload } from "@/lib/types";
+import type { DocumentViewCard, DocumentViewPayload, DocumentViewPlot, HubLiveState, PlotPayload, TestExecution } from "@/lib/types";
 import { documentPlotSpec } from "@/plots/grouping";
 import { BUILT_IN_REPORT_DEFAULTS } from "@/plots/plot-settings";
 import LiveSurfaceProbe from "./LiveSurfaceProbe.svelte";
@@ -53,6 +53,23 @@ vi.mock("@/plots/grouping", async (original) => {
   const actual = await original<typeof import("@/plots/grouping")>();
   return { ...actual, documentPlotSpec: vi.fn(actual.documentPlotSpec) };
 });
+
+/** The Viewport Of Every Desktop Panel: Panels Share One Observer, Created Once Per Module. */
+const viewport = { notify: (() => {}) as IntersectionObserverCallback, panels: new Set<Element>() };
+
+/* === Classes === */
+
+class ViewportObserver {
+  constructor(callback: IntersectionObserverCallback) {
+    viewport.notify = callback;
+  }
+  observe(target: Element) {
+    viewport.panels.add(target);
+  }
+  unobserve(target: Element) {
+    viewport.panels.delete(target);
+  }
+}
 
 /* === Private Functions === */
 
@@ -84,15 +101,18 @@ function plotStream() {
   const messages: NativePlotStreamMessage[] = [];
   let wake: (() => void) | undefined;
   let ended = false;
+  const end = () => {
+    ended = true;
+    wake?.();
+  };
   return {
     push(message: NativePlotStreamMessage) {
       messages.push(message);
       wake?.();
     },
-    cancel: async () => {
-      ended = true;
-      wake?.();
-    },
+    /** The Host Ends The Watch. */
+    end,
+    cancel: vi.fn(async () => end()),
     async *[Symbol.asyncIterator]() {
       while (!ended) {
         const message = messages.shift();
@@ -108,15 +128,20 @@ function plotStream() {
   };
 }
 
-function frame(plot_id: string, revision: number, kind: "snapshot" | "replace") {
+function frame(plot_id: string, revision: number, kind: "snapshot" | "replace", x = [0, 1]) {
   const payload = {
     stream: "pulse",
     x_key: "timestamp",
     generated_at: "2026-11-01T00:00:00Z",
     max_points: 100,
     window_s: 300,
-    series: [{ key: "trace-0", label: "Trace", points: [], raw_points: 2, downsampled: false }],
-    cartesian: { mode: "aligned", series: [{ x: [0, 1], y: [revision, revision] }], point_count: 2, signature: `${plot_id}-${revision}` },
+    series: [{ key: "trace-0", label: "Trace", points: [], raw_points: x.length, downsampled: false }],
+    cartesian: {
+      mode: "aligned",
+      series: [{ x, y: x.map(() => revision) }],
+      point_count: x.length,
+      signature: `${plot_id}-${revision}`,
+    },
   } as unknown as PlotPayload;
   return {
     kind,
@@ -127,6 +152,73 @@ function frame(plot_id: string, revision: number, kind: "snapshot" | "replace") 
     payload,
     warnings: [],
   } as NativePlotStreamMessage["updates"][number];
+}
+
+/** A Running Execution's Desktop Document Whose Plots Scroll In And Out Of View. */
+async function scrollingSurface(kinds: Record<string, DocumentViewPlot["plot_type"]>) {
+  vi.useFakeTimers();
+  vi.stubGlobal("IntersectionObserver", ViewportObserver);
+  let page: DocumentVisibilityState = "visible";
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => page });
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
+  const plots = Object.entries(kinds).map(
+    ([plot_id, plot_type]): DocumentViewPlot => ({
+      plot_id,
+      title: plot_id,
+      stream: "pulse",
+      plot_type,
+      style: "line",
+      x_scale: "linear",
+      y_scale: "linear",
+      x: "timestamp",
+      y: ["trace-0"],
+      fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    }),
+  );
+  serve([documentCard({ identifier: "plots", label: "Plots" }, "plots", { plots })]);
+  const watches: { requests: { plotId: string; panelWidth?: number }[]; stream: ReturnType<typeof plotStream> }[] = [];
+  backend.watch.mockImplementation(async (_identity, requests) => {
+    const stream = plotStream();
+    watches.push({ requests, stream });
+    return stream;
+  });
+  const { session } = connect();
+  const desktop = { session, plotPalette: ["#123456"], reportDefaults: BUILT_IN_REPORT_DEFAULTS };
+  const probe = render(LiveSurfaceProbe, { session, plotWindow: createPlotWindow(), desktop });
+  onTestFinished(() => {
+    probe.unmount();
+    Reflect.deleteProperty(document, "visibilityState");
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+  // Settling Runs Pending Work Without Letting Any Time Pass.
+  const settle = async () => {
+    await tick();
+    await vi.advanceTimersByTimeAsync(0);
+  };
+  await vi.waitFor(() => assert.equal(viewport.panels.size, plots.length));
+  return {
+    probe,
+    settle,
+    watches,
+    watch: (plot: string) => watches.findLast((entry) => entry.requests.some((request) => request.plotId === plot))?.stream,
+    shown: (plot: string) => probe.container.querySelector(`[data-plot-viewport="${plot}"]`)?.textContent?.replace(/\s+/g, " "),
+    async scroll(visible: Record<string, boolean>) {
+      const entries = [...viewport.panels].flatMap((target) => {
+        const plot = (target as HTMLElement).dataset.plotViewport ?? "";
+        return plot in visible ? [{ target, isIntersecting: visible[plot] } as IntersectionObserverEntry] : [];
+      });
+      viewport.notify(entries, {} as IntersectionObserver);
+      await settle();
+    },
+    async turnPage(state: DocumentVisibilityState) {
+      page = state;
+      document.dispatchEvent(new Event("visibilitychange"));
+      await settle();
+    },
+  };
 }
 
 /* === Entry Point === */
@@ -241,4 +333,73 @@ test("A Live Revision Rebuilds Only Its Own Plot", async () => {
     ["alpha"],
   );
   probe.unmount();
+});
+
+// Scrolling Back Draws A Retained Frame At Once; Leaving And Returning Never Reads As A Stream Fault.
+test("Scrolling Back Redraws the Last Frame at Once and Reopens Every Watch a Running Execution Needs", async () => {
+  const { probe, scroll, settle, shown, turnPage, watch, watches } = await scrollingSurface({ alpha: "time_series", beta: "xy" });
+  await scroll({ alpha: true, beta: true });
+  assert.equal(watches.length, 2, "each plot kind holds its own watch");
+  assert.match(shown("alpha") ?? "", /Loading Plot/, "a plot without any frame yet is loading");
+
+  watch("alpha")?.push({ updates: [frame("alpha", 1, "snapshot")] });
+  watch("beta")?.push({ updates: [frame("beta", 1, "snapshot", [])] });
+  await vi.advanceTimersByTimeAsync(20);
+  assert.match(shown("alpha") ?? "", /2 Points/);
+  assert.match(shown("beta") ?? "", /Waiting for Samples/);
+
+  // Scrolling Away Closes Alpha's Watch; The Page Leaving The Screen Closes Every Watch.
+  await scroll({ alpha: false });
+  assert.equal(watch("alpha")?.cancel.mock.calls.length, 1, "an off-screen plot holds no watch");
+  await turnPage("hidden");
+  assert.equal(watch("beta")?.cancel.mock.calls.length, 1, "a hidden page holds no watch");
+  await turnPage("visible");
+  assert.equal(watches.length, 3, "the shown plot reopens its watch");
+  assert.match(shown("beta") ?? "", /Waiting for Samples/, "a routine reopen is no stream fault");
+
+  // The Returning Plot Draws Its Retained Frame Before Its Reopened Watch Sends Anything.
+  const spec = vi.mocked(documentPlotSpec);
+  spec.mockClear();
+  await scroll({ alpha: true });
+  assert.equal(watches.length, 4, "the returning plot reopens its watch");
+  assert.match(shown("alpha") ?? "", /2 Points/, "the retained frame is drawn with no time elapsed");
+  assert.doesNotMatch(shown("alpha") ?? "", /Loading/);
+  assert.deepEqual(new Set(spec.mock.calls.map(([input]) => input.plot.plot_id)), new Set(["alpha"]), "only the returning plot rebuilds");
+
+  // A Watch The Host Ends Reopens While The Execution Runs And Stays Closed Once It Has Finished.
+  watch("beta")?.push({ updates: [frame("beta", 1, "snapshot", [])] });
+  await vi.advanceTimersByTimeAsync(20);
+  watch("beta")?.end();
+  await vi.advanceTimersByTimeAsync(1_000);
+  assert.equal(watches.length, 5, "a running execution reopens the watch the host ended");
+  probe.component.setExecution({ status: "passed", steps: [] } as unknown as TestExecution);
+  watch("beta")?.push({ updates: [frame("beta", 1, "snapshot", [])] });
+  await vi.advanceTimersByTimeAsync(20);
+  watch("beta")?.end();
+  await vi.advanceTimersByTimeAsync(60_000);
+  await settle();
+  assert.equal(watches.length, 5, "a finished execution's watch stays closed");
+  assert.match(shown("beta") ?? "", /Waiting for Samples/, "a final frame reads as final");
+});
+
+// The Desktop Measures Every Card Before It Mounts, So A First Scroll-In Changes No Request.
+test("A Plot Scrolling In for the First Time Joins Its Group's Running Watch", async () => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    const width = this.dataset.plotViewport || this.dataset.plotId ? 320 : 0;
+    return { width, height: 0, x: 0, y: 0, top: 0, left: 0, right: width, bottom: 0, toJSON: () => ({}) };
+  });
+  const { scroll, shown, watches } = await scrollingSurface({ alpha: "time_series", beta: "time_series" });
+  await scroll({ alpha: true, beta: false });
+  assert.equal(watches.length, 1, "plots of one kind share a watch");
+  assert.deepEqual(
+    watches[0].requests.map((request) => request.panelWidth),
+    [320, 320],
+    "the watch opens with every plot's width",
+  );
+  watches[0].stream.push({ updates: ["alpha", "beta"].map((plot) => frame(plot, 1, "snapshot")) });
+  await vi.advanceTimersByTimeAsync(1_000);
+  await scroll({ beta: true });
+  assert.equal(watches.length, 1, "a first scroll-in reopens no watch");
+  assert.equal(watches[0].stream.cancel.mock.calls.length, 0);
+  assert.match(shown("beta") ?? "", /2 Points/, "the plot draws the frame its group already served");
 });
