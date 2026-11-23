@@ -51,7 +51,10 @@ def project(output: Path) -> None:
     text = text.replace("explicit Client(", "explicit Transport(").replace("static Client connect(", "static Transport connect(")
     text = text.replace("return Client(grpc::", "return Transport(grpc::")
     text = text.replace("} // namespace dokime", "} // namespace detail\n} // namespace dokime")
-    text = text.replace('#include "detail/client.hpp"', '#include "detail/client.hpp"\n#include "dokime/errors.hpp"')
+    text = text.replace(
+        '#include "detail/client.hpp"',
+        '#include "detail/client.hpp"\n#include "dokime/detail/transport.hpp"',
+    )
     text = text.replace("[reader]", "[reader, context]")
     text = re.sub(
         r'throw std::runtime_error\("(?:Call|Read) ([^:]+): " \+ status.error_message\(\)\);',

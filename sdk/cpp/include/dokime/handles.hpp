@@ -21,9 +21,9 @@
 
 // Local Imports
 #include "dokime/configuration.hpp"
-#include "dokime/errors.hpp"
 #include "dokime/plugin.hpp"
 #include "dokime/values.hpp"
+#include "harmos/harmos.hpp"
 
 /* === Macros === */
 
@@ -243,16 +243,15 @@ public:
     const auto configured_policy = value.policy_.has_value();
     return operations::BoundOperation<Q, R>(
         [client, contract, configured_policy](const Q &request, std::optional<operations::OperationPolicy> policy) {
-          if (policy || configured_policy)
-            throw Error(Failure{"Refused",
-                                "host_capability_required",
-                                "The Host Has No Client Invocation Policy Contract",
-                                "Publish the Product Invocation Policy Contract and Regenerate Bindings",
-                                "invocations.create",
-                                {},
-                                {},
-                                {},
-                                {}});
+          if (policy || configured_policy) {
+            harmos::model::Failure failure;
+            failure.set_classification(harmos::CLASSIFICATION_REFUSED);
+            failure.set_code("host_capability_required");
+            failure.set_message("The Host Has No Client Invocation Policy Contract");
+            failure.set_action("Publish the Product Invocation Policy Contract and Regenerate Bindings");
+            failure.set_operation("invocations.create");
+            throw harmos::OperationError(std::move(failure));
+          }
           const auto message = templates::detail::pack<Q>(request);
           const auto result = detail::invoke_public(client, contract.id(), contract.fingerprint(), message.SerializeAsString());
           return templates::detail::decode<R>(result);

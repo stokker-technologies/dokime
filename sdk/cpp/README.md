@@ -206,8 +206,9 @@ verified and shared by the client.
 Cycle/execution notes and artifacts return product values. Evidence downloads
 verify retained length and SHA-256. `on_prompt` installs one optional answer
 handler; close releases its observation and the channel. Explicit close reports
-handler failures; destructors release resources without throwing. `Error` retains
-structured host failure classification, code, cause, details and diagnostics.
+handler failures; destructors release resources without throwing. `harmos::OperationError` retains
+the library failure in `.value`, including classification, code, action, cause,
+details, diagnostics and host retry evidence.
 
 ## Build and Test
 
