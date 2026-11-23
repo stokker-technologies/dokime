@@ -298,6 +298,7 @@ fn request_source_blocks_replay_exact_windows_and_cuts() -> Result<()> {
     let values = reader.sample_window(SampleWindow {
         execution: "execution",
         streams: &["readings".into()],
+        fields: &[],
         after: &[("readings".into(), 1)],
         through: 4,
         start_ns: i64::MIN,
@@ -701,6 +702,7 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     let window = SampleWindow {
         execution: "execution",
         streams: &[],
+        fields: &[],
         after: &[],
         through: u64::MAX,
         start_ns: i64::MIN,
@@ -1485,6 +1487,7 @@ fn interval_batches_store_one_row_per_sample_on_their_grid() -> Result<()> {
     let window = |through| SampleWindow {
         execution: "execution",
         streams: &[],
+        fields: &[],
         after: &[],
         through,
         start_ns: i64::MIN,

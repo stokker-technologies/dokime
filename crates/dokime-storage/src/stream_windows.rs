@@ -39,6 +39,10 @@ use crate::{Error, Result, Store};
 pub struct SampleWindow<'a> {
     pub execution: &'a str,
     pub streams: &'a [String],
+
+    /// Row Fields to Read; Empty Reads Every Field.
+    pub fields: &'a [String],
+
     pub after: &'a [(String, u64)],
     pub through: u64,
     pub start_ns: i64,

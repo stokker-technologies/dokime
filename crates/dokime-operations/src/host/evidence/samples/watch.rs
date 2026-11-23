@@ -19,12 +19,18 @@
 
 // Third Party Imports
 use harmos_protocol::model::Failure;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::Status;
 
 // Local Imports
-use crate::{Result, host::Context};
+use crate::{
+    Result,
+    host::{Context, Output},
+};
 use dokime_protocol::host::evidence::SamplesListRequest;
 use dokime_protocol::host::evidence::SamplesWatchRequest;
 use dokime_protocol::host::evidence::SamplesWatchResponse;
+use dokime_storage::ExecutionState;
 
 /* === Constants === */
 
@@ -44,88 +50,91 @@ pub const ID: &str = "dokime.host.v1.evidence.Samples/Watch";
 
 /* === Public Functions === */
 
-pub async fn handle(context: &Context, request: SamplesWatchRequest) -> Result<crate::host::Output<SamplesWatchResponse>> {
-    crate::host::complete(ID, context.settings.watch_timeout, async {
-        let mut storage = context.host.store().subscribe();
-        let mut runtime = context.host.changes();
-        let mut selection = SamplesListRequest {
-            scope: request.scope,
-            streams: request.streams,
-            versions: request.versions,
-            fields: request.fields,
-            sources: request.sources,
-            signals: request.signals,
-            between: request.between,
-            bucket: request.bucket,
-            latest: request.latest,
-            at: request.at,
-            page: request.page,
-        };
-        let first = crate::host::evidence::samples::list::handle(context, selection.clone()).await?;
-        let context = context.clone();
-        let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
-        tokio::spawn(async move {
-            let work = async {
-                let mut page = first;
-                let mut opening = true;
-                loop {
-                    let cut = page.resolved_at.clone();
-                    let token = page.next_page_token;
-                    let response = SamplesWatchResponse {
-                        samples: page.samples,
-                        schema: page.schema,
-                        resolved_at: cut.clone(),
-                        opening,
-                        resync_required: None,
-                    };
-                    if sender.send(Ok(response)).await.is_err() {
+pub async fn handle(context: &Context, request: SamplesWatchRequest) -> Result<Output<SamplesWatchResponse>> {
+    let mut changes = context.host.store().subscribe();
+    let mut runtime = context.host.changes();
+    let mut selection = SamplesListRequest {
+        scope: request.scope,
+        streams: request.streams,
+        versions: request.versions,
+        fields: request.fields,
+        sources: request.sources,
+        signals: request.signals,
+        between: request.between,
+        bucket: request.bucket,
+        latest: request.latest,
+        at: request.at,
+        page: request.page,
+    };
+    let first = crate::host::evidence::samples::list::read_page(context, selection.clone(), None)?;
+    let context = context.clone();
+    let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
+    tokio::spawn(async move {
+        let work = async {
+            let mut page = first;
+            let mut opening = true;
+            let mut after = None;
+            loop {
+                let cut = page.resolved_at.clone();
+                let token = page.next_page_token;
+                let frame = SamplesWatchResponse {
+                    samples: page.samples,
+                    schema: page.schema,
+                    resolved_at: cut.clone(),
+                    opening,
+                    resync_required: None,
+                };
+                if sender.send(Ok(frame)).await.is_err() {
+                    return;
+                }
+                if !token.is_empty() {
+                    selection.at = cut;
+                    selection.page.get_or_insert_default().page_token = token;
+                } else {
+                    let execution = selection.scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
+                    if execution.is_some_and(|id| context.host.store().metadata(id).is_ok_and(|cut| cut.state != ExecutionState::Open)) {
                         return;
                     }
-                    if !token.is_empty() {
-                        selection.at = cut;
-                        selection.page.get_or_insert_default().page_token = token;
-                    } else {
-                        if context.host.shutting_down()
-                            || selection.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()).is_some_and(|id| {
-                                context.host.store().metadata(id).is_ok_and(|cut| cut.state != dokime_storage::ExecutionState::Open)
-                            })
-                        {
-                            return;
-                        }
+                    // Every Selected Sample Through This Cut Was Sent; Later Passes Read Only Beyond It.
+                    after = cut;
+                    opening = false;
+                    selection.at = None;
+                    selection.page.get_or_insert_default().page_token.clear();
+                    // The Host's Shutdown Ends the Watch Even While Storage Stays Unchanged.
+                    loop {
                         tokio::select! {
                             _ = sender.closed() => return,
-                            changed = storage.changed() => if changed.is_err() { return; },
-                            changed = runtime.changed() => if changed.is_err() { return; },
+                            changed = changes.changed() => if changed.is_err() { return; } else { break },
+                            changed = runtime.changed() => if changed.is_err() || context.host.shutting_down() { return; },
                         }
-                        opening = false;
-                        selection.at = None;
-                        selection.page.get_or_insert_default().page_token.clear();
                     }
-                    page = match crate::host::evidence::samples::list::handle(&context, selection.clone()).await {
-                        Ok(page) => page,
-                        Err(error) => {
-                            let _ = sender
-                                .send(Ok(SamplesWatchResponse {
-                                    resync_required: Some(Failure {
-                                        code: "resync_required".into(),
-                                        message: format!("{ID}: {error}"),
-                                        ..Default::default()
-                                    }),
-                                    ..Default::default()
-                                }))
-                                .await;
-                            return;
-                        }
-                    };
+                    if context.host.shutting_down() {
+                        return;
+                    }
                 }
-            };
-            if tokio::time::timeout(context.settings.watch_timeout, work).await.is_err() {
-                let _ = sender.try_send(Err(tonic::Status::deadline_exceeded(format!("{ID}: Reopen After Its Deadline"))));
+                match crate::host::evidence::samples::list::read_page(&context, selection.clone(), after.as_ref()) {
+                    Ok(next) => page = next,
+                    Err(error) => {
+                        let _ = sender
+                            .send(Ok(SamplesWatchResponse {
+                                resync_required: Some(Failure {
+                                    code: "resync_required".into(),
+                                    message: format!("Watch Samples: {error}"),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            }))
+                            .await;
+                        return;
+                    }
+                }
             }
-        });
-        Ok(tokio_stream::wrappers::ReceiverStream::new(output))
-    })
-    .await
+        };
+        if tokio::time::timeout(context.settings.watch_timeout, work).await.is_err() {
+            let _ = sender.try_send(Err(Status::deadline_exceeded("Watch Samples: Reopen After Its Deadline")));
+        }
+    });
+    Ok(ReceiverStream::new(output))
 }
 
 /* === Private Functions === */
