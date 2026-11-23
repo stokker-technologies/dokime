@@ -64,12 +64,36 @@ SHELL_LICENSE_SOURCES = {
         "@bufbuild/protobuf",
         "2.16.0",
     ): "https://raw.githubusercontent.com/bufbuild/protobuf-es/b3b232f7f466eda27c66e8f63c82f930578b6cc6/LICENSE",
-    # The Published gitHead Is Unavailable; Pin the Upstream MIT License Independently.
-    (
-        "react-remove-scroll-bar",
-        "2.3.8",
-    ): "https://raw.githubusercontent.com/theKashey/react-remove-scroll-bar/8ca9ba5ea52de03308fe8ced94f7b159a44d28ff/LICENSE",
 }
+
+# These Published npm Versions Declare MIT but Publish No License Text Upstream; Their Manifest Author Holds the Copyright.
+SHELL_DECLARED_MIT = {
+    ("is-reference", "3.0.3"): "Rich Harris",
+    ("locate-character", "3.0.0"): "Rich Harris",
+}
+
+MIT_TEXT = """MIT License
+
+Copyright (c) {holder}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
 
 # These Published Python Wheels Omit Standalone License Files.
 PYTHON_LICENSE_SOURCES = {
@@ -228,6 +252,13 @@ def shell_notices(document: dict) -> tuple[str, int]:
                         texts.add(source.read_text(encoding="utf-8"))
             if not texts:
                 for version in versions:
+                    holder = SHELL_DECLARED_MIT.get((package["name"], version))
+                    if holder is not None and license_name == "MIT":
+                        texts.add(
+                            "License Text: Declared MIT by the Published Manifest; Upstream Publishes No License File\n\n"
+                            + MIT_TEXT.format(holder=holder)
+                        )
+                        continue
                     url = SHELL_LICENSE_SOURCES.get((package["name"], version))
                     if url is None:
                         raise policy.ToolError(f"Collect Third-Party Notices: missing shell license text: {package['name']}")
