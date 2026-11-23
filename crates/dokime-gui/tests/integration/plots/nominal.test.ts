@@ -89,7 +89,7 @@ import { plotRequestForDocumentPlot } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
 import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
 import { instantTime } from "@/plots/instants";
-import { PLAYBACK_FRAME_MS, type plotPlayback } from "@/plots/playback.svelte";
+import { PLAYBACK_TICK_MS, type plotPlayback } from "@/plots/playback.svelte";
 import LivePlotProbe from "./LivePlotProbe.svelte";
 import PlaybackFixture from "./PlaybackFixture.svelte";
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
@@ -2414,24 +2414,37 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
     assert.equal(trajectory.instant, incoming[1]);
     assert.equal(trajectory.data, held);
     assert.equal(grid.instant, incoming.at(-1));
+    const wait = async (milliseconds: number) => {
+      await vi.advanceTimersByTimeAsync(milliseconds);
+      await tick();
+    };
+    // Playback Runs in Sample Time: the Second Instant Is One Nanosecond In, the Last Four Seconds After It.
     trajectory.replay();
     await tick();
     assert.equal(trajectory.instant, first);
-    await vi.advanceTimersByTimeAsync(PLAYBACK_FRAME_MS);
-    await tick();
+    await wait(PLAYBACK_TICK_MS);
     assert.equal(trajectory.instant, held[1]);
+    // No Timer Runs While Paused.
     trajectory.pause();
     await tick();
-    await vi.advanceTimersByTimeAsync(3 * PLAYBACK_FRAME_MS);
-    await tick();
+    assert.equal(vi.getTimerCount(), 0);
+    await wait(10 * PLAYBACK_TICK_MS);
     assert.equal(trajectory.instant, held[1]);
     trajectory.play();
     await tick();
-    await vi.advanceTimersByTimeAsync(3 * PLAYBACK_FRAME_MS);
-    await tick();
+    assert.equal(vi.getTimerCount(), 1);
+    await wait(1_000);
+    assert.equal(trajectory.instant, held[1]);
+    // At 10× From One Second In, the Remaining Three Seconds Take Three Ticks; the Grid Keeps Its Own Speed.
+    trajectory.speed = 10;
+    assert.equal(grid.speed, 1);
+    await wait(2 * PLAYBACK_TICK_MS);
+    assert.equal(trajectory.instant, held[1]);
+    await wait(PLAYBACK_TICK_MS);
     assert.equal(trajectory.instant, last);
     assert.equal(trajectory.playing, false);
     assert.equal(trajectory.following, false);
+    assert.equal(vi.getTimerCount(), 0);
     trajectory.seek(held.length - 1, true);
     await tick();
     assert.equal(trajectory.instant, incoming.at(-1));
