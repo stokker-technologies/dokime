@@ -38,32 +38,33 @@
   const timed = $derived(playback.instants.length > 0);
 </script>
 
-<div class="grid min-w-0 gap-2">
-  <CartesianPlot
-    plotId={plot.key}
-    badge="XY"
-    cartesian={frame}
-    colors={plot.colors}
-    currentPosition={timed}
-    referenceBands={plot.referenceBands}
-    referenceLines={plot.referenceLines}
-    {actions}
-    {resetKey}
-    series={shown.series}
-    stateDetail={plot.stateDetail}
-    stateLabel={plot.stateLabel}
-    style={plot.style}
-    timeAxis={false}
-    title={plot.title}
-    unit={plot.unit}
-    windowS={plot.windowS}
-    {viewportMode}
-    xScale={plot.xScale}
-    yScale={plot.yScale}
-    xFormat={plot.xFormat}
-    yFormat={plot.yFormat}
-  />
-  {#if timed}
-    <PlotPlayback title={plot.title} {playback} />
-  {/if}
-</div>
+<CartesianPlot
+  plotId={plot.key}
+  badge="XY"
+  cartesian={frame}
+  colors={plot.colors}
+  currentPosition={timed}
+  referenceBands={plot.referenceBands}
+  referenceLines={plot.referenceLines}
+  {actions}
+  {resetKey}
+  series={shown.series}
+  stateDetail={plot.stateDetail}
+  stateLabel={plot.stateLabel}
+  style={plot.style}
+  timeAxis={false}
+  title={plot.title}
+  unit={plot.unit}
+  windowS={plot.windowS}
+  {viewportMode}
+  xScale={plot.xScale}
+  yScale={plot.yScale}
+  xFormat={plot.xFormat}
+  yFormat={plot.yFormat}
+>
+  {#snippet controls()}
+    {#if timed}
+      <PlotPlayback title={plot.title} {playback} />
+    {/if}
+  {/snippet}
+</CartesianPlot>
