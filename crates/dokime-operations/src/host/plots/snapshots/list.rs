@@ -1425,10 +1425,14 @@ mod tests {
             request(PlotKind::Histogram, "lost"),
             sampled,
             heat_strip,
+            PlotRequest {
+                series_by: Some("value".into()),
+                ..request(PlotKind::TimeSeries, "value")
+            },
         ] {
             payloads.push(snapshots_at(&reader, &cut, vec![request], 1000, 0, "epoch").await.unwrap().remove(0).payload.unwrap());
         }
-        let [series, lost, histogram, lost_histogram, sampled, heat_strip] = payloads.try_into().unwrap();
+        let [series, lost, histogram, lost_histogram, sampled, heat_strip, grouped] = payloads.try_into().unwrap();
 
         // Check Time Series Serve and Summarize Only Finite Samples
         let number = |value: f64| Some(Value { kind: Some(value::Kind::Number(value)) });
@@ -1440,6 +1444,7 @@ mod tests {
         assert_eq!(ys(&series), [Some(1.0), Some(2.0), Some(3.0), Some(4.0)]);
         assert_eq!((lost.summaries[0].count, &lost.summaries[0].min), (0, &None));
         assert!(ys(&lost).is_empty());
+        assert_eq!((grouped.series.len(), ys(&grouped)), (4, ys(&series)));
 
         // Check Histograms of Streams and of Status Events Bin Only Finite Samples
         for (payload, count, median) in [(&histogram, 4, number(2.5)), (&sampled, 2, number(3.0)), (&lost_histogram, 0, None)] {
