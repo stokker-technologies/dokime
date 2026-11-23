@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { create, fromBinary, toBinary, toJson } from "@bufbuild/protobuf";
 import { render } from "@testing-library/svelte";
 import { FieldDescriptorProto_Type, FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import {
@@ -25,6 +25,7 @@ import {
   LiveExecutionState,
   PromptFieldKind,
   PromptKind,
+  ReadCutSchema,
   ResultStatus,
   Severity,
   StreamMatchOperator,
@@ -700,6 +701,42 @@ test("History Projects Declared Outcomes Without Inventing Criterion Counts", as
   const page = await fetchNativeExecutionPage(session, null);
   assert.equal(page.entries[0].metadata.status, "passed");
   assert.equal(page.entries[0].metadata.result, null);
+});
+
+test("Checkpoint View Reads Continue With the Cut the Host Returned", async () => {
+  const { fetchNativeCheckpointEvidence } = await import("@/lib/api/native-checkpoints");
+  const history = { store: "host", epoch: "sealed" };
+  const checkpoint = {
+    executionIdentifier: "run",
+    version: new Uint8Array([1]),
+    position: { history, sequence: 9n },
+    evidenceThrough: { history, sequence: 7n },
+  };
+  const view = { positions: [{ history, sequence: 9n }], revisions: [{ name: "host/files", revision: new Uint8Array([2]) }] };
+  const cuts: Record<string, unknown[]> = {};
+  fixture.extra.mockImplementation(async (path, request) => {
+    if (path === "/dokime.host.v1.Executions/Get") {
+      return { execution: { seal: checkpoint.version, summary: { executionId: "run" } } };
+    }
+    cuts[path] = [...(cuts[path] ?? []), request.at];
+    if (path === "/dokime.host.v1.content.ExecutionFiles/List") {
+      return {
+        files: [{ relativePath: request.page.pageToken ? "b.txt" : "a.txt" }],
+        resolvedAt: view,
+        nextPageToken: request.page.pageToken ? "" : "next",
+      };
+    }
+    assert.equal(path, "/dokime.host.v1.content.Artifacts/List");
+    return { artifacts: [], resolvedAt: view };
+  });
+  const evidence = await fetchNativeCheckpointEvidence(session, checkpoint);
+  assert.equal(evidence.outputs.length, 2);
+  // A View Is Selected By Its First Page And Continued Only With Its Returned Cut.
+  assert.deepEqual(
+    cuts["/dokime.host.v1.content.ExecutionFiles/List"]?.map((at) => (at ? toJson(ReadCutSchema, at as never) : null)),
+    [null, toJson(ReadCutSchema, create(ReadCutSchema, view))],
+  );
+  assert.deepEqual(cuts["/dokime.host.v1.content.Artifacts/List"], [undefined]);
 });
 
 test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", async () => {
