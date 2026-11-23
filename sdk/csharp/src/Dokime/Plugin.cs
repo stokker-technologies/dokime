@@ -118,10 +118,12 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     var value = (Dokime.Operations.Settings)(Activator.CreateInstance(type)
       ?? throw new ArgumentException("Declare Settings: Supply a Public Default Constructor"));
     settings.Add(type, value);
+    // Each Declaration Joins the Library Settings Section, Not a Section of Its Own.
     transport.Register(registrar =>
     {
       foreach (var declaration in value.Declarations)
-        registrar.Register(declaration);
+        registrar.Register(declaration.Name, declaration.Default, declaration.Title, declaration.Description, declaration.Minimum,
+          declaration.Maximum, declaration.Choices, declaration.Required);
     });
     return this;
   }
