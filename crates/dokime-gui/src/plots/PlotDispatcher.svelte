@@ -59,7 +59,9 @@
 {:else if plot.plotType === "bar"}
   <BarPlot {plot} />
 {:else if plot.plotType === "xy" && !plot.xyInterval}
-  <XyPlot {plot} {resetKey} {viewportMode} {actions} />
+  {#key resetKey ?? plot.key}
+    <XyPlot {plot} {resetKey} {viewportMode} {actions} />
+  {/key}
 {:else if plot.plotType === "xy" && plot.xyInterval === "sigma"}
   <XyIntervalPlot {plot} {resetKey} {viewportMode} {actions} />
 {:else if plot.plotType === "trajectory"}

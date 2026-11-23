@@ -212,8 +212,8 @@ test("Execution Reports Keep Records Without a Case Tag", async () => {
   assert.equal(records.length, 1);
 });
 
-test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async () => {
-  for (const plotType of [PlotKind.BAR, PlotKind.PIE, PlotKind.TRAJECTORY, PlotKind.HEAT_STRIP]) {
+test("Captured Plot Bindings Preserve Categories and Sample Instants", async () => {
+  for (const plotType of [PlotKind.BAR, PlotKind.PIE, PlotKind.TRAJECTORY, PlotKind.HEAT_STRIP, PlotKind.XY]) {
     const capture = await nativeReport();
     const execution = capture.executions[0];
     const header = execution.document?.frames[0];
@@ -278,8 +278,10 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
         { frame: { kind: { case: "completion", value: { ...counts, frameCount: 9n } } } },
       ],
     });
-    const trajectory = plotType === PlotKind.TRAJECTORY;
-    const timed = trajectory || plotType === PlotKind.HEAT_STRIP;
+    const xy = plotType === PlotKind.XY;
+    const coordinates = xy || plotType === PlotKind.TRAJECTORY;
+    const timed = coordinates || plotType === PlotKind.HEAT_STRIP;
+    const playback = xy || plotType === PlotKind.HEAT_STRIP;
     execution.plots = create(ReportCaptureSchema, {
       executions: [
         {
@@ -298,7 +300,7 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
                     pointCount: 1n,
                     series: [
                       {
-                        x: [{ kind: trajectory ? { case: "number", value: 2 } : { case: "text", value: "category" } }],
+                        x: [{ kind: coordinates ? { case: "number", value: 2 } : { case: "text", value: "category" } }],
                         y: [{ value: 3 }],
                         totals: [{ kind: { case: "unsignedInteger", value: 3n } }],
                         instants: timed ? ["1970-01-01T00:00:01Z"] : [],
@@ -312,7 +314,7 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
         },
       ],
     }).executions[0].plots;
-    if (plotType === PlotKind.HEAT_STRIP) {
+    if (playback) {
       const frame = execution.plots?.envelopes[0].payload?.frame;
       assert.ok(frame);
       frame.pointCount = 2n;
@@ -329,12 +331,16 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
       assert.equal(declaration?.facet_expression?.kind.case, "stream");
     }
     const payload = source.plotPayloads("execution").plots[metadata.identifier];
-    assert.equal(payload.cartesian, null);
-    const coordinate = payload.series[0].points[0].x;
-    assert.equal(trajectory ? Number(coordinate) : coordinate, trajectory ? 2 : "category");
-    assert.equal(payload.series[0].points[0].y, 3);
-    assert.equal(payload.series[0].points[0].instant, timed ? "1970-01-01T00:00:01Z" : null);
-    if (plotType === PlotKind.HEAT_STRIP) {
+    if (xy) {
+      assert.deepEqual(payload.cartesian?.series[0], { x: [2, 2], y: [3, 9], instants: ["1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z"] });
+    } else {
+      assert.equal(payload.cartesian, null);
+      const coordinate = payload.series[0].points[0].x;
+      assert.equal(coordinates ? Number(coordinate) : coordinate, coordinates ? 2 : "category");
+      assert.equal(payload.series[0].points[0].y, 3);
+      assert.equal(payload.series[0].points[0].instant, timed ? "1970-01-01T00:00:01Z" : null);
+    }
+    if (playback) {
       const descriptor = source.document("execution")?.cards[0].plots[0];
       assert.ok(descriptor);
       const { container: host, unmount } = render(PlotGroupGrid, {
@@ -344,13 +350,16 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
         liveStates: new Map([[metadata.identifier, { ...emptyLivePlotState(), payload }]]),
       });
       onTestFinished(unmount);
-      assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 9 · "));
+      assert.ok(xy || host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 9 · "));
       const slider = host.querySelector<HTMLElement>('[role="slider"]');
       assert.ok(slider);
       assert.equal(slider.getAttribute("aria-valuenow"), "1");
       await fireEvent.keyDown(slider, { key: "ArrowLeft" });
-      assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 3 · "));
-      assert.equal(source.plotPayloads("execution").plots[metadata.identifier].series[0].points[1].y, 9);
+      assert.equal(host.querySelector("[data-playback-instant]")?.getAttribute("data-playback-instant"), "1970-01-01T00:00:01Z");
+      if (!xy) {
+        assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 3 · "));
+        assert.equal(source.plotPayloads("execution").plots[metadata.identifier].series[0].points[1].y, 9);
+      }
     }
   }
 });

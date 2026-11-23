@@ -15,12 +15,14 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { act, cleanup, fireEvent, render } from "@testing-library/svelte";
-import { createRawSnippet } from "svelte";
+import { createRawSnippet, tick } from "svelte";
 import type uPlot from "uplot";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import XyPlot from "@/plots/catalog/XyPlot.svelte";
+import { xyTimeline } from "@/plots/catalog/xy-playback";
+import { PLAYBACK_FRAME_MS } from "@/plots/playback.svelte";
 import TimeSeriesPlot from "@/plots/catalog/TimeSeriesPlot.svelte";
 import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
@@ -34,8 +36,8 @@ import PlotPlaceholder from "../../../src/plots/PlotPlaceholder.svelte";
 
 /* === Constants === */
 
-/* uPlot draws once per microtask: `drawn` records the x range each draw shows, "auto" for a fit to the data. */
-const charts = vi.hoisted(() => ({ options: [] as uPlot.Options[], drawn: [] as unknown[] }));
+/* uPlot draws once per microtask: `drawn` records the x range each draw shows, "auto" for a fit to the data; `data` each frame it is given. */
+const charts = vi.hoisted(() => ({ options: [] as uPlot.Options[], drawn: [] as unknown[], data: [] as uPlot.AlignedData[] }));
 
 const descriptor = {
   plot_id: "position",
@@ -76,6 +78,7 @@ function stubChartSize() {
     cleanup();
     charts.options.length = 0;
     charts.drawn.length = 0;
+    charts.data.length = 0;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -91,8 +94,9 @@ vi.mock("uplot", () => ({
     over = document.createElement("div");
     series: uPlot.Series[];
     pendingX: unknown;
-    constructor(options: uPlot.Options) {
+    constructor(options: uPlot.Options, data: uPlot.AlignedData) {
       charts.options.push(options);
+      charts.data.push(data);
       this.series = options.series;
       this.draw("auto");
     }
@@ -109,7 +113,8 @@ vi.mock("uplot", () => ({
     setSeries(index: number, options: uPlot.Series) {
       Object.assign(this.series[index], options);
     }
-    setData(_data: uPlot.AlignedData, resetScales?: boolean) {
+    setData(data: uPlot.AlignedData, resetScales?: boolean) {
+      charts.data.push(data);
       if (resetScales !== false) {
         this.draw("auto");
       }
@@ -189,6 +194,99 @@ test("XY Counts Only Finite Pairs Admitted by the Selected Scales", async () => 
     const count = host.querySelector(".plot-card span.text-xs")?.textContent?.trim().split(" ")[0];
     assert.equal(Number(count), scale === "linear" ? 4 : 1);
   }
+});
+
+test("XY Playback Draws the Path up to the Selected Instant and Latest Follows Live Revisions", async () => {
+  stubChartSize();
+  vi.useFakeTimers();
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const instant = (second: number) => `2026-01-01T00:00:0${second}Z`;
+  const revision = (count: number) => {
+    const rows = Array.from({ length: count }, (_, row) => row + 1);
+    return documentPlotSpec({
+      plot: descriptor,
+      payload: {
+        ...payload,
+        cartesian: {
+          mode: "faceted",
+          series: [{ x: rows, y: rows.map((row) => row * 10), instants: rows.map(instant) }],
+          point_count: count,
+          signature: `revision-${count}`,
+        },
+      },
+    });
+  };
+  const { container: host, getByRole, rerender } = render(XyPlot, { plot: revision(3) });
+  await act(() => vi.dynamicImportSettled());
+  const selected = () => host.querySelector("[data-playback-instant]")?.getAttribute("data-playback-instant");
+  const drawn = () => (charts.data.at(-1) as unknown as [null, [number[], number[]]])[1][0];
+  const step = async () => {
+    await vi.advanceTimersByTimeAsync(PLAYBACK_FRAME_MS);
+    await tick();
+  };
+
+  // Latest Follows Each Live Revision to Its Newest Instant.
+  await rerender({ plot: revision(4) });
+  assert.equal(selected(), instant(4));
+  assert.deepEqual(drawn(), [1, 2, 3, 4]);
+
+  // The Slider Holds an Earlier Instant: the Path Ends There, at the Highlighted Point, While Revisions Arrive.
+  await fireEvent.keyDown(getByRole("slider"), { key: "ArrowLeft" });
+  await rerender({ plot: revision(5) });
+  assert.equal(selected(), instant(3));
+  assert.deepEqual(drawn(), [1, 2, 3]);
+  vi.stubGlobal(
+    "Path2D",
+    class {
+      moveTo() {}
+      lineTo() {}
+      arc() {}
+    },
+  );
+  const canvas = { save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, fill() {}, stroke() {}, arc(_x: number, _y: number) {} };
+  const highlight = vi.spyOn(canvas, "arc");
+  const paths = charts.options[0].series[1].paths as (plot: uPlot, seriesIdx: number) => null;
+  paths(
+    {
+      data: charts.data.at(-1),
+      ctx: canvas,
+      bbox: { left: 0, top: 0, width: 100, height: 100 },
+      valToPos: (value: number) => value,
+    } as unknown as uPlot,
+    1,
+  );
+  assert.deepEqual(
+    highlight.mock.calls.map(([x, y]) => [x, y]),
+    [[3, 30]],
+  );
+
+  // Play Advances One Instant per Step and Stops at the Held Frame's End; Replay Restarts From the First.
+  await fireEvent.click(getByRole("button", { name: "Play" }));
+  await step();
+  assert.equal(selected(), instant(4));
+  await fireEvent.click(getByRole("button", { name: "Replay" }));
+  assert.equal(selected(), instant(1));
+  assert.deepEqual(drawn(), [1]);
+  await step();
+  assert.equal(selected(), instant(2));
+  assert.deepEqual(drawn(), [1, 2]);
+
+  await fireEvent.click(getByRole("button", { name: "Latest" }));
+  assert.equal(selected(), instant(5));
+  assert.deepEqual(drawn(), [1, 2, 3, 4, 5]);
+  assert.equal(charts.options.length, 1);
+  assert.equal(fetch.mock.calls.length, 0);
+
+  // Rows Out of Source-Time Order Still End at the Selected Instant's Sample.
+  const unordered = xyTimeline({ ...cartesian, series: [{ ...cartesian.series[0], instants: [instant(1), instant(3), instant(2)] }] });
+  assert.deepEqual(unordered.instants, [1, 2, 3].map(instant));
+  assert.deepEqual(unordered.until(instant(2))?.series[0].x, [1000, 1000.5]);
 });
 
 test("Document Plot Titles Remain in Their Cards Through Loading, Empty and Failure States", () => {

@@ -333,7 +333,7 @@ function mapNativeCartesianFrame(frame?: NativePlotFrame): PlotCartesianFrame | 
         valid = false;
       }
     }
-    return { x, y };
+    return mode === "faceted" && column.instants.length === column.y.length ? { x, y, instants: column.instants } : { x, y };
   });
   if (!valid) {
     return null;
