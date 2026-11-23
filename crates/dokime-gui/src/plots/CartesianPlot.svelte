@@ -31,8 +31,6 @@
   import {
     applyFrame,
     chartFrameFromCartesian,
-    type DrawnWindow,
-    drawnData,
     type IntervalRange,
     intervalRangeData,
     limitRenderedSeries,
@@ -42,19 +40,20 @@
     paddedYRange,
     referenceYValues,
     usableCartesianFrame,
-    windowServes,
   } from "./cartesian-frame";
   import { drawMarkerKinds, type MarkerTooltip, markerKinds, markerTooltip } from "./markers";
   import PlotPlaceholder from "./PlotPlaceholder.svelte";
   import { getPlotInteraction } from "./plot-interaction";
   import { plotPlaceholderText, plotUnavailableText } from "./plot-placeholder";
   import type { PromptMarker } from "./prompt-markers";
+  import { m4Indices } from "./reduce";
   import StatsSummaryTable from "./StatsSummaryTable.svelte";
   import type { PlotViewportMode } from "./types";
 
   /* === Constants === */
 
   const MIN_CHART_WIDTH = 160;
+  const CHART_HEIGHT = 230;
   /* Tick marks (10px) plus the label gap (5px) plus a little breathing room. */
   const Y_AXIS_LABEL_PADDING = 19;
   const Y_AXIS_MIN_GUTTER = 44;
@@ -71,6 +70,8 @@
   /* Axis text is canvas-drawn; the touch rules in styles.css cannot reach it. */
   const TOUCH_PLOT_FONT_SCALE = 1.3;
   const POINT_MARK_RENDER_LIMIT = 600;
+  /* uPlot's line path decimates from four samples per device pixel column. */
+  const DECIMATION_DENSITY = 4;
   /* Point mark diameters in CSS pixels: a lone sample must read at 1x DPR on
      either theme, and dense captures keep smaller marks. */
   const DENSE_POINT_MARK_SIZE = 5;
@@ -236,9 +237,8 @@
     return Math.min(X_AXIS_MAX_GUTTER, Math.max(X_AXIS_MIN_GUTTER, size));
   }
 
-  /** The right padding the last x tick label needs to stay inside the card. */
-  function xAxisRightPad(plot: uPlot, font: string): number {
-    const values = (plot?.axes?.[0] as { _values?: string[] } | undefined)?._values ?? [];
+  /** The right padding the last of the x tick `values` needs to stay inside the card. */
+  function xAxisRightPad(values: readonly string[], font: string): number {
     const last = values.at(-1) ?? "";
     const widest = last.split("\n").reduce((width, line) => Math.max(width, measureTextWidth(line, font)), 0);
     return Math.max(X_AXIS_MIN_RIGHT_PAD, Math.ceil(widest / 2) + 2);
@@ -264,11 +264,6 @@
   }
 
   /* === Private Functions === */
-
-  function measuredChartWidth(element: HTMLElement): number {
-    const width = element.getBoundingClientRect().width || element.clientWidth;
-    return Math.max(MIN_CHART_WIDTH, Math.floor(width));
-  }
 
   function loadUPlot(): Promise<UPlotConstructor> {
     ensureValidNavigatorLanguage();
@@ -353,7 +348,7 @@
       fill: color,
     };
     if (style === "points") {
-      return { show: true, ...marks };
+      return { show: true, filter: densePointIndices, ...marks };
     }
     return { show: style === "line_points" && !densePoints, filter: isolatedAlignedPoints, ...marks };
   }
@@ -389,6 +384,40 @@
       }
     }
     return isolated.length ? isolated : null;
+  }
+
+  /**
+   * A frame the host reduced, drawn with spanned gaps, keeps each device pixel
+   * column's first, lowest, highest and last mark once it holds as many marks
+   * as uPlot's line path decimates; a full frame keeps every mark.
+   */
+  function densePointIndices(plot: uPlot, seriesIdx: number, show: boolean): number[] | null {
+    const series = plot.series[seriesIdx];
+    if (!show || !series.spanGaps) {
+      return null;
+    }
+    const [from, to] = series.idxs ?? [0, -1];
+    const columns = Math.ceil(plot.bbox.width);
+    if (to - from < DECIMATION_DENSITY * columns) {
+      return null;
+    }
+    return m4Indices(plot.data[0] as number[], plot.data[seriesIdx] as Array<number | null>, from, to + 1, columns);
+  }
+
+  /**
+   * Steps take uPlot's decimating line path once they reach its density: each
+   * device pixel column then draws the same envelope either way.
+   */
+  export function steppedSeriesPaths(paths: uPlot.Series.PathBuilderFactories): uPlot.Series.PathBuilder | undefined {
+    const stepped = paths.stepped?.({ align: 1 });
+    const linear = paths.linear?.();
+    if (!stepped || !linear) {
+      return stepped;
+    }
+    return (plot, seriesIdx, idx0, idx1) => {
+      const dense = idx1 - idx0 >= DECIMATION_DENSITY * plot.bbox.width;
+      return (dense ? linear : stepped)(plot, seriesIdx, idx0, idx1);
+    };
   }
 
   /** The hover mark is the series' point mark, a little larger. */
@@ -674,6 +703,8 @@
 
   let markerColors: string[] = [];
 
+  let pointMarks: PointMarks[] = [];
+
   const tableLegend = $derived(legend !== null);
 
   let following = $state.raw(true);
@@ -686,23 +717,21 @@
 
   let hoveredMarker = $state.raw<MarkerTooltip | null>(null);
 
-  let activeReferenceLines: DocumentReferenceLine[] = untrack(() => referenceLines);
-
-  let activeReferenceBands: DocumentReferenceBand[] = untrack(() => referenceBands);
-
-  let activeIntervals: IntervalRange[] = [];
-
   let lastDataSignature: string | null = null;
-
-  let drawn: DrawnWindow = { source: null, aligned: true, preserveSamples: true, range: null, everySample: true };
 
   let lastResetKey: string | undefined = untrack(() => resetKey);
 
   let lastViewportMode: PlotViewportMode = untrack(() => viewportMode);
 
+  /* The chart's border-box width in CSS pixels, as the resize observer last reported it. */
+  let chartWidth = MIN_CHART_WIDTH;
+
   let resizeFrame: number | null = null;
 
   let redrawFrame: number | null = null;
+
+  /* Whether the queued overlay redraw also re-ranges y for changed references or intervals. */
+  let rerangePending = false;
 
   let plotConstructor = $state.raw<UPlotConstructor | null>(null);
 
@@ -716,9 +745,7 @@
 
   const chartFrame = $derived(backendCartesian ? chartFrameFromCartesian(backendCartesian, xScale, yScale) : null);
 
-  const seriesKey = $derived(
-    renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}:${item.downsampled ? 1 : 0}`).join("|"),
-  );
+  const seriesKey = $derived(renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}`).join("|"));
 
   const colorsKey = $derived(colors.join("|"));
 
@@ -740,7 +767,13 @@
 
   const yReferenceValues = $derived(referenceYValues(referenceLines, referenceBands, yScale));
 
-  const yReferenceKey = $derived(yReferenceValues.join("|"));
+  /* Overlay inputs by value: live revisions rebuild these arrays without changing them. */
+  const overlayKey = $derived(JSON.stringify([kinds, referenceLines, referenceBands]));
+
+  /* The values that widen the y range beyond the data. */
+  const rangeKey = $derived(JSON.stringify([yReferenceValues, intervalRanges]));
+
+  let lastRangeKey = untrack(() => rangeKey);
 
   const hasData = $derived(Boolean(chartFrame && chartFrame.pointCount > 0));
 
@@ -770,18 +803,18 @@
 
   /*
    * What the chart is built from: series set, colours, scales, style, mode,
-   * references, declared formats and reset or viewport switches. Keyed by
-   * value, so a revision never rebuilds the chart: a rebuild painted an
-   * auto-fitted x axis before the live window returned, and tripped the
-   * browser's scroll anchoring until the viewport drifted. Revisions reach the
-   * chart through `applyFrame` in the data effect below.
+   * declared formats and reset or viewport switches. Keyed by value, so a
+   * revision never rebuilds the chart: a rebuild painted an auto-fitted x axis
+   * before the live window returned, and tripped the browser's scroll
+   * anchoring until the viewport drifted. Revisions reach the chart through
+   * `applyFrame` in the data effect below, references through the y range and
+   * point density through the series options it restyles in place.
    */
   const structureKey = $derived(
     JSON.stringify([
       hasData,
       laidOut,
       zoom,
-      densePoints,
       currentPosition,
       style,
       timeAxis,
@@ -792,7 +825,6 @@
       resetKey,
       colorsKey,
       seriesKey,
-      yReferenceKey,
       chartMode,
       formatsKey,
       tableLegend,
@@ -821,6 +853,7 @@
     };
   });
 
+  /* One observer sizes the chart from its border box: its first report lays the chart out, later ones resize it. */
   $effect(() => {
     void [rootElement, hasData];
     return untrack(() => {
@@ -829,15 +862,36 @@
         laidOut = false;
         return;
       }
-      const measure = () => {
-        laidOut = root.getBoundingClientRect().width > 0;
-      };
-      measure();
-      const observer = new ResizeObserver(measure);
+      const observer = new ResizeObserver((entries) => {
+        const width = entries.at(-1)?.borderBoxSize[0]?.inlineSize ?? 0;
+        chartWidth = Math.max(MIN_CHART_WIDTH, Math.floor(width));
+        laidOut = width > 0;
+        scheduleResize();
+      });
       observer.observe(root);
       return () => observer.disconnect();
     });
   });
+
+  /* A burst of reports resizes the chart once, in the next frame; uPlot redraws its paths at the new size. */
+  function scheduleResize() {
+    if (resizeFrame !== null) {
+      return;
+    }
+    resizeFrame = window.requestAnimationFrame(() => {
+      resizeFrame = null;
+      const plot = instance;
+      if (!plot || plot.width === chartWidth) {
+        return;
+      }
+      hoveredMarker = null;
+      try {
+        plot.setSize({ width: chartWidth, height: CHART_HEIGHT });
+      } catch (error) {
+        plotLoadError = failureOf(error, "Plot Unavailable");
+      }
+    });
+  }
 
   $effect(() => {
     void [rootElement, plotConstructor, structureKey];
@@ -848,21 +902,16 @@
       }
       const root = rootElement;
       const themeColors = resolvePlotThemeColors(root);
-      const resolvedMarkerColors = kinds.map((_, index) => markerColor(themeColors.references, index));
-      markerColors = resolvedMarkerColors;
+      markerColors = kinds.map((_, index) => markerColor(themeColors.references, index));
       const plotFont = resolvePlotFont(root);
       const resolvedSeriesColors = renderedSeries.map((item) =>
         seriesPaletteColor(colors, themeColors.palette, series.indexOf(item), root),
       );
       const fallbackSeriesColor = seriesPaletteColor([], themeColors.palette, 0, root);
       const faceted = chartFrame.mode === "faceted";
-      const chartHeight = 230;
-      const chartSize = () => ({
-        width: measuredChartWidth(root),
-        height: chartHeight,
-      });
       const seriesColor = (index: number) => resolvedSeriesColors[index] ?? fallbackSeriesColor;
-      const pointMarks = renderedSeries.map((_, index) => seriesPointMarks(style, densePoints, seriesColor(index), themeColors.background));
+      const marks = renderedSeries.map((_, index) => seriesPointMarks(style, densePoints, seriesColor(index), themeColors.background));
+      pointMarks = marks;
       const lineWidth = style === "points" ? 0 : SERIES_LINE_WIDTH;
       // Elapsed formats need an origin; §7.4 falls back to the first point of
       // the first series (already epoch seconds, the coordinate space the axis
@@ -890,40 +939,13 @@
         (format: Wire<ValueFormat> | null): uPlot.Series.Value =>
         (_plot, rawValue) =>
           booleanAxis ? formatBooleanState(rawValue) : rawValue == null ? "--" : formatNumber(rawValue, format);
+      // The x axis size callback receives the tick labels the right padding is sized from.
+      let xTicks: string[] = [];
       const options: uPlot.Options = {
-        ...chartSize(),
+        width: chartWidth,
+        height: CHART_HEIGHT,
         mode: faceted ? 2 : 1,
-        pxAlign: 0,
         hooks: {
-          // Every zoom, pan or follow step resamples the visible window from
-          // the full frame, so a zoom never stretches a reduction made for the
-          // whole run.
-          setScale: [
-            (plot, key) => {
-              if (key !== "x") {
-                return;
-              }
-              const { min, max } = plot.scales.x;
-              if (min == null || max == null) {
-                return;
-              }
-              const range = { min, max };
-              if (windowServes(drawn, range)) {
-                return;
-              }
-              queueMicrotask(() => {
-                if (instance !== plot) {
-                  return;
-                }
-                plot.setData(drawnData(drawn, range, plot.over.clientWidth, zoom), false);
-                plot.setScale("x", range);
-                const heldY = heldRange?.y;
-                if (heldY) {
-                  plot.setScale("y", heldY);
-                }
-              });
-            },
-          ],
           setSelect: [
             (plot) => {
               const held = heldViewport(plot.select, { width: plot.over.clientWidth, height: plot.over.clientHeight }, (position, axis) =>
@@ -971,14 +993,14 @@
           ],
           drawClear: [
             (plot) => {
-              drawReferenceBands(plot, activeReferenceBands, root, themeColors.foreground);
+              drawReferenceBands(plot, referenceBands, root, themeColors.foreground);
             },
           ],
           draw: [
             (plot) => {
-              drawIntervalRanges(plot, activeIntervals, resolvedSeriesColors[0] ?? fallbackSeriesColor);
+              drawIntervalRanges(plot, intervalRanges, resolvedSeriesColors[0] ?? fallbackSeriesColor);
               drawMarkerKinds(plot, kinds, markerColors);
-              drawReferenceLines(plot, activeReferenceLines, root, themeColors.foreground);
+              drawReferenceLines(plot, referenceLines, root, themeColors.foreground);
             },
           ],
         },
@@ -986,9 +1008,19 @@
         // while data continues arriving; a mostly horizontal or vertical drag
         // zooms that axis alone, a double click returns to the full view.
         cursor: {
+          bind: {
+            /* A double click drops the hold and follows the run again, overriding uPlot's own auto-scale before it is painted. */
+            dblclick: (_plot, target, handler) => (event) => {
+              if (event.button === 0 && event.target === target) {
+                handler(event);
+                follow();
+              }
+              return null;
+            },
+          },
           drag: { ...PLOT_DRAG_OPTIONS },
           focus: { prox: -1 },
-          points: cursorPointOptions(pointMarks),
+          points: cursorPointOptions(marks),
           sync:
             timeAxis && syncKey
               ? {
@@ -1020,23 +1052,27 @@
           y: {
             auto: true,
             distr: yScale === "log" ? 3 : 1,
+            /* References and interval bounds can arrive mid-run, so the range always reads them; without any, uPlot's own range applies. */
             range: booleanAxis
               ? () => [-0.1, 1.1]
-              : yReferenceValues.length || intervals || currentPosition
-                ? (_plot, dataMin, dataMax) =>
-                    paddedYRange(
-                      dataMin,
-                      dataMax,
-                      [...yReferenceValues, ...activeIntervals.flatMap((range) => [range.low, range.high])],
-                      yScale,
-                    )
-                : undefined,
+              : (_plot, dataMin, dataMax) => {
+                  const widening = [...yReferenceValues, ...intervalRanges.flatMap((range) => [range.low, range.high])];
+                  if (widening.length || intervals || currentPosition) {
+                    return paddedYRange(dataMin, dataMax, widening, yScale);
+                  }
+                  if (!Number.isFinite(dataMin) || !Number.isFinite(dataMax)) {
+                    return [null, null];
+                  }
+                  return yScale === "log"
+                    ? CartesianChart.rangeLog(dataMin, dataMax, 10, false)
+                    : CartesianChart.rangeNum(dataMin, dataMax, 0.1, true);
+                },
           },
         },
         /* The last tick label is centred on the plot's right edge, so half of it
            hangs outside the plotting area; uPlot's own 25px is not enough for a
            time label at touch density, where the axis font is scaled up. */
-        padding: [null, (self) => xAxisRightPad(self, plotFont), null, null],
+        padding: [null, () => xAxisRightPad(xTicks, plotFont), null, null],
         axes: [
           {
             label: xLabel,
@@ -1046,7 +1082,10 @@
             // Subsecond Clock Labels Must Fit At The Selected Density.
             ...(timeAxis && !xElapsedUnit ? { space: measureTextWidth("00:00:00.000", plotFont) + 12 } : {}),
             grid: { stroke: themeColors.border, width: 1 },
-            size: (_plot, values) => xAxisGutter(values, plotFont),
+            size: (_plot, values) => {
+              xTicks = values ?? [];
+              return xAxisGutter(values, plotFont);
+            },
             values: xAxisValues,
           },
           {
@@ -1083,28 +1122,20 @@
             pxAlign: 0,
             stroke: seriesColor(index),
             width: lineWidth,
-            points: faceted ? { show: false } : pointMarks[index],
+            // uPlot copies point options once; visibility reads the marks each revision restyles.
+            points: faceted ? { show: false } : { ...marks[index], show: () => marks[index].show },
             paths: faceted
-              ? facetedSeriesPaths(style, pointMarks[index], seriesColor(index), currentPosition)
+              ? facetedSeriesPaths(style, marks[index], seriesColor(index), currentPosition)
               : style === "step"
-                ? CartesianChart.paths.stepped?.({ align: 1 })
+                ? steppedSeriesPaths(CartesianChart.paths)
                 : undefined,
           })),
         ] as uPlot.Series[],
       };
       // Keep Chart Initialization Failures Local To This Card.
       let plot: uPlot;
-      let data: uPlot.AlignedData;
       try {
-        drawn = {
-          source: chartFrame.data,
-          aligned: !faceted,
-          preserveSamples: renderedSeries.every((item) => !item.downsampled),
-          range: null,
-          everySample: true,
-        };
-        data = drawnData(drawn, null, measuredChartWidth(root), zoom);
-        plot = new CartesianChart(options, data, root);
+        plot = new CartesianChart(options, chartFrame.data, root);
       } catch (error) {
         plotLoadError = failureOf(error, "Plot Unavailable");
         return;
@@ -1115,7 +1146,7 @@
         updateViewport(null);
       }
       // uPlot draws in a microtask, so even its first draw shows the held or live window.
-      applyFrame(plot, data, heldRange, liveWindow);
+      applyFrame(plot, chartFrame.data, heldRange, liveWindow);
       renderedSeries.forEach((item, index) => {
         if (hiddenTraces.has(item.key)) {
           plot.setSeries(index + 1, { show: false });
@@ -1128,6 +1159,7 @@
       lastDataSignature = dataSignature;
       lastResetKey = resetKey;
       lastViewportMode = viewportMode;
+      cancelRedraw();
 
       const detachPan = attachPan(plot, {
         logX: xScale === "log",
@@ -1135,55 +1167,22 @@
         panY: !timeAxis,
         onPan: (next) => {
           const held = { x: next.x, y: next.y ?? heldRange?.y ?? null };
+          // uPlot re-ranges an auto y with every x change, so an x pan pins a held y in the same commit.
+          if (!next.y && held.y) {
+            plot.setScale("y", held.y);
+          }
           heldRange = held;
           following = false;
           updateViewport(held.x ? { from: held.x.min, to: held.x.max } : null);
         },
       });
-      const resize = () => {
-        const nextSize = chartSize();
-        if (plot.width === nextSize.width && plot.height === nextSize.height) {
-          return;
-        }
-        hoveredMarker = null;
-        try {
-          plot.setSize(nextSize);
-          if (zoom) {
-            plot.setData(drawnData(drawn, heldRange?.x ?? null, plot.over.clientWidth, true), false);
-          }
-        } catch (error) {
-          plotLoadError = failureOf(error, "Plot Unavailable");
-        }
-      };
-      const scheduleResize = () => {
-        if (resizeFrame !== null) {
-          return;
-        }
-        resizeFrame = window.requestAnimationFrame(() => {
-          resizeFrame = null;
-          resize();
-        });
-      };
-      scheduleResize();
-      const observer = new ResizeObserver(scheduleResize);
-      observer.observe(root);
-      window.addEventListener("resize", scheduleResize);
-      /* A double click drops the hold and follows the run again, overriding
-         uPlot's own auto-scale before it is painted. */
-      root.addEventListener("dblclick", follow);
       return () => {
         detachPan();
-        root.removeEventListener("dblclick", follow);
         if (resizeFrame !== null) {
           window.cancelAnimationFrame(resizeFrame);
           resizeFrame = null;
         }
-        if (redrawFrame !== null) {
-          window.cancelAnimationFrame(redrawFrame);
-          redrawFrame = null;
-        }
-        observer.disconnect();
-        window.removeEventListener("resize", scheduleResize);
+        cancelRedraw();
         if (cursorFrame !== null) {
           window.cancelAnimationFrame(cursorFrame);
           cursorFrame = null;
@@ -1243,26 +1242,27 @@
 
   const legendColumns = $derived(seriesLegendColumns(unit));
 
+  /* Changed overlays redraw over the drawn paths; changed references or intervals also re-range y unless it is held. */
   $effect(() => {
-    void [rootElement, intervalRanges, kinds, referenceBands, referenceLines];
-    return untrack(() => {
+    void [rootElement, overlayKey, rangeKey];
+    untrack(() => {
       const root = rootElement;
       if (root) {
         const theme = resolvePlotThemeColors(root);
-        const colors = kinds.map((_, index) => markerColor(theme.references, index));
-        markerColors = colors;
+        markerColors = kinds.map((_, index) => markerColor(theme.references, index));
       }
-      activeReferenceLines = referenceLines;
-      activeReferenceBands = referenceBands;
-      activeIntervals = intervalRanges;
+      rerangePending ||= rangeKey !== lastRangeKey;
+      lastRangeKey = rangeKey;
       if (redrawFrame !== null) {
-        window.cancelAnimationFrame(redrawFrame);
+        return;
       }
       redrawFrame = window.requestAnimationFrame(() => {
         redrawFrame = null;
+        const rerange = rerangePending && !heldRange?.y;
+        rerangePending = false;
         const plot = instance;
         if (plot?.status === 1) {
-          plot.redraw(true, true);
+          plot.redraw(rerange, false);
         }
       });
     });
@@ -1276,22 +1276,35 @@
       if (!plot || !chartFrame || lastDataSignature === dataSignature) {
         return;
       }
-      drawn.source = chartFrame.data;
-      drawn.preserveSamples = renderedSeries.every((item) => !item.downsampled);
+      // The series restyle in place: a reduced frame spans its gaps and a dense one draws smaller marks.
+      renderedSeries.forEach((item, index) => {
+        const options = plot.series[index + 1];
+        const marks = pointMarks[index];
+        Object.assign(marks, seriesPointMarks(style, densePoints, marks.fill, marks.stroke));
+        options.spanGaps = item.downsampled === true;
+        if (options.points) {
+          options.points.size = marks.size;
+        }
+      });
       try {
-        applyFrame(plot, drawnData(drawn, null, plot.over.clientWidth, zoom), heldRange, liveWindow);
+        applyFrame(plot, chartFrame.data, heldRange, liveWindow);
       } catch (error) {
         plotLoadError = failureOf(error, "Plot Unavailable");
         return;
       }
       lastDataSignature = dataSignature;
-      // This commit draws the overlays as well; a redraw queued before it is redundant.
-      if (redrawFrame !== null) {
-        window.cancelAnimationFrame(redrawFrame);
-        redrawFrame = null;
-      }
+      cancelRedraw();
     });
   });
+
+  /* A commit that ranges y and draws the overlays itself makes a queued overlay redraw redundant. */
+  function cancelRedraw() {
+    if (redrawFrame !== null) {
+      window.cancelAnimationFrame(redrawFrame);
+      redrawFrame = null;
+    }
+    rerangePending = false;
+  }
 
   const placeholder = $derived(
     displayError
@@ -1311,7 +1324,7 @@
     updateViewport(null);
     const plot = instance;
     if (plot) {
-      applyFrame(plot, drawnData(drawn, null, plot.over.clientWidth, zoom), null, liveWindow);
+      applyFrame(plot, plot.data, null, liveWindow);
     }
   }
 </script>

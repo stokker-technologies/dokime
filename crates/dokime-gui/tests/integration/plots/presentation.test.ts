@@ -26,7 +26,7 @@ import { PLAYBACK_TICK_MS } from "@/plots/playback.svelte";
 import TimeSeriesPlot from "@/plots/catalog/TimeSeriesPlot.svelte";
 import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
-import type { DocumentViewPlot, PlotCartesianFrame, PlotPayload } from "@/lib/types";
+import type { DocumentReferenceLine, DocumentViewPlot, PlotCartesianFrame, PlotMarker, PlotPayload } from "@/lib/types";
 import { failureOf } from "@/lib/notification-details";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { emptyLivePlotState } from "@/plots/live-frames";
@@ -36,8 +36,21 @@ import PlotPlaceholder from "../../../src/plots/PlotPlaceholder.svelte";
 
 /* === Constants === */
 
-/* uPlot draws once per microtask: `drawn` records the x range each draw shows, "auto" for a fit to the data; `data` each frame it is given. */
-const charts = vi.hoisted(() => ({ options: [] as uPlot.Options[], drawn: [] as unknown[], data: [] as uPlot.AlignedData[] }));
+/*
+ * uPlot draws once per microtask: `drawn` records the x range each draw shows,
+ * "auto" for a fit to the data; `data` each frame it is given, `redraws` each
+ * redraw's path and axis flags, `sizes` each resized width. `resizers` report
+ * a new border-box width to each observed chart.
+ */
+const charts = vi.hoisted(() => ({
+  options: [] as uPlot.Options[],
+  instances: [] as uPlot[],
+  drawn: [] as unknown[],
+  data: [] as uPlot.AlignedData[],
+  redraws: [] as [boolean, boolean][],
+  sizes: [] as number[],
+  resizers: new Map<Element, (width: number) => void>(),
+}));
 
 const descriptor = {
   plot_id: "position",
@@ -74,13 +87,43 @@ const payload: PlotPayload = {
 
 function stubChartSize() {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 600, height: 230 } as DOMRect);
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      report: ResizeObserverCallback;
+      constructor(report: ResizeObserverCallback) {
+        this.report = report;
+      }
+      observe(target: Element) {
+        const resize = (inlineSize: number) => {
+          const entry = { target, borderBoxSize: [{ inlineSize, blockSize: 230 }] } as unknown as ResizeObserverEntry;
+          this.report([entry], this as unknown as ResizeObserver);
+        };
+        charts.resizers.set(target, resize);
+        queueMicrotask(() => resize(600));
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   onTestFinished(() => {
     cleanup();
-    charts.options.length = 0;
-    charts.drawn.length = 0;
-    charts.data.length = 0;
+    for (const list of [charts.options, charts.instances, charts.drawn, charts.data, charts.redraws, charts.sizes]) {
+      list.length = 0;
+    }
+    charts.resizers.clear();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+}
+
+/* Animation frames run on fake timers, one every 16 ms. */
+function useFrameTimers() {
+  vi.useFakeTimers();
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
+  onTestFinished(() => {
+    vi.useRealTimers();
   });
 }
 
@@ -91,13 +134,22 @@ const settingsAction = createRawSnippet(() => ({
 vi.mock("uplot", () => ({
   default: class {
     static paths = {};
-    over = document.createElement("div");
+    status = 1;
+    over = Object.defineProperties(document.createElement("div"), { clientWidth: { value: 600 }, clientHeight: { value: 230 } });
+    select = { left: 0, top: 0, width: 0, height: 0 };
     series: uPlot.Series[];
+    width: number;
+    data: uPlot.AlignedData;
     pendingX: unknown;
-    constructor(options: uPlot.Options, data: uPlot.AlignedData) {
+    root: HTMLElement;
+    constructor(options: uPlot.Options, data: uPlot.AlignedData, root: HTMLElement) {
       charts.options.push(options);
+      charts.instances.push(this as unknown as uPlot);
+      this.root = root;
       charts.data.push(data);
       this.series = options.series;
+      this.width = options.width;
+      this.data = data;
       this.draw("auto");
     }
     draw(x: unknown) {
@@ -109,11 +161,21 @@ vi.mock("uplot", () => ({
       }
       this.pendingX = x;
     }
-    setSize() {}
+    setSize({ width }: { width: number }) {
+      this.width = width;
+      charts.sizes.push(width);
+    }
+    redraw(rebuildPaths: boolean, recalcAxes: boolean) {
+      charts.redraws.push([rebuildPaths, recalcAxes]);
+    }
+    posToVal(position: number) {
+      return 1000 + position * 10;
+    }
     setSeries(index: number, options: uPlot.Series) {
       Object.assign(this.series[index], options);
     }
     setData(data: uPlot.AlignedData, resetScales?: boolean) {
+      this.data = data;
       charts.data.push(data);
       if (resetScales !== false) {
         this.draw("auto");
@@ -398,12 +460,7 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
 
 test("Live Revisions Redraw One Chart Only Inside the Selected Window", async () => {
   stubChartSize();
-  vi.useFakeTimers();
-  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
-  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => clearTimeout(handle));
-  onTestFinished(() => {
-    vi.useRealTimers();
-  });
+  useFrameTimers();
   const revision = (latest: number) =>
     documentPlotSpec({
       plot: { ...descriptor, plot_type: "time_series" },
@@ -429,6 +486,121 @@ test("Live Revisions Redraw One Chart Only Inside the Selected Window", async ()
     charts.drawn,
     [1000, 1001, 1002].map((latest) => ({ min: latest - 60, max: latest })),
   );
+});
+
+test("Live Revisions Restyle One Chart as References, Point Density and Host Reduction Change", async () => {
+  stubChartSize();
+  useFrameTimers();
+  const limit = (value: number): DocumentReferenceLine[] => [{ label: "Limit", color: "red", value }];
+  const revision = (count: number, downsampled: boolean, referenceLines: DocumentReferenceLine[], markers: PlotMarker[] = []) => {
+    const x = Array.from({ length: count }, (_, index) => 1000 + index);
+    const plot = documentPlotSpec({
+      plot: { ...descriptor, plot_type: "time_series", style: "line_points" },
+      payload: {
+        ...payload,
+        series: [{ ...payload.series[0], downsampled }],
+        cartesian: { mode: "aligned", series: [{ x, y: x.map((value) => value % 7) }], point_count: count, signature: `${count}` },
+      },
+    });
+    return { ...plot, referenceLines, markers };
+  };
+  const { rerender } = render(TimeSeriesPlot, { plot: revision(3, false, limit(5)), viewportMode: "live" });
+  await act(() => vi.dynamicImportSettled());
+  await vi.advanceTimersByTimeAsync(16);
+  const [options] = charts.options;
+  const trace = options.series[1];
+  const points = trace.points as uPlot.Series.Points;
+  const showPoints = points.show as () => boolean;
+  const sparseSize = points.size ?? 0;
+  const yRange = options.scales?.y?.range as (plot: uPlot, min: number, max: number, key: string) => uPlot.Range.MinMax;
+  assert.equal(trace.spanGaps, false);
+  assert.equal(showPoints(), true);
+
+  // Crossing 600 Points in a Reduced Frame With a New Limit Restyles the Same Chart in Its Own Commit
+  await rerender({ plot: revision(700, true, limit(50)) });
+  await vi.advanceTimersByTimeAsync(16);
+  assert.equal(charts.options.length, 1);
+  assert.equal(trace.spanGaps, true, "a reduced frame spans the holes its reduction left");
+  assert.equal(showPoints(), false, "dense line points keep only isolated marks");
+  assert.ok((points.size ?? 0) < sparseSize);
+  assert.ok((yRange({} as uPlot, 0, 6, "y")[1] ?? 0) > 50, "the new limit widens the y range");
+  assert.deepEqual(charts.redraws, [], "the revision's own commit re-ranges y and draws the overlays");
+
+  // A Full Frame Draws Its Gaps Again
+  await rerender({ plot: revision(701, false, limit(50)) });
+  await vi.advanceTimersByTimeAsync(16);
+  assert.equal(trace.spanGaps, false);
+
+  // A Changed Limit Alone Re-Ranges y Over the Same Data
+  const frames = charts.data.length;
+  await rerender({ plot: revision(701, false, limit(80)) });
+  await vi.advanceTimersByTimeAsync(16);
+  assert.deepEqual(charts.redraws, [[true, false]]);
+
+  // A Marker Alone Redraws Over the Drawn Paths
+  const marker = { x: 1200, label: "Note", record_type: "note", color: "" } as PlotMarker;
+  await rerender({ plot: revision(701, false, limit(80), [marker]) });
+  await vi.advanceTimersByTimeAsync(16);
+  assert.deepEqual(charts.redraws.at(-1), [false, false]);
+
+  // Rebuilt Overlay Arrays With Equal Values Redraw Nothing
+  await rerender({ plot: revision(701, false, limit(80), [{ ...marker }]) });
+  await vi.advanceTimersByTimeAsync(16);
+  assert.equal(charts.redraws.length, 2);
+  assert.equal(charts.data.length, frames, "overlay changes never re-feed the data");
+  assert.equal(charts.options.length, 1, "no revision recreates the chart");
+});
+
+test("A Zoom Held Through Live Revisions Keeps Every Retained Sample Until a Double Click Follows Again", async () => {
+  stubChartSize();
+  useFrameTimers();
+  const revision = (count: number) => {
+    const x = Array.from({ length: count }, (_, index) => 1000 + index);
+    return documentPlotSpec({
+      plot: { ...descriptor, plot_type: "time_series" },
+      payload: {
+        ...payload,
+        series: [{ ...payload.series[0], downsampled: true }],
+        cartesian: { mode: "aligned", series: [{ x, y: x.map((value) => Math.sin(value)) }], point_count: count, signature: `${count}` },
+      },
+    });
+  };
+  const { rerender } = render(TimeSeriesPlot, { plot: revision(10_000), viewportMode: "live" });
+  await act(() => vi.dynamicImportSettled());
+  await vi.advanceTimersByTimeAsync(16);
+  const [options] = charts.options;
+  const [plot] = charts.instances;
+
+  // A Dragged Box Holds Its x Range
+  Object.assign(plot.select, { left: 150, top: 0, width: 300, height: 230 });
+  for (const hook of [options.hooks?.setSelect ?? []].flat()) {
+    hook?.(plot);
+  }
+  const held = { min: 2500, max: 5500 };
+
+  // A Live Revision Keeps the Zoom and Hands uPlot Every Retained Sample to Decimate Itself
+  const next = revision(12_000);
+  await rerender({ plot: next });
+  await vi.advanceTimersByTimeAsync(16);
+  assert.deepEqual(charts.drawn.at(-1), held);
+  assert.deepEqual(charts.data.at(-1)?.[0], next.cartesian?.series[0].x);
+
+  // A Resize Only Sizes the Chart: uPlot Redraws Its Paths at the New Width
+  const frames = charts.data.length;
+  charts.resizers.get((plot as unknown as { root: HTMLElement }).root)?.(900);
+  await vi.advanceTimersByTimeAsync(16);
+  assert.deepEqual(charts.sizes, [900]);
+  assert.equal(charts.data.length, frames);
+
+  // A Double Click Over the Plot Follows the Run Again
+  const target = plot.over;
+  const handler = vi.fn(() => null);
+  const dblclick = options.cursor?.bind?.dblclick?.(plot, target, handler);
+  dblclick?.({ button: 0, target } as unknown as MouseEvent);
+  await vi.advanceTimersByTimeAsync(16);
+  assert.equal(handler.mock.calls.length, 1);
+  assert.deepEqual(charts.drawn.at(-1), { min: 1000, max: 12_999 });
+  assert.equal(charts.options.length, 1);
 });
 
 test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside Their Card", async () => {
