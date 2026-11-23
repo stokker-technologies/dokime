@@ -519,8 +519,6 @@ class Executions:
             template_ids=[template] if template else [],
             statuses=[statuses[state.lower()]] if state else [],
         )
-        if page_size < 0:
-            raise ValueError("List Resources: Supply a Nonnegative Page Size")
         at = None
         cursor = harmos.PageRequest(page_size=page_size)
         tokens: set[str] = set()

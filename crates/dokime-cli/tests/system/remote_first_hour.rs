@@ -144,18 +144,8 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     let channel = Endpoint::from_shared(endpoint.clone())?.connect().await?;
                     let sdk = Client::from_channel(channel, super::client_settings())?;
                     let report = directory.path().join("report.html");
-                    if let Err(error) = super::run(&[
-                        "--endpoint",
-                        &endpoint,
-                        "execution",
-                        "report",
-                        execution,
-                        "--out",
-                        report.to_str().unwrap(),
-                        "--request-id",
-                        "first-hour-report",
-                    ])
-                    .await
+                    if let Err(error) =
+                        super::run(&["--endpoint", &endpoint, "execution", "report", execution, "--out", report.to_str().unwrap()]).await
                     {
                         assert!(!report.exists());
                         failures.push(error.to_string());

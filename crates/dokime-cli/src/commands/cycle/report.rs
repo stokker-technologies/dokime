@@ -34,9 +34,6 @@ use dokime_client_internal::{ReportSubject, ReportsCreateOptions};
 
 #[derive(clap::Args)]
 pub(crate) struct Args {
-    #[arg(long, help = "Reuse This Identity When Retrying the Same Mutation")]
-    request_id: Option<String>,
-
     cycle: String,
 
     #[arg(long)]
@@ -57,7 +54,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     let subject = ReportSubject { kind: Some(Kind::Cycle(args.cycle)) };
     let options = ReportsCreateOptions {
         context: settings.context()?,
-        request_id: Some(settings.request_id(args.request_id)?),
+        request_id: Some(settings.request_id(None)?),
     };
     let report = client.reports.create_with(subject, "", options).await?;
     let reference = report.file.ok_or("Fetch Report: Missing File Reference")?;
