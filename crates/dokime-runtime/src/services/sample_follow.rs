@@ -159,22 +159,22 @@ fn client_follows_a_long_stream_without_receiving_it_again() -> Result<(), Box<d
         assert!(frame.opening);
         assert_eq!(selected(frame.samples).iter().map(|sample| sample.sequence).collect::<Vec<_>>(), [118, 119]);
 
-        // Later Frames Carry Only the Samples Captured After the Opening, in Order.
-        capture(120..125)?;
+        // Later Frames Carry Only the Samples Captured After the Opening, in Order, Even Across Pages.
+        capture(120..180)?;
         let mut followed = Vec::new();
-        while followed.len() < 5 {
+        while followed.len() < 60 {
             let frame = every.next().await.unwrap()?;
             assert!(!frame.opening && frame.resync_required.is_none());
             followed.extend(selected(frame.samples).iter().map(|sample| sample.sequence));
         }
-        assert_eq!(followed, (120..125).collect::<Vec<_>>());
+        assert_eq!(followed, (120..180).collect::<Vec<_>>());
         let mut tail = Vec::new();
-        while tail.last() != Some(&124) {
+        while tail.last() != Some(&179) {
             let frame = newest.next().await.unwrap()?;
             assert!(!frame.opening && frame.resync_required.is_none());
             tail.extend(selected(frame.samples).iter().map(|sample| sample.sequence));
         }
-        assert!(tail.is_sorted() && tail.iter().all(|sequence| (120..125).contains(sequence)), "{tail:?}");
+        assert!(tail.is_sorted() && tail.iter().all(|sequence| (120..180).contains(sequence)), "{tail:?}");
 
         // Closing the Execution Ends Both Watches Without Sending Any Sample Again.
         host.store.close_streams("execution")?;
