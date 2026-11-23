@@ -55,6 +55,62 @@ from dokime_sdk.templates import Context, TestTemplate, Window, criterion, obser
 
 
 class PlainValueStory(unittest.IsolatedAsyncioTestCase):
+    async def test_plugin_failure_mapper_runs_once_on_the_library_carrier(self) -> None:
+        mapped: list[Exception] = []
+
+        def remote_failure(error: Exception) -> OperationError | None:
+            mapped.append(error)
+            if isinstance(error, ConnectionError):
+                return OperationError("transient", code="disconnected", message=str(error), action="Reconnect the Device")
+            return None
+
+        @operation("example.read", visibility=Visibility.PUBLIC)
+        async def read(ctx: dokime_sdk.operations.Context, disconnected: bool) -> bool:
+            if disconnected:
+                raise ConnectionError("Device Is Disconnected")
+            raise ValueError("Invalid Channel")
+
+        class ReadPlugin(Plugin):
+            identifier = "example"
+            version = "1.0.0"
+            operations = (read,)
+            failure = remote_failure
+
+        endpoint = await ReadPlugin()._activate("127.0.0.1:0")
+        self.addAsyncCleanup(endpoint.stop)
+        channel = insecure_channel(endpoint.address)
+        self.addAsyncCleanup(channel.close)
+        invoke = channel.stream_stream(
+            "/harmos.plugin.v1.Instance/Invoke",
+            request_serializer=InstanceInvokeRequest.SerializeToString,
+            response_deserializer=InstanceInvokeResponse.FromString,
+        )
+        for disconnected in (True, False):
+            call = invoke()
+            try:
+                await call.write(
+                    InstanceInvokeRequest(
+                        request=Request(
+                            operation="example.read",
+                            invocation="read",
+                            attempt=1,
+                            payload=BoolValue(value=disconnected).SerializeToString(),
+                        )
+                    )
+                )
+                response = await call.read()
+                assert isinstance(response, InstanceInvokeResponse)
+                failure = OperationError(response.response.failure)
+                self.assertEqual(failure.operation, "example.read")
+                self.assertEqual(failure.kind, "transient" if disconnected else "permanent")
+                self.assertEqual(failure.message, "Device Is Disconnected" if disconnected else "Invalid Channel")
+                self.assertTrue(failure.action)
+                if disconnected:
+                    self.assertEqual(failure.action, "Reconnect the Device")
+            finally:
+                call.cancel()
+        self.assertEqual([type(error) for error in mapped], [ConnectionError, ValueError])
+
     async def test_observer_presence(self) -> None:
         definition = FileDescriptorProto(name="optional_reading.proto", package="reading", syntax="proto3")
         message = definition.message_type.add(name="Reading")

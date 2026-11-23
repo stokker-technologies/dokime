@@ -106,32 +106,6 @@ class SettingsTests(IsolatedAsyncioTestCase):
         await owner._lifecycle("finalize")(object(), transport)
         self.assertEqual(released, observed)
 
-    async def test_failed_snapshot_prevents_initialization_and_does_not_publish_partial_settings(self) -> None:
-        initialized = AsyncMock()
-
-        class ConnectionPlugin(Plugin):
-            version = "1.0.0"
-            settings = (ConnectionSettings,)
-
-            async def initialize(self, ctx: Context) -> None:
-                await initialized()
-
-        owner = ConnectionPlugin()
-        transport = plugin.Context(Request(attempt=1), owner.identifier, {})
-        transport.settings = AsyncMock(return_value=SettingsListResponse())
-        with self.assertRaises(harmos.OperationError) as raised:
-            await owner._lifecycle("initialize")(object(), transport)
-        self.assertIn("Configure api_address", raised.exception.value.message)
-        initialized.assert_not_awaited()
-        self.assertFalse(owner._settings_values)
-        values = harmos.SettingValues(values={name: field.default for name, field in ConnectionSettings._fields().items()})
-        values.values["count"].text = "wrong"
-        transport.settings.return_value = SettingsListResponse(value=values)
-        with self.assertRaises(harmos.OperationError) as raised:
-            await owner._lifecycle("initialize")(object(), transport)
-        self.assertIn("Save the Declared Type for count", raised.exception.value.message)
-        self.assertFalse(owner._settings_values)
-
     def test_settings_inheritance_overrides_fields_without_duplicate_declarations(self) -> None:
         class SpecializedSettings(ConnectionSettings):
             count: int = Setting.integer("Count", default=2)

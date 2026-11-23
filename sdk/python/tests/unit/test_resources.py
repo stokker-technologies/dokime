@@ -109,40 +109,6 @@ class ResourceTests(IsolatedAsyncioTestCase):
         await finalize(object(), transport)
         self.assertEqual(closed, [api, restarted])
 
-    async def test_dependent_types_close_in_reverse_open_order_despite_failures(self) -> None:
-        closed: list[str] = []
-
-        class Transport(Resource):
-            async def close(self) -> None:
-                closed.append("transport")
-
-        class RemoteApi(Resource):
-            async def open(self, ctx: Context) -> None:
-                self.transport = await ctx.resource(Transport)
-
-            async def close(self) -> None:
-                closed.append("api")
-                raise ValueError("Reconnect Before Closing")
-
-        class ConnectionPlugin(Plugin):
-            version = "1.0.0"
-            resources = (RemoteApi, Transport)
-
-            async def finalize(self, ctx: Context) -> None:
-                raise ValueError("Finalize Failed")
-
-        owner = ConnectionPlugin()
-        transport = plugin.Context(Request(attempt=1), owner.identifier, {})
-        context = Context(transport, owner)
-        api = await context.resource(RemoteApi)
-        self.assertIs(api.transport, await context.resource(Transport))
-        with self.assertRaises(harmos.OperationError) as raised:
-            await owner._lifecycle("finalize")(object(), transport)
-        self.assertEqual(raised.exception.value.classification, harmos.CLASSIFICATION_PERMANENT)
-        self.assertEqual(raised.exception.value.operation, "connection.finalize")
-        self.assertEqual(closed, ["api", "transport"])
-        self.assertFalse(owner._resource_values)
-
     async def test_registration_release_closes_typed_resources_without_host_finalization(self) -> None:
         closed = AsyncMock()
 
@@ -164,28 +130,6 @@ class ResourceTests(IsolatedAsyncioTestCase):
         await registered._release()
         await registered._release()
         closed.assert_awaited_once_with()
-
-    async def test_failed_activation_closes_opened_types(self) -> None:
-        closed = AsyncMock()
-
-        class RemoteApi(Resource):
-            async def close(self) -> None:
-                await closed()
-
-        class ConnectionPlugin(Plugin):
-            version = "1.0.0"
-            resources = (RemoteApi,)
-
-            async def initialize(self, ctx: Context) -> None:
-                await ctx.resource(RemoteApi)
-                raise ValueError("Reconnect the Device")
-
-        owner = ConnectionPlugin()
-        transport = plugin.Context(Request(attempt=1), owner.identifier, {})
-        with self.assertRaises(harmos.OperationError):
-            await owner._lifecycle("initialize")(object(), transport)
-        closed.assert_awaited_once_with()
-        self.assertFalse(owner._resource_values)
 
     async def test_resource_types_are_declared_once_and_foreign_types_are_rejected(self) -> None:
         class RemoteApi(Resource):

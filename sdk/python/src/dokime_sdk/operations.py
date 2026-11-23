@@ -351,10 +351,6 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier:
             return pack(response_type, cast(Payload, result))
         except _errors.SdkError as error:
             raise harmos.OperationError(_errors.wire_failure(error.failure)) from error
-        except harmos.OperationError:
-            raise
-        except Exception as error:
-            raise owner._failure(error, identifier) from error
 
     return plugin.operation(
         identifier,

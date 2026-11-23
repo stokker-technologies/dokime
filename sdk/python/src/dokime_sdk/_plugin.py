@@ -226,21 +226,6 @@ class Plugin:
 
         self._plugin.declarations()
 
-    def _failure(self, error: Exception, identity: str) -> harmos.OperationError:
-        mapper = type(self).failure
-        mapped = mapper(error) if mapper is not None else None
-        return (
-            mapped
-            if mapped is not None
-            else harmos.OperationError(
-                "permanent",
-                code="handler_failed",
-                message=f"{identity}: {error}",
-                action="Correct the Handler or Its Inputs, Then Retry",
-                operation=identity,
-            )
-        )
-
     def declarations(self) -> Declarations:
         return self._plugin.declarations()
 
@@ -377,10 +362,6 @@ class Plugin:
                 return response_type()
             except SdkError as error:
                 raise harmos.OperationError(wire_failure(error.failure)) from error
-            except harmos.OperationError:
-                raise
-            except Exception as error:
-                raise self._failure(error, identity) from error
             finally:
                 if kind == "cleanup":
                     self._sessions.pop(key, None)
@@ -414,10 +395,6 @@ class Plugin:
                 return pack(definition.row, result)
             except SdkError as error:
                 raise harmos.OperationError(wire_failure(error.failure)) from error
-            except harmos.OperationError:
-                raise
-            except Exception as error:
-                raise self._failure(error, identity) from error
 
         async def observe_window(adapter: object, transport: harmos.plugin.Context, window: Window) -> Message:
             try:
@@ -427,10 +404,6 @@ class Plugin:
                 return pack(columns, result)
             except SdkError as error:
                 raise harmos.OperationError(wire_failure(error.failure)) from error
-            except harmos.OperationError:
-                raise
-            except Exception as error:
-                raise self._failure(error, identity) from error
 
         async def publish(adapter: object, transport: harmos.plugin.Context, publisher: Publisher) -> None:
             try:
@@ -445,10 +418,6 @@ class Plugin:
                 await _logs.run(context, produce)
             except SdkError as error:
                 raise harmos.OperationError(wire_failure(error.failure)) from error
-            except harmos.OperationError:
-                raise
-            except Exception as error:
-                raise self._failure(error, identity) from error
 
         if sampling:
             nanoseconds = round(sampling.interval_ms * 1_000_000)
@@ -516,11 +485,6 @@ class Plugin:
                     await _logs.run(context, finalize)
             except SdkError as error:
                 raise harmos.OperationError(wire_failure(error.failure)) from error
-            except harmos.OperationError:
-                raise
-            except Exception as error:
-                identity = f"{self.identifier}.{name}"
-                raise self._failure(error, identity) from error
             finally:
                 if name == "finalize":
                     self._sessions.clear()
