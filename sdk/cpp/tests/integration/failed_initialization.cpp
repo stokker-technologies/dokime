@@ -36,8 +36,8 @@ using dokime::plugin::v1::TestCasesMaterializeResponse;
 using google::protobuf::BoolValue;
 using google::protobuf::Empty;
 using google::protobuf::StringValue;
+using harmos::OperationError;
 using harmos::SettingsDeclarations;
-using harmos::TransportError;
 using harmos::VISIBILITY_PROTECTED;
 using harmos::plugin::SettingsListResponse;
 using std::string;
@@ -117,7 +117,7 @@ TEST_CASE("Failed Initialization Retains Template State for Cleanup and Both Con
   *origin->mutable_test_case() = test_case;
 
   // Fail Initialization After Opening the Template Resource.
-  REQUIRE_THROWS_AS(host.invoke<ExecutionsInitializeResponse>(binding.initialize(), initialize, "execution"), TransportError);
+  REQUIRE_THROWS_AS(host.invoke<ExecutionsInitializeResponse>(binding.initialize(), initialize, "execution"), OperationError);
 
   // Clean Up the Same Instance With Its Termination.
   ExecutionsCleanupRequest cleanup;

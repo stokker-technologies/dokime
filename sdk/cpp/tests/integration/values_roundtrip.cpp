@@ -42,6 +42,12 @@ using std::string;
 
 template <class T> void roundtrip(PluginHost &host, const string &name, const T &value) {
   auto request = dokime::templates::detail::pack(value);
+  host.child = [&name, &request](const harmos::plugin::v1::ChildRequest &child) -> string {
+    REQUIRE(child.operation() == "values.local." + name);
+    REQUIRE(child.payload() == request.SerializeAsString());
+    REQUIRE_FALSE(child.fingerprint().empty());
+    return child.payload();
+  };
   const auto response = host.invoke<decltype(request)>("values." + name, request);
   REQUIRE(dokime::templates::detail::unpack<T>(response) == value);
 }
@@ -56,7 +62,7 @@ string address;
 
 /* === Entry Point === */
 
-TEST_CASE("Plain Operations Round Trip Through Public and Local Private Calls") {
+TEST_CASE("Plain Operations Round Trip Through Host Routed Private Calls") {
   PluginHost host(address);
   roundtrip(host, "text", string("a value"));
   roundtrip(host, "text", string{});
