@@ -315,6 +315,7 @@ export type TestExecution = {
     | "finalizing"
     | "passed"
     | "failed"
+    | "completed"
     | "skipped"
     | "not_run"
     | "stopped"

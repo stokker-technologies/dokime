@@ -114,6 +114,7 @@ export type ExecutionMetadata = {
 
 export type ExecutionStatus =
   | "not_run"
+  | "completed"
   | "skipped"
   | "invalidated"
   | "pending"

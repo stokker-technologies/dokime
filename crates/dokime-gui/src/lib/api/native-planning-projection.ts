@@ -206,6 +206,8 @@ export function projectExecutionStatus(
     switch (attribution.value.termination) {
       case Termination.NOT_RUN:
         return "not_run";
+      case Termination.COMPLETED:
+        return "completed";
       case Termination.FAILED:
         return "failed";
       case Termination.CANCELLED:
