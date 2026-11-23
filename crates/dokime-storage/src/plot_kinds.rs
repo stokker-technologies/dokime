@@ -298,11 +298,7 @@ impl Store {
         let mut bytes = 0usize;
         let mut groups = BTreeMap::<(String, String, i64), ValueGroup>::new();
         self.kind_values(request, heat_strip, |row| {
-            let invalid_heat_identity = heat_strip
-                && (missing(&row.g)
-                    || scalar::number(&row.x).is_some_and(|v| !v.is_finite())
-                    || scalar::number(&row.g).is_some_and(|v| !v.is_finite()));
-            if missing(&row.x) || invalid_heat_identity {
+            if missing(&row.x) || heat_strip && missing(&row.g) {
                 return Ok(());
             }
             let key = (serde_json::to_string(&row.g)?, serde_json::to_string(&row.x)?, if heat_strip { row.time } else { 0 });
@@ -488,16 +484,7 @@ impl Store {
                 return Ok(());
             };
             let y = input.y;
-            if !x.is_finite()
-                || !y.is_finite()
-                || !z.is_finite()
-                || x < x_min
-                || x > x_max
-                || y < y_min
-                || y > y_max
-                || x_log && x <= 0.0
-                || y_log && y <= 0.0
-            {
+            if x < x_min || x > x_max || y < y_min || y > y_max || x_log && x <= 0.0 || y_log && y <= 0.0 {
                 return Ok(());
             }
             let x = if x_log { x.ln() } else { x };
@@ -731,7 +718,7 @@ impl Store {
                     let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
                     let values = FieldPath::from(format!("values.{}", window.field).as_str());
                     for row in 0..batch.num_rows() {
-                        if let Some(value) = scalar::number(&values.value(&batch, row)?).filter(|value| value.is_finite()) {
+                        if let Some(value) = scalar::number(&values.value(&batch, row)?) {
                             latest.push(Reverse((times.value(row), positions.value(row), value.to_bits())));
                             if latest.len() > maximum {
                                 latest.pop();
@@ -849,7 +836,7 @@ impl Store {
             let groups = request.group.map(|field| FieldPath::from(format!("values.{field}").as_str()));
             for row in 0..batch.num_rows() {
                 let scalar = ys.value(&batch, row)?;
-                let number = scalar::number(&scalar).filter(|v| v.is_finite());
+                let number = scalar::number(&scalar);
                 if number.is_none() && !retain_absent {
                     continue;
                 }

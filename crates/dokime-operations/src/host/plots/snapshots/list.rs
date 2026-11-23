@@ -1028,17 +1028,28 @@ mod tests {
     use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, field_descriptor_proto::Type};
     use tempfile::TempDir;
 
-    use super::{PlotColumn, Value, batch, order_categories, snapshots_at, value};
+    use super::{PlotColumn, PlotPayload, Value, batch, order_categories, plot_analysis_result, snapshots_at, value};
+    use dokime_protocol::host::evidence::RecordsAppendRequest;
     use dokime_protocol::host::plots::NullableNumber;
     use dokime_protocol::host::plots::{PlotRequest, PlotWindow, SnapshotsListResponse};
-    use dokime_protocol::model::{Downsample, EvidenceScope, Import, Origin, PlotKind, origin};
-    use dokime_storage::{Execution, Sample, Store};
+    use dokime_protocol::model::{Downsample, EvidenceScope, FieldReference, Import, Origin, PlotKind, origin};
+    use dokime_protocol::model::{FilterOperator, Metadata, PlotFilter, RecordContract, RecordContracts};
+    use dokime_storage::{Evidence, Execution, Sample, Store};
 
-    #[tokio::test]
-    async fn batch_larger_than_worker_bound_preserves_every_envelope_in_request_order() {
+    fn readings(fields: &[(&str, Type)]) -> (TempDir, Store) {
         let root = tempfile::tempdir().unwrap();
         let store = Store::open(root.path()).unwrap();
-        let catalog = Declarations {
+        let field = fields
+            .iter()
+            .enumerate()
+            .map(|(index, (name, kind))| FieldDescriptorProto {
+                name: Some((*name).into()),
+                number: Some(index as i32 + 1),
+                r#type: Some(*kind as i32),
+                ..Default::default()
+            })
+            .collect();
+        let mut catalog = Declarations {
             types: Some(FileDescriptorSet {
                 file: vec![FileDescriptorProto {
                     name: Some("plots.proto".into()),
@@ -1046,12 +1057,7 @@ mod tests {
                     syntax: Some("proto3".into()),
                     message_type: vec![DescriptorProto {
                         name: Some("Row".into()),
-                        field: vec![FieldDescriptorProto {
-                            name: Some("value".into()),
-                            number: Some(1),
-                            r#type: Some(Type::Double as i32),
-                            ..Default::default()
-                        }],
+                        field,
                         ..Default::default()
                     }],
                     ..Default::default()
@@ -1064,6 +1070,19 @@ mod tests {
             }],
             ..Default::default()
         };
+        catalog.sections.push(Default::default());
+        let section = catalog.sections.last_mut().unwrap();
+        section.r#type = "dokime.model.v1.RecordContracts".into();
+        section.payload = RecordContracts {
+            records: vec![RecordContract {
+                metadata: Some(Metadata {
+                    identifier: "status".into(),
+                    ..Default::default()
+                }),
+                message: "plots.Row".into(),
+            }],
+        }
+        .encode_to_vec();
         store
             .create(&Execution {
                 identifier: "execution".into(),
@@ -1076,6 +1095,12 @@ mod tests {
             })
             .unwrap();
         store.open_stream("execution", "readings").unwrap();
+        (root, store)
+    }
+
+    #[tokio::test]
+    async fn batch_larger_than_worker_bound_preserves_every_envelope_in_request_order() {
+        let (_root, store) = readings(&[("value", Type::Double)]);
         let samples = (0..6)
             .map(|index| Sample {
                 stream: "readings".into(),
@@ -1131,50 +1156,7 @@ mod tests {
     }
 
     fn waveform(period_ns: i64) -> (TempDir, Store, Vec<Sample>) {
-        let root = tempfile::tempdir().unwrap();
-        let store = Store::open(root.path()).unwrap();
-        let catalog = Declarations {
-            types: Some(FileDescriptorSet {
-                file: vec![FileDescriptorProto {
-                    name: Some("plots.proto".into()),
-                    package: Some("plots".into()),
-                    syntax: Some("proto3".into()),
-                    message_type: vec![DescriptorProto {
-                        name: Some("Row".into()),
-                        field: [("value", Type::Double), ("elapsed_s", Type::Double), ("phase", Type::Bool)]
-                            .into_iter()
-                            .enumerate()
-                            .map(|(index, (name, kind))| FieldDescriptorProto {
-                                name: Some(name.into()),
-                                number: Some(index as i32 + 1),
-                                r#type: Some(kind as i32),
-                                ..Default::default()
-                            })
-                            .collect(),
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                }],
-            }),
-            streams: vec![StreamDeclaration {
-                id: "readings".into(),
-                row: "plots.Row".into(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
-        store
-            .create(&Execution {
-                identifier: "execution".into(),
-                cycle: "cycle".into(),
-                origin: Some(Origin {
-                    kind: Some(origin::Kind::Import(Import::default())),
-                }),
-                catalog: catalog.encode_to_vec(),
-                ..Default::default()
-            })
-            .unwrap();
-        store.open_stream("execution", "readings").unwrap();
+        let (root, store) = readings(&[("value", Type::Double), ("elapsed_s", Type::Double), ("phase", Type::Bool)]);
         let samples = (0..11801)
             .map(|index| Sample {
                 stream: "readings".into(),
@@ -1358,6 +1340,132 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[derive(Clone, PartialEq, Message)]
+    struct Tracking {
+        #[prost(double, tag = "1")]
+        value: f64,
+
+        #[prost(double, tag = "2")]
+        lost: f64,
+
+        #[prost(uint64, tag = "3")]
+        cell: u64,
+    }
+
+    #[tokio::test]
+    async fn nonfinite_samples_are_skipped_like_missing_values_by_every_plot() {
+        // Declare a Tracked Distance, an Always-Lost Distance and a Status Record
+        let (_root, store) = readings(&[("value", Type::Double), ("lost", Type::Double), ("cell", Type::Uint64)]);
+
+        // Lose the Target Between Finite Readings and Sample It at Status Events
+        let values = [1.0, f64::NAN, 2.0, f64::INFINITY, 3.0, f64::NEG_INFINITY, 4.0, 5.0];
+        for (index, value) in values.into_iter().enumerate() {
+            let source_ns = index as i64 * 1_000_000_000;
+            let row = Tracking {
+                value,
+                lost: [f64::NAN, f64::INFINITY, f64::NEG_INFINITY][index % 3],
+                cell: index as u64 % 2 + 1,
+            };
+            let sample = Sample {
+                stream: "readings".into(),
+                source_ns,
+                sequence: index as u64,
+                row: row.encode_to_vec(),
+                ..Default::default()
+            };
+            store.sample_batch("execution", &[sample]).unwrap();
+            if [1, 2, 3, 6].contains(&index) {
+                let status = Evidence {
+                    kind: "record:status".into(),
+                    source_ns: source_ns + 500_000_000,
+                    payload: RecordsAppendRequest::default().encode_to_vec(),
+                    ..Default::default()
+                };
+                store.append("execution", status).unwrap();
+            }
+        }
+        store.flush_samples().unwrap();
+
+        // Request Every Plot Reading the Distances
+        let cut = store.cut("execution").unwrap();
+        let (reader, _cancellation) = store.read_session().unwrap();
+        let request = |kind: PlotKind, field: &str| PlotRequest {
+            scope: Some(EvidenceScope {
+                execution_id: Some("execution".into()),
+                ..Default::default()
+            }),
+            stream: "readings".into(),
+            y_keys: vec![field.into()],
+            plot_type: kind as i32,
+            ..Default::default()
+        };
+        let distance = FieldReference::new("readings").field("value").at("status");
+        let sampled = PlotRequest {
+            stream: String::new(),
+            y_keys: Vec::new(),
+            x_expression: Some(distance.clone()),
+            filters: vec![PlotFilter {
+                expression: Some(distance),
+                operator: FilterOperator::Gt as i32,
+                value: Some(Value { kind: Some(value::Kind::Number(0.0)) }),
+            }],
+            ..request(PlotKind::Histogram, "value")
+        };
+        let heat_strip = PlotRequest {
+            cell_expression: Some(FieldReference::new("readings").field("cell")),
+            ..request(PlotKind::HeatStrip, "value")
+        };
+        let mut payloads = Vec::new();
+        for request in [
+            request(PlotKind::TimeSeries, "value"),
+            request(PlotKind::TimeSeries, "lost"),
+            request(PlotKind::Histogram, "value"),
+            request(PlotKind::Histogram, "lost"),
+            sampled,
+            heat_strip,
+            PlotRequest {
+                series_by: Some("value".into()),
+                ..request(PlotKind::TimeSeries, "value")
+            },
+            PlotRequest {
+                max_points: Some(4),
+                ..request(PlotKind::TimeSeries, "value")
+            },
+        ] {
+            payloads.push(snapshots_at(&reader, &cut, vec![request], 1000, 0, "epoch").await.unwrap().remove(0).payload.unwrap());
+        }
+        let [series, lost, histogram, lost_histogram, sampled, heat_strip, grouped, bucketed] = payloads.try_into().unwrap();
+
+        // Check Time Series Serve and Summarize Only Finite Samples
+        let number = |value: f64| Some(Value { kind: Some(value::Kind::Number(value)) });
+        let summary = &series.summaries[0];
+        assert_eq!((summary.count, &summary.min, &summary.max, &summary.median), (5, &number(1.0), &number(5.0), &number(3.0)));
+        let ys = |payload: &PlotPayload| {
+            payload.frame.as_ref().unwrap().series.iter().flat_map(|column| &column.y).map(|y| y.value).collect::<Vec<_>>()
+        };
+        assert_eq!(ys(&series), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), Some(5.0)]);
+        assert_eq!((bucketed.summaries[0].count, bucketed.bucket_width_s.is_some(), ys(&bucketed)), (5, true, vec![Some(1.0), Some(5.0)]));
+        assert_eq!((lost.summaries[0].count, &lost.summaries[0].min), (0, &None));
+        assert!(ys(&lost).is_empty());
+        assert_eq!((grouped.series.len(), ys(&grouped)), (5, ys(&series)));
+        let percentile = store.document_value(&cut, &FieldReference::new("readings").field("value").percentile(75.0)).unwrap();
+        assert_eq!(Some(percentile), number(4.0));
+
+        // Check Histograms of Streams and of Status Events Bin Only Finite Samples
+        for (payload, count, median) in [(&histogram, 5, number(3.0)), (&sampled, 4, number(2.0)), (&lost_histogram, 0, None)] {
+            let Some(plot_analysis_result::Kind::Histogram(analysis)) = payload.analysis.clone().and_then(|analysis| analysis.result?.kind)
+            else {
+                panic!("expected a histogram");
+            };
+            assert_eq!(analysis.series[0].count, count);
+            assert_eq!(analysis.series[0].bins.iter().map(|bin| bin.count).sum::<u64>(), count);
+            assert_eq!(analysis.series[0].statistics.clone().and_then(|statistics| statistics.median), median);
+        }
+
+        // Check Heat Strip Cells Show No Value for Nonfinite Samples
+        assert_eq!(ys(&heat_strip), [Some(1.0), Some(2.0), Some(3.0), Some(4.0), None, None, None, Some(5.0)]);
     }
 
     #[test]

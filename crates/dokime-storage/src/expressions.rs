@@ -492,11 +492,13 @@ impl Evaluation<'_> {
                             return Ok(value);
                         }
                         let number = scalar::number(&value).ok_or(Error::Data("Transform Expression: Select a Numeric Value"))?;
-                        match transform.kind.as_ref() {
-                            Some(transform_expression::Kind::Scale(factor)) => ScalarValue::Float(number * factor),
-                            Some(transform_expression::Kind::Offset(offset)) => ScalarValue::Float(number + offset),
+                        let number = match transform.kind.as_ref() {
+                            Some(transform_expression::Kind::Scale(factor)) => number * factor,
+                            Some(transform_expression::Kind::Offset(offset)) => number + offset,
                             _ => unreachable!(),
-                        }
+                        };
+                        // An Overflowing Result Is a Missing Value.
+                        if number.is_finite() { ScalarValue::Float(number) } else { ScalarValue::Null }
                     }
                     Some(transform_expression::Kind::PerCase(true)) => self.value(input, batch, row, depth + 1)?,
                     Some(transform_expression::Kind::At(_)) => {
