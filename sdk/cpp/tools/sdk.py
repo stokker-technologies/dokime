@@ -212,15 +212,20 @@ def package(directory: Path, environment: dict[str, str]) -> Path:
         if "=" in line and not line.startswith(("//", "#")):
             key, value = line.split("=", 1)
             cache[key.split(":", 1)[0]] = value
-    pending = subprocess.check_output(
-        ["cmake", "--build", str(directory), "--", "-n", "dokime_client"],
+
+    # A Dry Run Stops at the Library's Glob Re-Check, So a Current Build Proves Itself by Rewriting No Library.
+    def libraries() -> dict[Path, tuple[int, int]]:
+        return {path: (path.stat().st_size, path.stat().st_mtime_ns) for path in directory.rglob("*.lib" if os.name == "nt" else "*.a")}
+
+    built = libraries()
+    run(
+        ["cmake", "--build", str(directory), "--target", "dokime_client"],
+        action="Verify C++ SDK Build",
         cwd=ROOT / "sdk/cpp",
         env=environment,
-        text=True,
-        stderr=sys.stderr,
-        creationflags=spawn_flags(),
+        log=directory / "verify.log",
     )
-    if pending.strip() != "ninja: no work to do.":
+    if not built or libraries() != built:
         raise RuntimeError("Package C++ SDK: Run mise -C sdk/cpp run build -- --preset " + directory.name + " Before Packaging")
     prefix = directory / "dokime-cpp"
     shutil.rmtree(prefix, ignore_errors=True)
