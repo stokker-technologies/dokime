@@ -21,7 +21,7 @@ import assert from "node:assert/strict";
 import { QueryClient, notifyManager } from "@tanstack/svelte-query";
 import { render } from "@testing-library/svelte";
 import type { EvidenceScope } from "@generated/host/model";
-import { test, vi } from "vitest";
+import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import type { ConnectedSession } from "@/app/native-session/session";
@@ -125,6 +125,11 @@ test("Console Shows the Cycle's and Execution's Records Live at Trace", async ()
   } as unknown as ConnectedSession;
   uiStore.getState().setConsoleState({ open: true, level: "trace", scope: "cycle" });
   const view = render(ConsoleDrawer, { session, cycleId: "cycle-1", executionId: "execution-1" });
+  onTestFinished(() => {
+    view.unmount();
+    uiStore.getState().resetUiStore();
+    vi.useRealTimers();
+  });
   await vi.advanceTimersByTimeAsync(0);
 
   // At Cycle Scope the Drawer Reads the Cycle's Records, Debug Included, Not the Backend's Trace
@@ -137,6 +142,8 @@ test("Console Shows the Cycle's and Execution's Records Live at Trace", async ()
   held.push(live);
   backend.pages.push({ cursor: null, records: [live] });
   backend.wake?.();
+  await vi.advanceTimersByTimeAsync(0);
+  assert.ok(!rows(view.container).includes("Charging Started"), "the row waits for the next frame");
   await vi.advanceTimersByTimeAsync(16);
   assert.equal(rows(view.container).at(-1), "Charging Started");
   assert.equal(backend.tail.mock.calls.length, 1, "the row arrived through the stream, not a re-read");
@@ -146,8 +153,4 @@ test("Console Shows the Cycle's and Execution's Records Live at Trace", async ()
   await vi.advanceTimersByTimeAsync(0);
   assert.deepEqual(backend.tail.mock.calls.at(-1)?.[1], { cycleId: "cycle-1", executionId: "execution-1" });
   assert.deepEqual(rows(view.container), ["Probe Armed", "Charging Started"]);
-
-  view.unmount();
-  uiStore.getState().resetUiStore();
-  vi.useRealTimers();
 });
