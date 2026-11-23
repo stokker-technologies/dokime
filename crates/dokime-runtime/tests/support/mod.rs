@@ -30,6 +30,7 @@ use std::env::{
     consts::{EXE_SUFFIX, OS},
 };
 use std::error::Error;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::Stdio;
 
@@ -297,7 +298,8 @@ pub fn client_settings() -> ClientSettings {
     let bounds = settings();
     ClientSettings {
         transfer: StorageTransferSettings { chunk_bytes: Some(1024) },
-        retained_bytes: bounds.placement.message_bytes,
+        // Decoded Replies Outgrow Their Wire Bytes, So Retain as Much as the Shipped Clients.
+        retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
         message_bytes: bounds.placement.message_bytes,
         input_items: bounds.placement.stream_window,
         input_bytes: bounds.placement.message_bytes,
