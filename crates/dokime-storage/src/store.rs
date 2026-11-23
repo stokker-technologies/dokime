@@ -40,7 +40,7 @@ use prost_reflect::DynamicMessage;
 use prost_types::Timestamp;
 use rusqlite::Transaction;
 use rusqlite::TransactionBehavior;
-use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
+use rusqlite::{Connection, InterruptHandle, OpenFlags, OptionalExtension, params, types::ValueRef};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch::{self, Sender};
 use uuid::Uuid;
@@ -100,7 +100,7 @@ pub struct Store {
 
 pub struct ReadCancellation {
     cancelled: Arc<AtomicBool>,
-    interrupt: rusqlite::InterruptHandle,
+    interrupt: InterruptHandle,
 }
 
 /* === Enums === */
@@ -310,7 +310,7 @@ impl Store {
         Ok(connection)
     }
     pub fn read_session(&self) -> Result<(Self, ReadCancellation)> {
-        let connection = Connection::open_with_flags(self.database.as_path(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let connection = Connection::open_with_flags(self.database.as_path(), OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         connection.execute_batch("BEGIN")?;
         let interrupt = connection.get_interrupt_handle();
         let cancelled = Arc::new(AtomicBool::new(false));

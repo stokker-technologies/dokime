@@ -29,6 +29,7 @@
 
 // Standard Library Imports
 use std::{
+    cell::Cell,
     collections::BTreeMap,
     sync::{
         Arc, Mutex, MutexGuard, PoisonError,
@@ -45,7 +46,7 @@ use arrow_select::concat::concat_batches;
 use prost::Message;
 use prost_reflect::DescriptorPool;
 use rusqlite::{Connection, params};
-use tokio::time::Instant;
+use tokio::{runtime::Handle, time::Instant};
 
 // Local Imports
 use super::{Intake, Pending, Telemetry, aggregates::Statistics, catalog, codec::Codec, config::StorageSettings};
@@ -72,7 +73,7 @@ struct Head {
 
 /// One Stream File's Share of a Flush: the Head of Its Pending Batches and Its Saved Statistics.
 struct Claim {
-    key: (String, String),
+    key: StreamKey,
     id: String,
     codec: Arc<Codec>,
     batches: Vec<RecordBatch>,
@@ -82,7 +83,7 @@ struct Claim {
 
 /// One Stream File's Encoded Chunks and Catalog Values, Ready to Write and Commit.
 struct Prepared {
-    key: (String, String),
+    key: StreamKey,
     id: String,
     codec: Arc<Codec>,
     batches: usize,
@@ -118,8 +119,8 @@ pub(crate) struct Reservation {
     store: Store,
     execution: String,
     position: u64,
-    used: std::cell::Cell<bool>,
-    committed: std::cell::Cell<bool>,
+    used: Cell<bool>,
+    committed: Cell<bool>,
 }
 
 /// A Background Round Between Its Writes and Its Catalog Commit.
@@ -298,10 +299,12 @@ impl SyncGate {
         self.state.lock().unwrap().0 = false;
         self.changed.notify_all();
     }
+
     /// Wait Until a Sync Is Parked at the Gate.
     fn parked(&self) {
         drop(self.changed.wait_while(self.state.lock().unwrap(), |(_, parked)| *parked == 0).unwrap());
     }
+
     fn pass(&self) {
         let mut state = self.state.lock().unwrap();
         state.1 += 1;
@@ -415,8 +418,8 @@ impl Store {
             store: self.clone(),
             execution: execution.to_owned(),
             position: self.reserve_position(connection, execution)?,
-            used: std::cell::Cell::new(false),
-            committed: std::cell::Cell::new(false),
+            used: Cell::new(false),
+            committed: Cell::new(false),
         };
         self.flush_locked(connection, Some((execution, reservation.position)), false)?;
         Ok(reservation)
@@ -542,7 +545,7 @@ impl Store {
     fn admitted(&self, pressure: bool, due: bool) -> Result<()> {
         // Bytes Over the Pending Bound Flush on the Admitting Caller, the Only Wait Intake Makes for a Sync.
         // Without a Runtime No Round Can Take a Due Flush.
-        if pressure || (due && tokio::runtime::Handle::try_current().is_err()) {
+        if pressure || (due && Handle::try_current().is_err()) {
             self.flush_samples()?;
         }
         self.start_sample_flush()?;
@@ -550,7 +553,7 @@ impl Store {
         Ok(())
     }
     fn start_sample_flush(&self) -> Result<()> {
-        let Ok(runtime) = tokio::runtime::Handle::try_current() else { return Ok(()) };
+        let Ok(runtime) = Handle::try_current() else { return Ok(()) };
         let mut intake = self.intake()?;
         if intake.closed || intake.running || intake.pending.is_empty() {
             return Ok(());
@@ -576,7 +579,16 @@ impl Store {
                         }
                     }
                 };
-                tokio::select! {biased; _=tokio::time::sleep_until(deadline)=>{}, result=changes.changed()=>{if result.is_err(){return;}continue;}}
+                tokio::select! {
+                    biased;
+                    _ = tokio::time::sleep_until(deadline) => {}
+                    result = changes.changed() => {
+                        if result.is_err() {
+                            return;
+                        }
+                        continue;
+                    }
+                }
                 let worker = store.clone();
                 let result = tokio::task::spawn_blocking(move || worker.flush_round()).await;
                 if !matches!(result, Ok(Ok(()))) {
@@ -1024,13 +1036,20 @@ mod tests {
     use super::*;
     use crate::Evidence;
     use crate::telemetry::{config::storage_defaults, previews::Envelope};
+    use arrow_ipc::reader::FileReader;
     use dokime_protocol::model::{Import, Origin, origin};
     use harmos_protocol::model::StreamDeclaration;
     use prost_types::{
         DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
         field_descriptor_proto::{Label, Type},
     };
-    use std::{io::Write, num::NonZeroUsize, sync::atomic::AtomicBool};
+    use std::{
+        fs::{File, OpenOptions},
+        io::Write,
+        num::NonZeroUsize,
+        sync::atomic::AtomicBool,
+    };
+    use tokio::runtime::Builder;
 
     const STREAMS: usize = 16;
     const ROWS: u64 = 37;
@@ -1147,7 +1166,7 @@ mod tests {
         require_saved_once(&store, 1)?;
         store.close_streams("execution")?;
         for entry in std::fs::read_dir(root.path().join("telemetry"))? {
-            let reader = arrow_ipc::reader::FileReader::try_new(std::fs::File::open(entry?.path())?, None)?;
+            let reader = FileReader::try_new(File::open(entry?.path())?, None)?;
             assert_eq!(reader.map(|batch| Ok(batch?.num_rows() as u64)).sum::<Result<u64>>()?, ROWS);
         }
         Ok(())
@@ -1301,7 +1320,7 @@ mod tests {
     fn shutdown_closes_intake_before_its_final_flush() -> Result<()> {
         let (_root, store) = opened(storage_defaults())?;
         store.sample_batch("execution", &samples(0))?;
-        let runtime = tokio::runtime::Builder::new_current_thread().build()?;
+        let runtime = Builder::new_current_thread().build()?;
         while_syncing(
             &store,
             || runtime.block_on(store.shutdown_samples()),
@@ -1419,7 +1438,7 @@ mod tests {
         // A Crash During an Uncommitted Write Leaves Bytes Past Each File's Saved Prefix.
         drop(store);
         for entry in std::fs::read_dir(root.path().join("telemetry"))? {
-            std::fs::OpenOptions::new().append(true).open(entry?.path())?.write_all(b"uncommitted partial batch")?;
+            OpenOptions::new().append(true).open(entry?.path())?.write_all(b"uncommitted partial batch")?;
         }
         let store = Store::open_with(root.path(), settings)?;
         require_saved_once(&store, ROUNDS)?;
@@ -1429,7 +1448,7 @@ mod tests {
         let store = Store::open_with(root.path(), settings)?;
         require_saved_once(&store, ROUNDS + 1)?;
         for entry in std::fs::read_dir(root.path().join("telemetry"))? {
-            let reader = arrow_ipc::reader::FileReader::try_new(std::fs::File::open(entry?.path())?, None)?;
+            let reader = FileReader::try_new(File::open(entry?.path())?, None)?;
             assert_eq!(reader.map(|batch| Ok(batch?.num_rows() as u64)).sum::<Result<u64>>()?, (ROUNDS + 1) * ROWS);
         }
         Ok(())
