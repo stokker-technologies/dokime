@@ -66,15 +66,20 @@ export function programRows(
     const owner = program.owner;
     // An entry already has its own row, whether a managed bundle or an unmanaged registered plugin.
     const installation = owner?.kind === "bundle" ? owner.installation : program.plugin_id;
-    if (installation && entries.some((entry) => entry.name === installation)) continue;
+    if (installation && entries.some((entry) => entry.name === installation)) {
+      continue;
+    }
     const key = owner?.kind === "host" ? "host" : owner?.kind === "bundle" ? `bundle:${owner.package}` : programKey(program);
     const settingsSection =
       frame?.sections.find(
         (candidate) => candidate.owner?.kind.case === "installedPluginId" && candidate.owner.kind.value === program.plugin_id,
       )?.sectionId ?? null;
     const existing = rows.find((row) => row.key === key);
-    if (!existing) rows.push({ key, program, settingsSection });
-    else existing.settingsSection ??= settingsSection;
+    if (existing) {
+      existing.settingsSection ??= settingsSection;
+    } else {
+      rows.push({ key, program, settingsSection });
+    }
   }
   return rows;
 }

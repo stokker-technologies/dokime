@@ -18,8 +18,8 @@ import { test } from "vitest";
 // Local Imports
 import { startupDiagnostics } from "@/app/native-session/errors";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { statusPresentation } from "@/features/settings/plugins/PluginList";
-import { programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
+import { statusPresentation } from "@/features/settings/plugins/plugin-rows";
+import { programRows, programSource } from "@/features/settings/plugins/plugin-programs";
 import { announceStopping, settleUnlessStopping } from "@/lib/desktop/stopping";
 import type { SettingsFrame } from "@generated/host/model";
 import type { Wire } from "@/lib/rpc/canonical";

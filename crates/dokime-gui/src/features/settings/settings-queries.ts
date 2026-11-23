@@ -9,11 +9,8 @@
 
 /* === External Imports === */
 
-import { useQuery } from "@tanstack/react-query";
-
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/context";
 import { fetchNativeSettingsFrame } from "@/lib/api/native-settings";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
@@ -26,11 +23,6 @@ export const settingsQueryKeys = {
 };
 
 /* === Hooks === */
-
-export function useSettingsFrameQuery(ownerKey?: string, enabled = true) {
-  const session = useNativeSessionOptional();
-  return useQuery(settingsFrameQueryOptions(session?.identity, ownerKey, enabled));
-}
 
 export function settingsFrameQueryOptions(identity: SessionIdentity | undefined, ownerKey?: string, enabled = true) {
   return {

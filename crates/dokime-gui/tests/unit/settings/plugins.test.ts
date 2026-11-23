@@ -19,27 +19,24 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { beforeEach, onTestFinished, test, vi } from "vitest";
-import { tick } from "svelte";
+import { type ComponentProps, tick } from "svelte";
 import { create } from "@bufbuild/protobuf";
-import { createElement, isValidElement, type ComponentProps } from "react";
 import { QueryClient } from "@tanstack/svelte-query";
 import { fireEvent, render, within } from "@testing-library/svelte";
 import type { ConnectedSession } from "@/app/native-session/session";
 import InstalledPluginDetailView from "@/features/settings/installed-plugins/InstalledPluginDetail.svelte";
 import type { InstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import PluginSettingsSurface from "@/features/settings/PluginSettingsSurface.svelte";
-import { PluginList, statusPresentation } from "@/features/settings/plugins/PluginList";
-import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
-import { bundleSettingsPage, programRows } from "@/features/settings/plugins/PluginPrograms";
+import { statusPresentation } from "@/features/settings/plugins/plugin-rows";
+import PluginTable from "@/features/settings/plugins/PluginTable.svelte";
+import { bundleSettingsPage, programRows } from "@/features/settings/plugins/plugin-programs";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { pluginQueryKeys, startNotification } from "@/features/settings/plugins/plugin-queries";
 import SecretsSection from "@/features/settings/sections/SecretsSection.svelte";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
-import type { NotificationFailure } from "@/lib/notification-details";
 import { FailureSchema, PluginEntrySchema, PluginState, SettingDeclarationSchema } from "@generated/host/model";
 import { formatPluginSetting, parsePluginSetting, readPluginSetting } from "@/lib/api/native-settings";
 
@@ -56,8 +53,6 @@ const fixture = vi.hoisted(() => ({
   installations: vi.fn(),
   readSecrets: vi.fn(),
   reload: vi.fn(),
-  actions: new Map<string, () => void>(),
-  rows: [] as PluginTableRow[],
 }));
 const session = { generation: "1", isCurrent: () => true };
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -71,24 +66,6 @@ const entry: ManagedPlugin = create(PluginEntrySchema, {
   failure: create(FailureSchema, { message: "activation-refused" }),
 });
 
-vi.mock("@/components/ui/button", () => ({
-  Button: ({ onClick, ...props }: ComponentProps<"button">) => {
-    if (onClick && !props.disabled && props["aria-label"]) {
-      fixture.actions.set(props["aria-label"], () => onClick({} as never));
-    }
-    return createElement("button", { type: "button", ...props });
-  },
-}));
-vi.mock("@/features/settings/plugins/PluginTable", () => ({
-  PluginTable: ({ rows }: { rows: PluginTableRow[] }) => {
-    fixture.rows = rows;
-    return createElement(
-      "div",
-      null,
-      rows.map((row) => createElement("div", { key: row.key }, row.trailing)),
-    );
-  },
-}));
 vi.mock("@/lib/api/native-plugins", () => ({ listNativeAdmittedPlugins: fixture.admitted, listNativePlugins: fixture.installed }));
 vi.mock("@/lib/api/native-settings", async (original) => ({
   ...(await original<typeof import("@/lib/api/native-settings")>()),
@@ -103,7 +80,6 @@ vi.mock("@/lib/api/native-secrets", () => ({
   pickSecretArchive: vi.fn(),
   previewSecrets: vi.fn(),
 }));
-vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => connected }));
 vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", async (original) => ({
   ...(await original<typeof import("@/features/settings/installed-plugins/installed-plugin-queries")>()),
   installedPluginDetailsOptions: (_session: ConnectedSession, pluginId: string) => ({
@@ -130,13 +106,11 @@ vi.mock("@/features/settings/plugins/plugin-queries", async (original) => ({
     queryFn: async () => fixture.installations().data,
   }),
   reloadPluginOptions: () => ({ mutationFn: fixture.reload }),
-  useReloadPluginMutation: () => ({ mutate: fixture.reload, isPending: false, isError: false }),
 }));
 vi.mock("@/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fixture.actions.clear();
   queryClient.clear();
   fixture.readSecrets.mockResolvedValue({ entries: [], generation: 1n, hostLabel: "Fixture", hostId: "fixture" });
   fixture.save.mockResolvedValue(undefined);
@@ -216,6 +190,24 @@ test("Entry States Follow Current Activation and Enablement", () => {
   assert.notEqual(startNotification(entry), null);
 });
 
+function showPluginEntries(entries: ManagedPlugin[], props: Partial<ComponentProps<typeof PluginTable>> = {}) {
+  const view = render(PluginTable, {
+    entries,
+    generation: session.generation,
+    reloading: false,
+    removingId: null,
+    changingEnabled: false,
+    onReload: fixture.reload,
+    onRemove: vi.fn(),
+    onSetEnabled: vi.fn(),
+    openSettings: vi.fn(),
+    settingsSectionOf: () => null,
+    ...props,
+  });
+  onTestFinished(() => view.unmount());
+  return view;
+}
+
 test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
   const managed = create(PluginEntrySchema, { ...entry, name: "equipment" });
   const registered: ManagedPlugin = create(PluginEntrySchema, {
@@ -224,19 +216,13 @@ test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
     value: { enabled: true },
     placement: { kind: { case: "remote", value: { url: "http://127.0.0.1:1" } } },
   });
-  renderToStaticMarkup(
-    createElement(PluginList, {
-      entries: [managed, registered],
-      onRemove: vi.fn(),
-      onOpenSettings: vi.fn(),
-      removingId: null,
-      onSetEnabled: vi.fn(),
-      changingEnabled: false,
-      settingsSectionOf: () => null,
-    }),
-  );
+  const view = showPluginEntries([managed, registered]);
   assert.deepEqual(
-    fixture.rows.map((row) => [row.key, row.placement, row.status]),
+    [...view.container.querySelectorAll<HTMLTableRowElement>("tr[data-row-id]")].map((row) => [
+      row.dataset.rowId,
+      row.cells[2].textContent?.trim(),
+      row.cells[1].textContent?.trim(),
+    ]),
     [
       ["equipment", "Managed", "Failed"],
       ["bench", "Unmanaged", "Offline"],
@@ -246,47 +232,26 @@ test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
   assert.deepEqual(programRows([program], [registered], null), []);
 });
 
-test("Failed Entry Actions Address Its Persisted Name", () => {
+test("Failed Entry Actions Address Its Persisted Name", async () => {
   const remove = vi.fn();
   const enabled = vi.fn();
-  renderToStaticMarkup(
-    createElement(PluginList, {
-      entries: [entry],
-      onRemove: remove,
-      onOpenSettings: vi.fn(),
-      removingId: null,
-      onSetEnabled: enabled,
-      changingEnabled: false,
-      settingsSectionOf: () => entry.name,
-    }),
-  );
-  fixture.actions.get(`Delete ${entry.name}`)?.();
-  fixture.actions.get(`Reload ${entry.name}`)?.();
-  fixture.rows[0].enabled?.onChange(false);
+  const view = showPluginEntries([entry], { onRemove: remove, onSetEnabled: enabled, settingsSectionOf: () => entry.name });
+  await fireEvent.click(view.getByRole("button", { name: `Delete ${entry.name}` }));
+  await fireEvent.click(view.getByRole("button", { name: `Reload ${entry.name}` }));
+  await fireEvent.click(view.getByRole("switch", { name: `Disable ${entry.name}` }));
   assert.deepEqual(remove.mock.calls, [[entry]]);
   assert.deepEqual(fixture.reload.mock.calls, [[entry.name]]);
   assert.deepEqual(enabled.mock.calls, [[entry, false]]);
 });
 
 test("Failed Entry Retains Its Failure Without a Root Message", () => {
-  const failed = { ...entry, failure: create(FailureSchema, { code: "bench_refused", action: "bench_action" }) };
-  renderToStaticMarkup(
-    createElement(PluginList, {
-      entries: [failed],
-      onRemove: vi.fn(),
-      onOpenSettings: vi.fn(),
-      removingId: null,
-      onSetEnabled: vi.fn(),
-      changingEnabled: false,
-      settingsSectionOf: () => failed.name,
-    }),
-  );
-  const alert = fixture.rows[0].alert;
-  assert.ok(isValidElement<{ failure: NotificationFailure }>(alert));
-  assert.equal(alert.props.failure.plugin, failed.name);
-  assert.equal(alert.props.failure.reason, failed.failure.code);
-  const html = renderToStaticMarkup(alert);
-  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
+  const failed = { ...entry, failure: create(FailureSchema, { code: "fixture_refused", action: "fixture_action" }) };
+  const view = showPluginEntries([failed], { settingsSectionOf: () => failed.name });
+  const alert = view.getByRole("alert");
+  assert.equal(view.getAllByRole("alert").length, 1);
+  const technical = alert.querySelector("details pre")?.textContent;
+  assert.ok(technical?.includes(`Plugin: ${failed.name}`));
+  assert.ok(technical?.includes(`Code: ${failed.failure.code}`));
 });
 
 test("Declared Secret Add", async () => {

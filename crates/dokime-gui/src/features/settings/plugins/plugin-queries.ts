@@ -12,9 +12,9 @@
 import { cutKey } from "@/lib/rpc/canonical";
 import { nativeFailure } from "@/lib/rpc/failure-details";
 import { failureOf } from "@/lib/notification-details";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 /* === Local Imports === */
 
@@ -100,73 +100,49 @@ export function pluginsListQueryOptions(session: ConnectedSession) {
   };
 }
 
-export function useInstallPluginMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-  const [progress, setProgress] = useState<InstallPluginProgress | null>(null);
-  const mutation = useMutation({
+export function installPluginOptions(session: ConnectedSession, setProgress: (progress: InstallPluginProgress | null) => void) {
+  return {
     mutationFn: (source: PluginSource) => {
       setProgress(null);
       return installNativePlugin(session.identity, source, { onProgress: setProgress });
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() });
-    },
+    onSuccess: () => session.queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() }),
     onSettled: () => setProgress(null),
-  });
-  return { ...mutation, progress };
+  };
 }
 
-export function usePluginReleaseMutation() {
-  const session = useNativeSession();
-  const mutation = useMutation({
+export function pluginReleaseOptions(session: ConnectedSession) {
+  return {
     mutationFn: async () => {
       const release = await commands.desktopPluginReleaseCheck(session.identity.generation);
-      if (!session.identity.isCurrent()) throw new Error("The backend changed while checking plugin releases.");
+      if (!session.identity.isCurrent()) {
+        throw new Error("Reconnect to the backend before checking plugin releases.");
+      }
       return release;
-    },
-  });
-  const unavailableReason = session.snapshot.connection.backend?.target
-    ? null
-    : "The host does not publish its build target. Install a verified bundle file until release selection is available.";
-  return { ...mutation, unavailableReason };
-}
-
-export function useRemovePluginMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (installId: string) => removeNativePlugin(session.identity, installId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() });
-    },
-  });
-}
-
-/** Reloads a plugin and its observers using saved settings. */
-export function useReloadPluginMutation() {
-  const session = useNativeSession();
-  return useMutation(reloadPluginOptions(session));
-}
-
-export function reloadPluginOptions(session: ConnectedSession) {
-  return {
-    mutationFn: (name: string) => restartNativePlugin(session.identity, name),
-    onError: (error: unknown) => toast.error(failureOf(error, "Plugin Reload Failed")),
-    onSuccess: async () => {
-      await session.queryClient.invalidateQueries({ queryKey: ["settings"] });
     },
   };
 }
 
-export function useSetPluginEnabledMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-  return useMutation({
+export function removePluginOptions(session: ConnectedSession) {
+  return {
+    mutationFn: (installId: string) => removeNativePlugin(session.identity, installId),
+    onSuccess: () => session.queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() }),
+  };
+}
+
+/** Reloads A Plugin And Its Observers Using Saved Settings. */
+export function reloadPluginOptions(session: ConnectedSession) {
+  return {
+    mutationFn: (name: string) => restartNativePlugin(session.identity, name),
+    onError: (error: unknown) => toast.error(failureOf(error, "Plugin Reload Failed")),
+    onSuccess: () => session.queryClient.invalidateQueries({ queryKey: ["settings"] }),
+  };
+}
+
+export function enablePluginOptions(session: ConnectedSession) {
+  return {
     mutationFn: ({ installId, enabled }: { installId: string; enabled: boolean }) =>
       setNativePluginEnabled(session.identity, installId, enabled),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() });
-    },
-  });
+    onSuccess: () => session.queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() }),
+  };
 }

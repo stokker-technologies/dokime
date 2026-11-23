@@ -1,10 +1,8 @@
 <!-- Dokime — SPDX-License-Identifier: Apache-2.0 -->
 <script module lang="ts">
-  import type { Snippet } from "svelte";
-
   export type PluginRow = {
-    alert?: Snippet;
-    badge?: Snippet;
+    failure?: NotificationFailure;
+    badge?: "destructive" | "outline" | "success" | "warning";
     enabled?: { checked: boolean; disabled?: boolean; onChange: (next: boolean) => void };
     key: string;
     name: string;
@@ -12,31 +10,58 @@
     placement?: "Managed" | "Unmanaged";
     source: string;
     status?: string;
-    trailing?: Snippet;
+    reload?: { disabled?: boolean; select: () => void };
+    remove?: { disabled?: boolean; select: () => void };
   };
 </script>
 
 <script lang="ts">
-  import { Settings2 } from "lucide-svelte";
+  import { PluginState } from "@generated/host/model";
+  import { RotateCw, Settings2, Trash2 } from "lucide-svelte";
+  import type { Snippet } from "svelte";
+  import ErrorCard from "../../../components/ErrorCard.svelte";
+  import Badge from "../../../components/ui/Badge.svelte";
   import Button from "../../../components/ui/Button.svelte";
   import SortableTableHeader from "../../../components/ui/SortableTableHeader.svelte";
   import Switch from "../../../components/ui/Switch.svelte";
   import TablePanel from "../../../components/ui/TablePanel.svelte";
   import { nextTableOrder, orderTableRows, type TableOrder } from "../../../components/ui/table-order";
   import { activateTableRow } from "../../../components/ui/table-row";
+  import type { ManagedPlugin } from "../../../lib/api/native-plugins";
+  import type { NotificationFailure } from "../../../lib/notification-details";
+  import { pluginStartFailure } from "./plugin-queries";
+  import { entryPlacement, entrySource, statusPresentation } from "./plugin-rows";
 
   let {
     actions,
     failure,
-    label,
     loading,
-    rows,
+    entries,
+    programs = [],
+    generation,
+    reloading,
+    removingId,
+    changingEnabled,
+    onReload,
+    onRemove,
+    onSetEnabled,
+    openSettings,
+    settingsSectionOf,
   }: {
     actions?: Snippet;
     failure?: Snippet;
-    label: string;
     loading?: boolean;
-    rows: PluginRow[];
+    entries: ManagedPlugin[];
+    programs?: PluginRow[];
+    generation: string;
+    reloading: boolean;
+    removingId: string | null;
+    changingEnabled: boolean;
+    onReload: (id: string) => void;
+    onRemove: (entry: ManagedPlugin) => void;
+    onSetEnabled: (entry: ManagedPlugin, enabled: boolean) => void;
+    openSettings: (id: string) => void;
+    settingsSectionOf: (entry: ManagedPlugin) => string | null;
   } = $props();
   const sortableColumns = [
     { key: "name", label: "Plugin", width: "pl-4" },
@@ -46,11 +71,35 @@
   ] as const;
   type Column = (typeof sortableColumns)[number]["key"];
   let order = $state.raw<TableOrder<Column>>();
-  const plugins = $derived(orderTableRows(rows, order));
+  const rows = $derived(
+    entries.map((entry): PluginRow => {
+      const status = statusPresentation(entry);
+      const section = settingsSectionOf(entry);
+      return {
+        key: entry.name,
+        name: entry.description?.id || entry.name,
+        source: entrySource(entry),
+        placement: entryPlacement(entry),
+        status: status.label,
+        badge: status.variant,
+        enabled: entry.value
+          ? { checked: entry.value.enabled, disabled: changingEnabled, onChange: (next) => onSetEnabled(entry, next) }
+          : undefined,
+        onOpenSettings: section ? () => openSettings(section) : undefined,
+        reload: {
+          disabled: !entry.value?.enabled || entry.state === PluginState.STOPPING || reloading,
+          select: () => onReload(entry.name),
+        },
+        remove: { disabled: removingId === entry.name, select: () => onRemove(entry) },
+        failure: entry.failure ? pluginStartFailure(entry, generation) : undefined,
+      };
+    }),
+  );
+  const plugins = $derived(orderTableRows([...programs, ...rows], order));
 </script>
 
 <TablePanel
-  title={label}
+  title="Plugins"
   description="Installed plugins and their current activation state."
   columnCount={6}
   rowCount={plugins.length}
@@ -78,7 +127,11 @@
       {@attach (element) => activateTableRow(element, () => row.onOpenSettings?.())}
     >
       <td class="truncate px-4 font-medium" title={row.name}>{row.name}</td>
-      <td class="px-2">{@render row.badge?.()}</td>
+      <td class="px-2">
+        {#if row.badge}
+          <Badge variant={row.badge}>{row.status}</Badge>
+        {/if}
+      </td>
       <td class="px-2 text-xs">{row.placement ?? ""}</td>
       <td class="truncate px-2 text-xs text-muted-foreground" title={row.source}>{row.source}</td>
       <td class="px-2">
@@ -103,13 +156,43 @@
           >
             <Settings2 />
           </Button>
-          {@render row.trailing?.()}
+          {#if row.reload}
+            <Button
+              aria-label={`Reload ${row.name}`}
+              title="Reload"
+              size="icon-sm"
+              variant="ghost"
+              disabled={row.reload.disabled}
+              onclick={row.reload.select}
+            >
+              <RotateCw />
+            </Button>
+          {/if}
+          {#if row.remove}
+            <Button
+              aria-label={`Delete ${row.name}`}
+              title="Delete"
+              size="icon-sm"
+              variant="ghost"
+              disabled={row.remove.disabled}
+              onclick={row.remove.select}
+            >
+              <Trash2 />
+            </Button>
+          {/if}
         </div>
       </td>
     </tr>
-    {#if row.alert}
+    {#if row.failure}
       <tr>
-        <td colspan="6" class="px-4 py-3">{@render row.alert()}</td>
+        <td colspan="6" class="px-4 py-3">
+          <ErrorCard
+            failure={row.failure}
+            onRetry={row.enabled?.checked ? row.reload?.select : undefined}
+            retryLabel="Restart Plugin"
+            retryDisabled={reloading}
+          />
+        </td>
       </tr>
     {/if}
   {/each}

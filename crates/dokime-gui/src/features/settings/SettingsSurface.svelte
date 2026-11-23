@@ -1,6 +1,5 @@
 <!-- Dokime — SPDX-License-Identifier: Apache-2.0 -->
 <script lang="ts">
-  import type { Snippet } from "svelte";
   import type { ConnectedSession, NativeSession } from "../../app/native-session/session";
   import ErrorCard from "../../components/ErrorCard.svelte";
   import Button from "../../components/ui/Button.svelte";
@@ -14,6 +13,7 @@
   import AboutSection from "./sections/AboutSection.svelte";
   import DiagnosticsSettings from "./sections/DiagnosticsSettings.svelte";
   import EngineSection from "./sections/EngineSection.svelte";
+  import PluginsSection from "./sections/PluginsSection.svelte";
   import RemoteSection from "./sections/RemoteSection.svelte";
   import SecretsSection from "./sections/SecretsSection.svelte";
   import SettingsAdvancedSwitch from "./SettingsAdvancedSwitch.svelte";
@@ -26,28 +26,20 @@
     mode,
     selected,
     label,
-    error,
-    failure,
-    loading,
-    retry,
     hash,
     clearHash,
-    legacySection,
     choose,
+    openPluginSettings,
   }: {
     session: ConnectedSession;
     owner: NativeSession;
     mode: NavigationMode;
     selected?: SettingsSectionId;
     label: string;
-    error: string | null;
-    failure?: unknown;
-    loading: boolean;
-    retry: () => void;
     hash: string;
     clearHash: () => void;
-    legacySection?: Snippet;
     choose: (section: SettingsSectionId) => void;
+    openPluginSettings: (id: string) => void;
   } = $props();
   const section = $derived(selected ?? DEFAULT_SETTINGS_SECTION);
   const advanced = storeState(useUiStore, (state) => state.showAdvancedSettings);
@@ -78,7 +70,7 @@
   {/if}
   {#if showSection}
     <div class="min-w-0 flex-1 p-4">
-      <div class="grid w-full min-w-0 grid-cols-12 content-start gap-4 [&>*]:col-span-12 [&>.contents>*]:col-span-12">
+      <div class="grid w-full min-w-0 grid-cols-12 content-start gap-4 [&>*]:col-span-12">
         {#if section === "backends"}
           <BackendsTable {owner} />
         {:else if section === "engine"}
@@ -95,19 +87,13 @@
           {#key session.identity.generation}
             <SecretsSection {session} {hash} {clearHash} />
           {/key}
-        {:else if legacySection}
-          {@render legacySection()}
+        {:else if section === "plugins"}
+          <PluginsSection {session} {label} openSettings={openPluginSettings} />
         {:else}
           <SettingsCard title="Settings">
-            {#if loading}
-              <div class="px-4 py-3 text-sm text-muted-foreground">Loading Settings…</div>
-            {:else if error}
-              <div class="grid justify-items-stretch gap-3 px-4 py-3">
-                <ErrorCard failure={failureOf(failure, "Settings Unavailable")} onRetry={retry} />
-              </div>
-            {:else}
-              <ErrorCard failure={failureOf("This settings section is unavailable.", "Settings Unavailable", "missing-settings-section")} />
-            {/if}
+            <ErrorCard
+              failure={failureOf("Choose a section from Settings Sections.", "Settings Unavailable", "missing-settings-section")}
+            />
           </SettingsCard>
         {/if}
       </div>
