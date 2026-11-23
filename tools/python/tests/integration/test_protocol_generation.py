@@ -13,7 +13,6 @@
 
 # Standard Library Imports
 import hashlib
-import json
 import runpy
 import shutil
 import tempfile
@@ -80,15 +79,18 @@ class GenerationContracts(unittest.TestCase):
         for path in (product, library):
             path.parent.mkdir(parents=True)
             path.write_text("first")
-        # Cargo Resolves the Library's Protocol Crate, Here From a Local Patch.
-        manifest = scratch / "library/crates/harmos-protocol/Cargo.toml"
-        resolved = mock.Mock(stdout=json.dumps({"packages": [{"name": "harmos-protocol", "manifest_path": str(manifest)}]}))
-        with mock.patch.object(protocol.subprocess, "run", return_value=resolved):
-            output = protocol.inputs(scratch)
-            self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "first")
-            library.write_text("second")
-            product.unlink()
-            protocol.inputs(scratch)
+        # A Workspace Patch Points the Library at a Local Checkout Whose Repository Owns proto/harmos.
+        (scratch / "Cargo.toml").write_text(
+            "[workspace.dependencies]\n"
+            'harmos = { git = "https://example.test/harmos", rev = "0000000" }\n'
+            '[patch."https://example.test/harmos"]\n'
+            'harmos = { path = "library/sdk/rust" }\n'
+        )
+        output = protocol.inputs(scratch)
+        self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "first")
+        library.write_text("second")
+        product.unlink()
+        protocol.inputs(scratch)
         self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "second")
         self.assertFalse((output / "dokime/model/v1/value.proto").exists())
 
