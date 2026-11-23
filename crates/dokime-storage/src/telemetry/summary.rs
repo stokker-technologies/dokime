@@ -312,10 +312,11 @@ impl Grid {
         if self.count == 0 {
             return Vec::new();
         }
+        // Equal Values Fill One Unit-Wide Bin.
         if self.bins.is_empty() {
             return vec![GridBin {
                 lower: self.low,
-                upper: self.low,
+                upper: self.low + 1.0,
                 count: self.count,
             }];
         }
