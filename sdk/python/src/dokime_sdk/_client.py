@@ -21,6 +21,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 # Third Party Imports
 import harmos
 from google.protobuf import descriptor_pb2, json_format, message_factory
+from google.protobuf.descriptor import Descriptor
 from grpc import StatusCode
 from grpc.aio import AioRpcError
 from harmos import CLASSIFICATION_INVALID, CLASSIFICATION_PERMANENT, CLASSIFICATION_REFUSED, OperationError
@@ -131,14 +132,7 @@ class Client:
         )
         return Cycle._bind(self, reply.cycle)
 
-    async def operation(self, operation_id: str, payload: dict[str, Any] | None = None, *, execution: str | None = None) -> dict[str, Any]:
-        if execution is not None:
-            # Invocations.Create Carries Only Operation, Fingerprint and Payload; the Host Runs It Outside Every Execution.
-            raise refused(
-                operation_id,
-                f"{operation_id}: This Host Cannot Scope Client Calls to Execution {execution}",
-                "Call the Operation From a Plugin Step Running in That Execution",
-            )
+    async def operation(self, operation_id: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         try:
             discovered = await call(operation_id, self._transport.operations.get(operation_id))
         except OperationError as error:
@@ -159,7 +153,8 @@ class Client:
             raise failure
         types = pool(descriptor_pb2.FileDescriptorSet.FromString(protobuf.descriptors), operation_id)
         request = message_factory.GetMessageClass(types.FindMessageTypeByName(protobuf.request))()
-        response = message_factory.GetMessageClass(types.FindMessageTypeByName(protobuf.response))
+        descriptor = types.FindMessageTypeByName(protobuf.response)
+        response = message_factory.GetMessageClass(descriptor)
         value: Any = {} if payload is None else payload
         try:
             if protobuf.request in _SCALAR_MESSAGES:
@@ -184,6 +179,7 @@ class Client:
             encoded = self._transport.invocations.create(operation_id, contract.fingerprint, request.SerializeToString())
             reply = response.FromString(await call(operation_id, encoded))
         result = json_format.MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
+        _complete(descriptor, result)
         return result if isinstance(result, dict) and protobuf.response not in _SCALAR_MESSAGES else {"value": result}
 
     def on_prompt(self, handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None) -> None:
@@ -882,6 +878,27 @@ class Execution:
 # === Public Functions === #
 
 # === Private Functions === #
+
+
+def _complete(descriptor: Descriptor, value: object) -> None:
+    # Unset Fields Read as null, Matching the Host's JSON for Plugin Calls.
+    if descriptor.full_name.startswith("google.protobuf.") or not isinstance(value, dict):
+        return
+    for field in descriptor.fields:
+        item = value.setdefault(field.name, None)
+        nested = field.message_type
+        if nested is None:
+            continue
+        if nested.GetOptions().map_entry:
+            mapped = nested.fields_by_name["value"].message_type
+            if mapped is not None:
+                for entry in (item or {}).values():
+                    _complete(mapped, entry)
+        elif field.is_repeated:
+            for entry in item or ():
+                _complete(nested, entry)
+        else:
+            _complete(nested, item)
 
 
 def _cleanup_failure(error: BaseException) -> Failure:
