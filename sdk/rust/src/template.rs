@@ -34,7 +34,7 @@ use crate::plugin::{
 use crate::wire::model;
 use crate::{
     Context, Error, Message, Observer, Payload, Record, Result, Stream,
-    authoring::{build_identifier, code_name},
+    authoring::{build_identifier, code_name, plugin_member},
     context::Executions,
     data,
     message::Wire,
@@ -54,6 +54,8 @@ use dokime_protocol::plugin::{
 /* === Type Aliases === */
 
 pub(crate) type Materializer = Arc<dyn Fn(TestCase, &HashMap<String, Value>) -> Result<TestCase> + Send + Sync>;
+// A Stream or Observer Registration With Its Stream and Row Message.
+pub(crate) type Producer = (String, String, Registration);
 
 /* === Structs === */
 
@@ -83,6 +85,7 @@ pub struct Template {
     streams: Vec<String>,
     external_streams: HashSet<String>,
     registrations: Vec<Registration>,
+    producers: Vec<Producer>,
     materialize: Option<Materializer>,
     samplers: Vec<Sampler>,
     errors: Vec<String>,
@@ -100,6 +103,7 @@ pub(crate) struct Parts {
     pub criteria: Vec<(String, Criterion)>,
     pub materialize: Option<Materializer>,
     pub registrations: Vec<Registration>,
+    pub producers: Vec<Producer>,
     pub samplers: Vec<Sampler>,
 }
 
@@ -217,6 +221,7 @@ impl Template {
             streams: Vec::new(),
             external_streams: HashSet::new(),
             registrations: Vec::new(),
+            producers: Vec::new(),
             materialize: None,
             samplers: Vec::new(),
             errors: Vec::new(),
@@ -282,14 +287,6 @@ impl Template {
             metadata.identifier = build_identifier(&identifier, &metadata.identifier, false);
             prompt.template = identifier.clone();
         }
-        for stream in &mut self.streams {
-            if !self.external_streams.contains(stream) {
-                *stream = build_identifier(&identifier, stream, false);
-            }
-        }
-        for sampler in &mut self.samplers {
-            sampler.stream = build_identifier(&identifier, &sampler.stream, false);
-        }
         if let Some(materialize) = self.materialize.take() {
             let identifier = identifier.clone();
             self.materialize = Some(Arc::new(move |mut case: TestCase, parameters: &HashMap<String, Value>| {
@@ -319,14 +316,6 @@ impl Template {
                 Ok(case)
             }));
         }
-        self.registrations = self
-            .registrations
-            .into_iter()
-            .map(|register| {
-                let identifier = identifier.clone();
-                Box::new(move |plugin, executions, _: &str| register(plugin, executions, &identifier)) as Registration
-            })
-            .collect();
         self
     }
 
@@ -354,12 +343,12 @@ impl Template {
     }
     pub fn stream<T: Message>(mut self, stream: Stream<T>) -> Self {
         self.streams.push(stream.identifier.clone());
-        self.registrations.push(stream.registration());
+        self.producers.push((stream.identifier.clone(), T::name(), stream.registration()));
         self
     }
     pub fn observer(mut self, observer: Observer) -> Self {
         self.samplers.push(observer.sampler.clone());
-        self.registrations.push(observer.registration());
+        self.producers.push((observer.sampler.stream.clone(), observer.sampler.name.clone(), observer.registration()));
         self
     }
     // Subscribe to an Already Declared Stream Without Registering a Second Producer.
@@ -407,9 +396,20 @@ impl Template {
         self
     }
 
-    pub(crate) fn parts(mut self) -> Result<Parts> {
+    pub(crate) fn parts(mut self, plugin: &str) -> Result<Parts> {
         if !self.errors.is_empty() {
             return Err(Error::Invalid(self.errors.join("; ")));
+        }
+        for stream in &mut self.streams {
+            if !self.external_streams.contains(stream) {
+                *stream = plugin_member(plugin, stream);
+            }
+        }
+        for sampler in &mut self.samplers {
+            sampler.stream = plugin_member(plugin, &sampler.stream);
+        }
+        for (stream, _, _) in &mut self.producers {
+            *stream = plugin_member(plugin, stream);
         }
         let identifier = self.definition.metadata.as_ref().expect("Template Metadata").identifier.clone();
         validate_names(
@@ -478,11 +478,15 @@ impl Template {
             criteria,
             materialize: self.materialize,
             registrations: self.registrations,
+            producers: self.producers,
             samplers: self.samplers,
         })
     }
 
-    pub(crate) fn register(self, mut plugin: plugin::Plugin, executions: Executions) -> Result<(TestCaseTemplate, plugin::Plugin)> {
+    // Templates Declaring the Same Plugin Stream Share Its First Registration.
+    pub(crate) fn register(
+        self, root: &str, mut plugin: plugin::Plugin, executions: Executions, streams: &mut HashMap<String, String>,
+    ) -> Result<(TestCaseTemplate, plugin::Plugin)> {
         let Parts {
             definition,
             case,
@@ -492,8 +496,9 @@ impl Template {
             criteria,
             materialize,
             registrations,
+            producers,
             samplers: _,
-        } = self.parts()?;
+        } = self.parts(root)?;
         let identifier = definition.metadata.as_ref().expect("Template Metadata").identifier.clone();
         for (operation, step) in steps {
             let store = executions.clone();
@@ -625,8 +630,20 @@ impl Template {
             ))
         })?;
         for register in registrations {
-            plugin = register(plugin, executions.clone(), "")?;
+            plugin = register(plugin, executions.clone(), root)?;
         }
+        let mut declared = HashMap::new();
+        for (stream, row, register) in producers {
+            match streams.get(&stream) {
+                Some(shared) if *shared != row => {
+                    return Err(Error::Invalid(format!("Declare Stream {stream}: Share One Row Message Across Templates")));
+                }
+                Some(_) => {}
+                None => plugin = register(plugin, executions.clone(), root)?,
+            }
+            declared.insert(stream, row);
+        }
+        streams.extend(declared);
         Ok((definition, plugin))
     }
 }
@@ -664,7 +681,7 @@ mod tests {
             .parameter(Parameter::flag("enabled", "Enabled").default(true))
             .parameter(Parameter::sweep("loads", "Loads", [80.0, 100.0]))
             .parameter(Parameter::numbers("ladder", "Ladder", [10.0, 20.0]).items(1..=8));
-        let parts = template.parts().unwrap();
+        let parts = template.parts("builders").unwrap();
         let values = parts.definition.parameters;
         assert_eq!((values[0].min, values[0].max), (Some(0.0), Some(300.0)));
         let literal = |index: usize| match values[index].expression.as_ref().unwrap().kind.as_ref().unwrap() {

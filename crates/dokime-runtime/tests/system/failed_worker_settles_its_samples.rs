@@ -146,11 +146,7 @@ async fn sealed(client: &Client, execution: &str) -> Result<(Termination, u64), 
     };
     let count = client
         .evidence
-        .statistics_with(
-            "execution.execution.boundary.boundary",
-            "value",
-            EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() },
-        )
+        .statistics_with("execution.boundary", "value", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() })
         .await?
         .statistics
         .unwrap()

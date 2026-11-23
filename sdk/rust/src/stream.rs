@@ -123,7 +123,7 @@ impl<T: Message> Stream<T> {
     }
     pub(crate) fn registration(self) -> Registration {
         Box::new(move |plugin, executions, prefix| {
-            let identifier = authoring::build_identifier(prefix, &self.identifier, false);
+            let identifier = authoring::plugin_member(prefix, &self.identifier);
             let stream = plugin::Stream::new(identifier).description(self.description);
             let stream = match self.producer {
                 Some(producer) => producer(stream, executions),
@@ -176,7 +176,7 @@ impl Observer {
         let sampler = Sampler::new::<T>(&identifier, Arc::new(Encoded(action.clone())));
         Self {
             register: Box::new(move |executions, prefix| {
-                let identifier = authoring::build_identifier(prefix, &identifier, false);
+                let identifier = authoring::plugin_member(prefix, &identifier);
                 let stream = plugin::Stream::<T>::new(identifier);
                 plugin::Observer::new(&stream, async move |transport: &plugin::Context| {
                     let context = if execution {
@@ -240,7 +240,7 @@ impl Observer {
         );
         Self {
             register: Box::new(move |executions, prefix| {
-                let identifier = authoring::build_identifier(prefix, &identifier, false);
+                let identifier = authoring::plugin_member(prefix, &identifier);
                 let stream = plugin::Stream::<T>::new(identifier);
                 plugin::Observer::window(&stream, async move |transport: &plugin::Context, window: &plugin::Window| {
                     let context = if execution {

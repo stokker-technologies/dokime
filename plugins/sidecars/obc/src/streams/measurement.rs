@@ -30,7 +30,8 @@ use dokime::{Document, FieldReference, Result, model};
 
 /* === Constants === */
 
-pub const SAMPLES: &str = "measurement";
+// Every Charger Procedure Shares the One Plugin Measurement Stream.
+pub const SAMPLES: &str = "obc.measurement";
 
 /* === Macros === */
 
@@ -90,7 +91,7 @@ pub fn catalog(template: dokime::templates::Template) -> dokime::templates::Temp
 }
 
 async fn measure(ctx: &Context) -> Result<Measurement> {
-    if !suites::captures(ctx, &ctx.resolve(SAMPLES)?) {
+    if !suites::captures(ctx, SAMPLES) {
         return Ok(Measurement::default());
     }
     let (index, reading, phase) = ctx.get::<Bench>()?.sample();
@@ -98,26 +99,26 @@ async fn measure(ctx: &Context) -> Result<Measurement> {
 }
 
 /// AC Waveforms Against Model Time and the Battery Charging Outputs.
-pub fn document(stream: &str, id: &str, title: &str) -> Document {
+pub fn document(id: &str, title: &str) -> Document {
     let mut waveforms = model::Section::new("AC Waveforms").id(format!("{id}.waveforms"));
     for (name, label, unit) in [("voltage_v", "Voltage", "V"), ("current_a", "Current", "A")] {
-        let chart = Plot::xy(FieldReference::new(stream).field(name))
+        let chart = Plot::xy(FieldReference::new(SAMPLES).field(name))
             .id(format!("{id}.{name}"))
             .label(label)
             .unit(unit)
-            .x(FieldReference::new(stream).field("elapsed_s"));
+            .x(FieldReference::new(SAMPLES).field("elapsed_s"));
         waveforms = waveforms.plot(chart);
     }
-    Document::new(title).id(format!("{id}.report")).section(waveforms).section(charging(stream, id))
+    Document::new(title).id(format!("{id}.report")).section(waveforms).section(charging(id))
 }
 
 /// Battery Voltage, Charging Current and AC Input Power Over Time.
-pub fn charging(stream: &str, id: &str) -> model::Section {
+pub fn charging(id: &str) -> model::Section {
     let mut section = model::Section::new("Battery Charging").id(format!("{id}.charging"));
     for (name, label, unit) in
         [("dc_voltage_v", "Battery Voltage", "V"), ("dc_current_a", "Charging Current", "A"), ("input_power_w", "AC Input Power", "W")]
     {
-        let chart = Plot::time_series(FieldReference::new(stream).field(name)).id(format!("{id}.{name}")).label(label).unit(unit);
+        let chart = Plot::time_series(FieldReference::new(SAMPLES).field(name)).id(format!("{id}.{name}")).label(label).unit(unit);
         section = section.plot(chart);
     }
     section

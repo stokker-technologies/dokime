@@ -33,7 +33,6 @@ use dokime::{Document, Error, Parameter, Result, Value, value};
 /* === Constants === */
 
 pub const TEMPLATE: &str = "obc.steady_state.three_phase";
-const SAMPLES: &str = "obc.steady_state.three_phase.measurement";
 
 /* === Macros === */
 
@@ -72,7 +71,7 @@ pub fn template() -> Template {
     )
 }
 pub fn document() -> Document {
-    measurement::document(SAMPLES, TEMPLATE, "Three Phase")
+    measurement::document(TEMPLATE, "Three Phase")
 }
 async fn initialize(ctx: &Context) -> Result<()> {
     let mut supply = read_supply(ctx)?;

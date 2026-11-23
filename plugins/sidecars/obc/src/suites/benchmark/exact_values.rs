@@ -30,7 +30,7 @@ use dokime::{Aggregate, Document, Error, FieldReference, Parameter, PromptArchet
 /* === Constants === */
 
 pub const TEMPLATE: &str = "obc.benchmark.exact_values";
-pub const METER: &str = "obc.benchmark.exact_values.meter";
+pub const METER: &str = "obc.meter";
 pub const CONFIRMATION: &str = "obc.benchmark.exact_values.confirmation_record";
 pub const CONFIRM: &str = "obc.benchmark.exact_values.confirm";
 pub const REGISTER: u64 = 1_152_921_504_606_847_975;

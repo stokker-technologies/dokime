@@ -81,8 +81,10 @@ public:
     ctx.log("Cleaned Up");
   }
   Temperature sample_temperature(Context &) {
+    // Approach the Chamber Target on Each Granted Sample.
+    celsius_ += (84.0 - celsius_) * 0.25;
     Temperature sample;
-    sample.set_celsius(limit_ > 0 ? limit_ - 1 : 0);
+    sample.set_celsius(celsius_);
     return sample;
   }
   CounterColumns sample_counter(Context &, const Window &window) {
@@ -97,7 +99,6 @@ public:
     *parameter.mutable_metadata() = metadata("limit", "Limit");
     parameter.set_type(VALUE_TYPE_NUMBER);
     parameter.mutable_expression()->mutable_literal()->set_number(85);
-    value.record(door);
     value.steps.push_back(Step::method<&ThermalTestTemplate::ramp>("Ramp to Target", "ramp", 2));
     value.steps.push_back(Step::method<&ThermalTestTemplate::hold>("Hold", "hold"));
     value.criteria.push_back(Criterion::method<&ThermalTestTemplate::within_limit>("Temperature Within Limit", "within_limit"));
@@ -114,6 +115,7 @@ public:
 
 private:
   double limit_ = 0;
+  double celsius_ = 23.0;
 };
 
 /* === Entry Point === */
@@ -123,6 +125,7 @@ int main() {
   try {
     auto value = ThermalTestTemplate::definition();
     Plugin plugin("thermal", "1.0.0", {{"thermal.thermal", {move(value)}, "Thermal"}});
+    plugin.record(ThermalTestTemplate::door);
     plugin.serve();
   } catch (const exception &error) {
     cerr << error.what() << '\n';

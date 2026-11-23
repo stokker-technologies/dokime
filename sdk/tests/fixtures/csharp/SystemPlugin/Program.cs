@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Concurrent;
 using Dokime;
 using Dokime.Templates;
 using ThermalStory;
@@ -8,7 +9,9 @@ await new ThermalPlugin().RunAsync();
 
 public sealed class ThermalPlugin : Dokime.Plugin
 {
+  public static readonly Record<Door> Door = new("Door Check", "door");
   public override string Version => "1.0.0";
+  public override IReadOnlyList<IRecord> Records => [Door];
   public override IReadOnlyList<Type> Suites => [typeof(ThermalSuite)];
   public override IReadOnlyList<Delegate> Operations => [(Func<Dokime.Operations.Context, byte[], Task<byte[]>>)Echo];
   public override IReadOnlyList<Type> Settings => [typeof(ThermalSettings)];
@@ -34,11 +37,12 @@ public sealed class ThermalSuite : Suite
 
 public sealed class CycleTestTemplate : TestTemplate
 {
-  public static readonly Record<Door> Door = new("Door Check");
+  private static readonly ConcurrentDictionary<string, double> Chamber = new();
   public static readonly Dokime.Templates.Stream<Temperature> Temperature = new();
   public static readonly Dokime.Templates.Stream<Counter> Counter = new();
+  // Approach the Chamber Target on Each Granted Sample.
   public static readonly Observer<Temperature> TemperatureObserver = new(Temperature, TimeSpan.FromSeconds(1), context =>
-    Task.FromResult(new Temperature { Celsius = (double)context.Parameters["limit"]! - 1 }));
+    Task.FromResult(new Temperature { Celsius = Chamber.AddOrUpdate(context.Execution, 23.0 + (84.0 - 23.0) * 0.25, (_, celsius) => celsius + (84.0 - celsius) * 0.25) }));
   public static readonly WindowObserver<Counter, CounterColumns> CounterObserver = new(Counter, TimeSpan.FromMilliseconds(1), (context, window) =>
   {
     var columns = new CounterColumns();
@@ -56,7 +60,7 @@ public sealed class CycleTestTemplate : TestTemplate
   public async Task Hold(Context context)
   {
     var answer = await context.PromptAsync("Is the Door Closed?", ["Yes", "No"]);
-    await context.RecordAsync(Door, new Door { Closed = answer == "Yes" });
+    await context.RecordAsync(ThermalPlugin.Door, new Door { Closed = answer == "Yes" });
     await context.SleepAsync(TimeSpan.FromMilliseconds(2500));
     await context.ProgressAsync(2, 2, "Hold");
   }
@@ -65,13 +69,17 @@ public sealed class CycleTestTemplate : TestTemplate
   public async Task<bool> WithinLimit(Context context)
   {
     var statistics = await context.StatisticsAsync(Temperature, "celsius", step: Hold);
-    var record = await context.Records(Door, step: Hold).LastAsync();
+    var record = await context.Records(ThermalPlugin.Door, step: Hold).LastAsync();
     var withinLimit = statistics.Count > 0 && statistics.Max is double maximum
       && maximum <= (double)context.Parameters["limit"]!;
     return withinLimit && record.Closed;
   }
 
-  public override Task CleanupAsync(Context context, CancellationToken cancellationToken = default) => context.LogAsync("Cleaned Up", cancellationToken: cancellationToken);
+  public override Task CleanupAsync(Context context, CancellationToken cancellationToken = default)
+  {
+    Chamber.TryRemove(context.Execution, out _);
+    return context.LogAsync("Cleaned Up", cancellationToken: cancellationToken);
+  }
 }
 
 public sealed class LoadTestTemplate : TestTemplate

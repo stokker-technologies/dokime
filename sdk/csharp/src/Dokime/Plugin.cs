@@ -84,9 +84,9 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     if (failures.Count > 0)
       throw new AggregateException("Close Plugin Resources: Resolve the Release Failures, Then Restart", failures);
   }
-  public IReadOnlyList<SuiteBinding> Suites { get; } = BindSuites(suites);
+  public IReadOnlyList<SuiteBinding> Suites { get; } = BindSuites(identifier, suites);
 
-  private static IReadOnlyList<SuiteBinding> BindSuites(SuiteBinding[] suites)
+  private static IReadOnlyList<SuiteBinding> BindSuites(string plugin, SuiteBinding[] suites)
   {
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
     var bound = new List<SuiteBinding>();
@@ -94,7 +94,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     {
       var identity = Identifiers.Build("", suite.Metadata.Identifier);
       Unique(identifiers, identity);
-      var templates = suite.Templates.Select(template => template.Bind(identity)).ToArray();
+      var templates = suite.Templates.Select(template => template.Bind(plugin, identity)).ToArray();
       var templateIdentifiers = new HashSet<string>(StringComparer.Ordinal);
       foreach (var template in templates)
         Unique(templateIdentifiers, template.Definition.Metadata.Identifier);

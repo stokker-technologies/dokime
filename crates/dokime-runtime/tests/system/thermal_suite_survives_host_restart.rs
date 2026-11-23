@@ -128,10 +128,8 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                         RunState::Sealed
                     ]
                 );
-                let temperatures =
-                    snapshot.samples.iter().filter(|sample| sample.stream == "thermal.thermal.cycle.temperature").collect::<Vec<_>>();
-                let counters =
-                    snapshot.samples.iter().filter(|sample| sample.stream == "thermal.thermal.cycle.counter").collect::<Vec<_>>();
+                let temperatures = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.temperature").collect::<Vec<_>>();
+                let counters = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.counter").collect::<Vec<_>>();
                 assert_eq!(snapshot.samples.len(), 2502);
                 assert_eq!(temperatures.len(), 2);
                 assert_eq!(counters.len(), 2500);
@@ -145,7 +143,7 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                 );
                 assert!(snapshot.samples.iter().all(|sample| sample.receipt_ns >= sample.source_ns));
                 assert!(snapshot.samples.windows(2).all(|pair| pair[0].position < pair[1].position));
-                assert_eq!(snapshot.records("thermal.thermal.cycle.door").len(), 1);
+                assert_eq!(snapshot.records("thermal.door").len(), 1);
                 assert_eq!(snapshot.logs()?.len(), 2);
                 assert_eq!(snapshot.progress()?.iter().map(|progress| progress.completed).collect::<Vec<_>>(), vec![1, 2]);
                 assert!(!snapshot.seal.is_empty());

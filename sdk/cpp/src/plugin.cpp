@@ -257,27 +257,30 @@ Plugin &Plugin::suite(Suite suite) {
     set<string> names;
     for (const auto &name : {"materialize", "initialize", "cleanup"})
       names.insert(build_identifier(name, {}, id));
-    auto bind = [&](const Declaration &member) {
-      const auto identity = build_identifier(member.name, member.identifier, id);
+    auto bind = [&](const Declaration &member, const string &owner) {
+      const auto identity = build_identifier(member.name, member.identifier, owner);
       if (!names.insert(identity).second || !bindings->identifiers.emplace(member.key, identity).second)
         throw invalid_argument("Build Plugin: Give Every Template Member a Unique Declaration and Identifier: " + identity);
     };
     for (const auto &step : value.steps) {
-      bind(step);
+      bind(step, id);
       if (!step.run || step.retries == numeric_limits<uint32_t>::max())
         throw invalid_argument("Declare Step: Supply a Handler and a Smaller Retry Count");
     }
     for (const auto &criterion : value.criteria) {
-      bind(criterion);
+      bind(criterion, id);
       if (!criterion.evaluate)
         throw invalid_argument("Declare Criterion: Supply a Handler");
     }
     for (const auto &record : value.records)
-      bind(record.declaration);
-    for (const auto &stream : value.streams)
-      bind(stream.declaration);
+      bind(record.declaration, id);
+    // Streams Belong to the Plugin; an Identifier Already Under the Plugin Stays as Written.
+    for (const auto &stream : value.streams) {
+      const auto &identifier = stream.declaration.identifier;
+      bind(stream.declaration, identifier && identifier->starts_with(identifier_ + ".") ? string() : identifier_);
+    }
     for (const auto &prompt : value.prompts)
-      bind(prompt);
+      bind(prompt, id);
     if (value.type != typeid(void))
       bindings_[value.type].emplace_back(suite_id, id);
     bound.push_back(move(bindings));

@@ -488,6 +488,17 @@ impl Context {
         Ok(build_identifier(&run.template, local, false))
     }
 
+    // Streams Belong to the Plugin: Select the One Frozen Case Stream Named by the Identifier.
+    fn stream(&self, local: &str) -> Result<String> {
+        let suffix = format!(".{local}");
+        let mut streams = self.test_case()?.streams.iter().filter(|stream| *stream == local || stream.ends_with(&suffix));
+        match (streams.next(), streams.next()) {
+            (Some(stream), None) => Ok(stream.clone()),
+            (Some(_), Some(_)) => Err(Error::Invalid(format!("Read Statistics: Name the Qualified Stream of {local}"))),
+            (None, _) => Err(Error::Invalid(format!("Read Statistics: Select a Stream of This Execution's Frozen Case: {local}"))),
+        }
+    }
+
     pub async fn prompt(&self, question: impl Into<Prompt>, choices: &[&str]) -> Result<String> {
         let mut prompt = question.into();
         if choices.iter().collect::<HashSet<_>>().len() != choices.len() {
@@ -563,11 +574,7 @@ impl Context {
         let response = self
             .operation_with(
                 EvidenceStatisticsRequest {
-                    stream: if self.test_case()?.streams.iter().any(|candidate| candidate == stream.as_ref()) {
-                        stream.as_ref().into()
-                    } else {
-                        self.resolve(stream.as_ref())?
-                    },
+                    stream: self.stream(stream.as_ref())?,
                     field: field.into(),
                     at: options.at,
                     step: if step.is_empty() { step } else { self.resolve(&step)? },

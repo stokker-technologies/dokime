@@ -77,6 +77,11 @@ pub(crate) fn build_identifier(parent: &str, name: &str, generated: bool) -> Str
     if parent.is_empty() { local } else { format!("{parent}.{local}") }
 }
 
+// Streams Belong to the Plugin; an Identifier Already Under the Plugin Stays as Written.
+pub(crate) fn plugin_member(plugin: &str, local: &str) -> String {
+    if local.starts_with(&format!("{plugin}.")) { local.into() } else { build_identifier(plugin, local, false) }
+}
+
 pub(crate) fn type_label<T>() -> String {
     let name = any::type_name::<T>().rsplit("::").next().unwrap_or_default();
     let name =

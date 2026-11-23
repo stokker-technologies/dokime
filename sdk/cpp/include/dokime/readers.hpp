@@ -12,6 +12,9 @@
 /* === Imports === */
 
 // Standard Library Imports
+#include <optional>
+#include <stdexcept>
+#include <string>
 
 // Third Party Imports
 
@@ -237,8 +240,19 @@ SamplesQuery<T> Execution::samples(const templates::Stream<T> &stream, const std
                                    std::pair<std::optional<std::chrono::sys_time<std::chrono::nanoseconds>>,
                                              std::optional<std::chrono::sys_time<std::chrono::nanoseconds>>>
                                        between) {
-  const auto identity = templates::build_identifier(stream.name, stream.identifier, state_->detail.admitted_template().identifier());
-  return samples<T>(identity, fields, between);
+  // Streams Belong to the Plugin: Select the One Frozen Case Stream Named by the Declaration.
+  const auto local = templates::build_identifier(stream.name, stream.identifier);
+  std::optional<std::string> identity;
+  for (const auto &candidate : state_->detail.origin().plugin_run().test_case().streams()) {
+    if (candidate != local && !candidate.ends_with("." + local))
+      continue;
+    if (identity)
+      throw std::invalid_argument("Read Samples: Name the Qualified Stream of " + local);
+    identity = candidate;
+  }
+  if (!identity)
+    throw std::invalid_argument("Read Samples: Select a Stream of This Execution's Frozen Case: " + local);
+  return samples<T>(*identity, fields, between);
 }
 template <class T>
 SamplesQuery<T> Execution::samples(const std::string &stream, const std::vector<std::string> &fields,

@@ -39,7 +39,7 @@ void bound_surface(dokime::Client &client, dokime::Execution &execution) {
   auto echo = client.operation(operation);
   const auto response = echo("request");
   const auto records = execution.records<bool>("example.capture.confirmation.confirmation").read();
-  const auto samples = execution.samples<bool>("example.capture.confirmation.samples").collect();
+  const auto samples = execution.samples<bool>("example.samples").collect();
   (void)response;
   (void)records;
   (void)samples;

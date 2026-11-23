@@ -36,7 +36,6 @@ use dokime::{Document, Error, Parameter, Result, Severity};
 
 pub const TEMPLATE: &str = "obc.transient.startup";
 pub const CHECKPOINT: &str = "obc.transient.startup.checkpoint";
-const SAMPLES: &str = "obc.transient.startup.measurement";
 
 // The Largest Reference Image the Evidence Step Attaches.
 const MOST_IMAGE_BYTES: u64 = 4 * 1024 * 1024;
@@ -113,7 +112,7 @@ pub fn template() -> Template {
 }
 
 pub fn document() -> Document {
-    measurement::document(SAMPLES, TEMPLATE, "Start-Up Sequence")
+    measurement::document(TEMPLATE, "Start-Up Sequence")
 }
 
 /* === Private Functions === */
@@ -243,7 +242,7 @@ async fn accepted(ctx: &Context) -> Result<bool> {
     let bench = ctx.get::<Bench>()?;
     let unfaulted = bench.fault().is_none();
     if ctx.parameter("continuous")? {
-        return Ok(unfaulted && sample_count(ctx, SAMPLES, "").await? > 0);
+        return Ok(unfaulted && sample_count(ctx, measurement::SAMPLES, "").await? > 0);
     }
     let completed = charger::completed();
     let Some(completed) = charger::last(ctx, &completed).await? else {
@@ -251,7 +250,7 @@ async fn accepted(ctx: &Context) -> Result<bool> {
     };
     // Check / Number of Saved Rows and Operator Acceptance
     let total = bench.samples_for(ctx.parameter("duration_s")?)?;
-    Ok(sample_count(ctx, SAMPLES, "").await? >= total && completed.accepted)
+    Ok(sample_count(ctx, measurement::SAMPLES, "").await? >= total && completed.accepted)
 }
 
 async fn cleanup(ctx: &Context) -> Result<()> {

@@ -30,7 +30,7 @@ use dokime::{Document, Parameter, Result};
 /* === Constants === */
 
 pub const TEMPLATE: &str = "obc.benchmark.observers";
-pub const SAMPLES: &str = "obc.benchmark.observers.samples";
+pub const SAMPLES: &str = "obc.samples";
 
 /* === Macros === */
 

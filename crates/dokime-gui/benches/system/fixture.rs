@@ -289,7 +289,7 @@ impl Fixture {
         // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
         let request = SnapshotsWatchRequest {
             requests: vec![PlotRequest {
-                stream: "bench.pipeline.capture.samples".into(),
+                stream: "desktop.benchmark.samples".into(),
                 y_keys: vec!["y1".into()],
                 scope: Some(EvidenceScope {
                     execution_id: Some(self.execution.clone()),
@@ -409,7 +409,7 @@ fn document(count: usize) -> Document {
         PlotKind::Histogram,
         PlotKind::BoxPlot,
     ];
-    let field = |name: &str| FieldReference::new("bench.pipeline.capture.samples").field(name);
+    let field = |name: &str| FieldReference::new("desktop.benchmark.samples").field(name);
     let cards = (0..count)
         .map(|index| {
             let kind = if index < count - 9 { PlotKind::TimeSeries } else { kinds[index - count + 9] };

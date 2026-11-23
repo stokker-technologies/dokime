@@ -368,7 +368,7 @@ internal sealed class Template(string identifier, string label)
     return prototype is null ? Resolve(declaration) : Resolve(prototype);
   }
 
-  internal Template Bind(string suite)
+  internal Template Bind(string plugin, string suite)
   {
     var bound = new Template(Identifiers.Build("", Definition.Metadata.Identifier, suite), Definition.Metadata.Label)
     {
@@ -401,7 +401,10 @@ internal sealed class Template(string identifier, string label)
         PromptDeclaration prompt => (prompt.Identifier, ""),
         _ => throw new ArgumentException("Bind Template: Supply a Typed Declaration")
       };
-      var identity = Identifiers.Build(names.GetValueOrDefault(declaration, codeName), explicitId, bound.Definition.Metadata.Identifier);
+      // Streams Belong to the Plugin; an Identifier Already Under the Plugin Stays as Written.
+      var identity = declaration is not IStream ? Identifiers.Build(names.GetValueOrDefault(declaration, codeName), explicitId, bound.Definition.Metadata.Identifier)
+        : explicitId?.StartsWith($"{plugin}.", StringComparison.Ordinal) == true ? explicitId
+        : Identifiers.Build(names.GetValueOrDefault(declaration, codeName), explicitId, plugin);
       if (!unique.Add(identity))
         throw new ArgumentException($"Build Plugin: Rename Duplicate Declaration {identity}");
       bound.identifiers.Add(declaration, identity);

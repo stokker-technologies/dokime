@@ -229,6 +229,7 @@ impl Harness {
             criteria,
             materialize,
             registrations: _,
+            producers: _,
             samplers: owned,
         } = template;
         let identifier = definition.metadata.as_ref().map(|metadata| metadata.identifier.clone()).unwrap_or_default();
