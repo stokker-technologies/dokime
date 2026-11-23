@@ -93,21 +93,7 @@ class FrozenSchemaCache:
         types = await self.get(client, detail)
         digest = detail.schemas.digest
         if digest not in self._pools:
-            pool = descriptor_pool.DescriptorPool()
-            pending = {item.name: item for item in types.file}
-            added: set[str] = set()
-            while pending:
-                ready = [item for item in pending.values() if all(dependency in added for dependency in item.dependency)]
-                if not ready:
-                    raise invalid("executions.schemas.get", "Decode Evidence: Missing or Cyclic Descriptor Dependencies")
-                for item in ready:
-                    try:
-                        pool.Add(item)
-                    except (TypeError, ValueError) as error:
-                        raise invalid("executions.schemas.get", "The Frozen Descriptor Set Is Invalid") from error
-                    added.add(item.name)
-                    del pending[item.name]
-            self._pools[digest] = pool
+            self._pools[digest] = pool(types, "executions.schemas.get")
         bindings = {record.record_type: record.message_name for record in detail.schemas.records}
         bindings.update({stream.stream: stream.message_name for stream in detail.schemas.streams})
         if name not in bindings or not bindings[name]:
@@ -123,6 +109,25 @@ class FrozenSchemaCache:
 
 
 # === Public Functions === #
+
+
+def pool(types: descriptor_pb2.FileDescriptorSet, operation: str) -> descriptor_pool.DescriptorPool:
+    result = descriptor_pool.DescriptorPool()
+    pending = {item.name: item for item in types.file}
+    added: set[str] = set()
+    while pending:
+        ready = [item for item in pending.values() if all(dependency in added for dependency in item.dependency)]
+        if not ready:
+            raise invalid(operation, "Read Descriptors: Missing or Cyclic Descriptor Dependencies")
+        for item in ready:
+            try:
+                result.Add(item)
+            except (TypeError, ValueError) as error:
+                raise invalid(operation, "Read Descriptors: The Descriptor Set Is Invalid") from error
+            added.add(item.name)
+            del pending[item.name]
+    return result
+
 
 # === Private Functions === #
 

@@ -15,14 +15,16 @@ import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from importlib.metadata import version
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 # Third Party Imports
 import harmos
+from google.protobuf import descriptor_pb2, json_format, message_factory
 from grpc import StatusCode
 from grpc.aio import AioRpcError
-from harmos import CLASSIFICATION_PERMANENT, CLASSIFICATION_REFUSED, OperationError
+from harmos import CLASSIFICATION_INVALID, CLASSIFICATION_PERMANENT, CLASSIFICATION_REFUSED, OperationError
+from harmos._client_transport import unary
 from harmos._wire.model.v1.failure_pb2 import Failure
 from harmos.plugin import Endpoint
 
@@ -34,7 +36,7 @@ from ._evidence import RecordsQuery, SamplesQuery
 from ._generated import client_types
 from ._generated.shared import MapValue
 from ._payloads import Payload
-from ._schemas import FrozenSchemaCache
+from ._schemas import FrozenSchemaCache, pool
 from ._transfers import download, publish_artifact, verify_archive
 from ._transport import call, chain, invalid, refused, transport_error
 from ._values import (
@@ -62,6 +64,27 @@ if TYPE_CHECKING:
 # === Public Exports === #
 
 # === Constants === #
+
+# Protobuf JSON Maps These Roots to Bare Values, So Payloads Carry Them as {"value": ...}, Like Plugin Calls.
+_SCALAR_MESSAGES = frozenset(
+    f"google.protobuf.{name}"
+    for name in (
+        "DoubleValue",
+        "FloatValue",
+        "Int64Value",
+        "UInt64Value",
+        "Int32Value",
+        "UInt32Value",
+        "BoolValue",
+        "StringValue",
+        "BytesValue",
+        "Timestamp",
+        "Duration",
+        "FieldMask",
+        "Value",
+        "ListValue",
+    )
+)
 
 # === Types === #
 
@@ -107,6 +130,61 @@ class Client:
             "cycles.create", self._transport.cycles.create([], Metadata(label=label), False, "", request_id=identity), identity
         )
         return Cycle._bind(self, reply.cycle)
+
+    async def operation(self, operation_id: str, payload: dict[str, Any] | None = None, *, execution: str | None = None) -> dict[str, Any]:
+        if execution is not None:
+            # Invocations.Create Carries Only Operation, Fingerprint and Payload; the Host Runs It Outside Every Execution.
+            raise refused(
+                operation_id,
+                f"{operation_id}: This Host Cannot Scope Client Calls to Execution {execution}",
+                "Call the Operation From a Plugin Step Running in That Execution",
+            )
+        try:
+            discovered = await call(operation_id, self._transport.operations.get(operation_id))
+        except OperationError as error:
+            if error.value.code != StatusCode.NOT_FOUND.name:
+                raise
+            failure = refused(
+                operation_id, f"{operation_id}: The Host Serves No Such Operation", "Correct the Identifier or Register Its Plugin"
+            )
+            failure.value.code = "operation_not_found"
+            raise failure from error
+        contract = discovered.contract
+        protobuf = contract.protobuf
+        if not contract.HasField("protobuf") or protobuf.HasField("input") or protobuf.HasField("output") or contract.grpc.managed:
+            failure = refused(
+                operation_id, f"{operation_id}: Only Unary Protobuf Contracts Take a Dict", "Use a Typed Client for This Operation"
+            )
+            failure.value.code = "typed_client_required"
+            raise failure
+        types = pool(descriptor_pb2.FileDescriptorSet.FromString(protobuf.descriptors), operation_id)
+        request = message_factory.GetMessageClass(types.FindMessageTypeByName(protobuf.request))()
+        response = message_factory.GetMessageClass(types.FindMessageTypeByName(protobuf.response))
+        value: Any = {} if payload is None else payload
+        try:
+            if protobuf.request in _SCALAR_MESSAGES:
+                if value.keys() != {"value"}:
+                    raise json_format.ParseError('Supply the Scalar Request as {"value": ...}')
+                value = value["value"]
+            json_format.ParseDict(value, request)
+        except json_format.ParseError as error:
+            raise OperationError(
+                Failure(
+                    classification=CLASSIFICATION_INVALID,
+                    code="invalid_request",
+                    message=f"{operation_id}: {error}",
+                    action=f"Correct the Request to Match {protobuf.request}",
+                    operation=operation_id,
+                )
+            ) from error
+        if contract.HasField("grpc") and discovered.grpc_available:
+            path = f"/{contract.grpc.package}.{contract.grpc.service}/{contract.grpc.method}"
+            reply = await call(operation_id, unary(self._transport._channel, path, request, response, action=operation_id))
+        else:
+            encoded = self._transport.invocations.create(operation_id, contract.fingerprint, request.SerializeToString())
+            reply = response.FromString(await call(operation_id, encoded))
+        result = json_format.MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
+        return result if isinstance(result, dict) and protobuf.response not in _SCALAR_MESSAGES else {"value": result}
 
     def on_prompt(self, handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None) -> None:
         if self._close_task is not None:
