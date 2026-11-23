@@ -27,6 +27,7 @@ import {
 } from "@/lib/api/native-evidence";
 import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 import type { NativeDocumentCapture } from "../../lib/api/native-document-session";
+import { isHostReopen } from "../../lib/rpc/errors";
 import { mergeDocumentProgress } from "@/features/cycle/document-query-model";
 import { workflowQueryKeys } from "./workflow-query-keys";
 
@@ -202,6 +203,7 @@ export function holdRecordTail(
   const follow = async () => {
     while (!stopped && session.isCurrent()) {
       const tail = queryClient.getQueryData<RecordTail>(queryKey);
+      let reopen = false;
       try {
         stream = await openStream(session, scope, cursor ?? tail?.cursor);
         if (stopped) {
@@ -224,12 +226,16 @@ export function holdRecordTail(
             frame ??= schedule(flush);
           }
         }
-      } catch {
-        // The stream failed: the tail is re-read below and followed again.
+      } catch (error) {
+        // A host deadline resumes from the cursor at once; any other end re-reads the tail below.
+        reopen = isHostReopen(error);
       }
       stream = undefined;
       if (stopped || !session.isCurrent()) {
         return;
+      }
+      if (reopen) {
+        continue;
       }
       flush();
       await queryClient.invalidateQueries({ queryKey, exact: true });

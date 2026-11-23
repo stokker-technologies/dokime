@@ -8,6 +8,7 @@ import type { PlotWindow } from "@/features/cycle/plot-window-state";
 import { fetchNativePlotPayloads, NATIVE_PLOT_MAX_REQUESTS, type NativePlotStream, openNativePlotStream } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import { failureOf } from "@/lib/notification-details";
+import { isHostReopen } from "@/lib/rpc/errors";
 import { toast } from "@/lib/notifications";
 import { cutKey, type Wire } from "@/lib/rpc/canonical";
 import { summaryInFlight } from "@/lib/statistics";
@@ -493,6 +494,14 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
         void consumeStream();
       };
 
+      // A Resync Or A Host Deadline Asks To Reopen At Once: Not A Failure, No Back-Off.
+      const reopenAtOnce = () => {
+        clearScheduledFlush();
+        flush();
+        reopenDelayMs = RECONNECT_INITIAL_MS;
+        reopen();
+      };
+
       const consumeStream = async () => {
         if (!active || controller.signal.aborted) {
           return;
@@ -537,17 +546,15 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
               await stream.cancel();
             }
           }
-          // A Resync Is the Host's Request to Reopen at Once: Not a Failure, No Back-Off.
           if (resync && active && nativeSession.identity.isCurrent()) {
-            clearScheduledFlush();
-            flush();
-            reopenDelayMs = RECONNECT_INITIAL_MS;
-            reopen();
+            reopenAtOnce();
             return;
           }
           markStreamEnded();
         } catch (exc: unknown) {
-          if (!isAbortError(exc)) {
+          if (isHostReopen(exc) && active && nativeSession.identity.isCurrent()) {
+            reopenAtOnce();
+          } else if (!isAbortError(exc)) {
             markStreamError(exc);
           }
         }

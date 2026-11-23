@@ -41,6 +41,7 @@ import { createPlotWindow } from "@/features/cycle/plot-window-state";
 import { plotWindowOptions, plotWindows } from "@/features/cycle/plot-window";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
+import { normalizeRpcError } from "@/lib/rpc/errors";
 import type { RuntimeAppearanceFrame, RuntimeThemeFamily } from "@/lib/types/appearance";
 import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
 import { jsonToNativeValue } from "@/lib/host/values";
@@ -210,6 +211,7 @@ function plotStream() {
   const messages: NativePlotStreamMessage[] = [];
   let wake: (() => void) | undefined;
   let ended = false;
+  let failure: unknown;
   return {
     push(...updates: NativePlotStreamUpdate[]) {
       messages.push({ updates });
@@ -219,16 +221,23 @@ function plotStream() {
       messages.push({ updates: [], resync: true });
       wake?.();
     },
+    fail(error: unknown) {
+      failure = error;
+      wake?.();
+    },
     cancel: vi.fn(async () => {
       ended = true;
       wake?.();
     }),
     async *[Symbol.asyncIterator]() {
       while (!ended) {
-        if (!messages.length) {
+        if (!messages.length && !failure) {
           await new Promise<void>((resolve) => {
             wake = resolve;
           });
+        }
+        if (failure) {
+          throw failure;
         }
         if (ended) {
           return;
@@ -582,7 +591,7 @@ test("Live Frames Coalesce and Resume", async () => {
   assert.equal(view.states().current.revision, 131);
 });
 
-test("A Watch Resync Reopens at Once Without a Failure Notice", async () => {
+test("A Resync or Host Deadline Reopens the Watch at Once Without a Failure Notice", async () => {
   const view = await mountPlotView();
   const initial = snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }));
   await updatePlots(async () => view.streams[0].push(...initial));
@@ -598,6 +607,19 @@ test("A Watch Resync Reopens at Once Without a Failure Notice", async () => {
   await updatePlots(async () => view.streams[1].push(...initial));
   await view.advance();
   assert.ok(Object.values(view.states()).every((state) => state.status === "live" && state.revision === 1));
+
+  // The Host Ends A Long Watch At Its Deadline With A Reopen Request; A Deadline Without One Stays A Failure.
+  const deadline = (message: string) => normalizeRpcError({ kind: "grpc", detail: { code: 4, message, details: [] } });
+  await updatePlots(async () => view.streams[1].fail(deadline("Plots.Snapshots.Watch: Reopen After Its Deadline")));
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(refreshFixture.watch.mock.calls.length, 3, "a host deadline reopens without a back-off");
+  assert.equal(refreshFixture.notify.mock.calls.length, 0);
+  assert.ok(Object.values(view.states()).every((state) => state.status === "live"));
+  await updatePlots(async () => view.streams[2].fail(deadline("The call ran out of time.")));
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(refreshFixture.watch.mock.calls.length, 3, "a real deadline waits for its back-off");
+  assert.equal(refreshFixture.notify.mock.calls.length, 1);
+  assert.ok(Object.values(view.states()).every((state) => state.status === "reconnecting"));
 });
 
 test("A Large Document Uses Independent Bounded Watches", async () => {

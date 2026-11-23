@@ -21,7 +21,7 @@ import { workflowQueryKeys } from "@/features/cycle/workflow-query-keys";
 import { cyclesHomeQueryKeys } from "@/features/cycles-home/cycles-query-options";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
-import { isClientCancellation } from "@/lib/rpc/errors";
+import { isClientCancellation, isHostReopen } from "@/lib/rpc/errors";
 import { type BackendOperationsPatch, hubStore } from "@/stores/hub-store";
 import {
   createEvidenceRefresh,
@@ -96,6 +96,8 @@ export function observeRuntime(session: ConnectedSession): () => void {
     if (!active || !session.identity.isCurrent()) {
       return;
     }
+    // A Host Deadline Reopens The Watch At Once, Silently.
+    let reopen = false;
     try {
       stream = await openNativeRuntimeStream({ ...session.identity, own: session.own }, undefined);
       if (!active || !session.identity.isCurrent()) {
@@ -126,7 +128,8 @@ export function observeRuntime(session: ConnectedSession): () => void {
         );
       }
     } catch (error: unknown) {
-      if (active && session.identity.isCurrent() && !isClientCancellation(error)) {
+      reopen = isHostReopen(error);
+      if (active && session.identity.isCurrent() && !isClientCancellation(error) && !reopen) {
         toast.error(failureOf(error, "Runtime Stream Failed"), { context: "background" });
         setHubState({
           error: failureOf(error, "Operation Failed").message,
@@ -135,8 +138,12 @@ export function observeRuntime(session: ConnectedSession): () => void {
     } finally {
       stream = undefined;
       if (active && session.identity.isCurrent()) {
-        setHubState({ connection: "reconnecting", operations: EMPTY_OPERATIONS });
-        retry = window.setTimeout(() => void connect(), GUI_RECONNECT_MS);
+        if (reopen) {
+          void connect();
+        } else {
+          setHubState({ connection: "reconnecting", operations: EMPTY_OPERATIONS });
+          retry = window.setTimeout(() => void connect(), GUI_RECONNECT_MS);
+        }
       }
     }
   };

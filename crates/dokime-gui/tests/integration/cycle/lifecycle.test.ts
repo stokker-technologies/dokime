@@ -504,6 +504,45 @@ test("A Client Cancellation Ends the Runtime Watch Without a Failure Notice", as
   }
 });
 
+test("A Host Deadline Reopens the Runtime Watch at Once, Silently", async () => {
+  vi.useFakeTimers();
+  const notify = vi.spyOn(toast, "error").mockImplementation(() => undefined as never);
+  onTestFinished(() => {
+    notify.mockRestore();
+    vi.useRealTimers();
+  });
+  const connected = { identity: session, own: () => () => {}, queryClient: new QueryClient() } as unknown as ConnectedSession;
+  const deadline = (message: string) => normalizeRpcError({ kind: "grpc", detail: { code: 4, message, details: [] } });
+  const endings = [
+    [deadline("Backend Overview Watch: Reopen After Its Deadline"), 2, 0, "connected"],
+    [deadline("The call ran out of time."), 1, 1, "reconnecting"],
+  ] as const;
+  for (const [ending, opens, notices, connection] of endings) {
+    notify.mockClear();
+    hubStore.getState().setHubState({ connection: "connecting" });
+    let opened = 0;
+    fixture.stream.mockImplementation(async () => ({
+      cancel: async () => {},
+      async *[Symbol.asyncIterator]() {
+        opened += 1;
+        if (opened === 1) {
+          throw ending;
+        }
+        await new Promise<void>(() => {});
+      },
+    }));
+    const dispose = observeRuntime(connected);
+    // No Timer Is Advanced: A Reopen Happens Without A Reconnect Delay.
+    for (let turn = 0; turn < 100; turn++) {
+      await Promise.resolve();
+    }
+    dispose();
+    assert.equal(opened, opens);
+    assert.equal(notify.mock.calls.length, notices);
+    assert.equal(hubStore.getState().connection, connection);
+  }
+});
+
 test("Imported and Unevaluated Outcomes Never Gain Run Capabilities", () => {
   assert.equal(
     projectExecutionStatus(ExecutionState.CLOSED, {

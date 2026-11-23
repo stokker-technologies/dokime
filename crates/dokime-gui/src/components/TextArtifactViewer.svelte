@@ -5,6 +5,7 @@
   import { untrack } from "svelte";
   import type { ConnectedSession } from "../app/native-session/session";
   import { failureOf } from "../lib/notification-details";
+  import { isHostReopen } from "../lib/rpc/errors";
   import ErrorCard from "./ErrorCard.svelte";
   import Button from "./ui/Button.svelte";
   import DialogContent from "./ui/DialogContent.svelte";
@@ -221,44 +222,52 @@
           await subscription.cancel();
           return;
         }
-        let jumped = false;
-        for await (const event of subscription) {
-          if (signal.aborted) {
-            return;
-          }
-          cursor = advanceFollowCursor(cursor, event);
-          if (event.kind === "metadata") {
-            const tail = followTailOffset(event.availableLength, TEXT_FILE_FOLLOW_TAIL_BYTES);
-            if (tailJump && tail > event.offset) {
-              cursor = connectingFollowCursor(event.identity, tail);
+        // A Tail Jump Or A Host Deadline Reopens The Follow From Its Cursor.
+        let reopen = false;
+        try {
+          for await (const event of subscription) {
+            if (signal.aborted) {
+              return;
+            }
+            cursor = advanceFollowCursor(cursor, event);
+            if (event.kind === "metadata") {
+              const tail = followTailOffset(event.availableLength, TEXT_FILE_FOLLOW_TAIL_BYTES);
+              if (tailJump && tail > event.offset) {
+                cursor = connectingFollowCursor(event.identity, tail);
+                tailJump = false;
+                reopen = true;
+                truncated = true;
+                break;
+              }
               tailJump = false;
-              jumped = true;
-              truncated = true;
-              break;
-            }
-            tailJump = false;
-            status = cursor.phase === "producing" ? { kind: "live", bytes: cursor.offset } : { kind: "loading" };
-          } else if (event.kind === "chunk") {
-            const decoded = decoder.decode(event.data, { stream: true });
-            text = appendBoundedText(text, decoded);
-            if (cursor.phase === "producing") {
-              status = { kind: "live", bytes: cursor.offset };
-            }
-          } else {
-            const rest = decoder.decode();
-            if (rest) {
-              text = appendBoundedText(text, rest);
+              status = cursor.phase === "producing" ? { kind: "live", bytes: cursor.offset } : { kind: "loading" };
+            } else if (event.kind === "chunk") {
+              const decoded = decoder.decode(event.data, { stream: true });
+              text = appendBoundedText(text, decoded);
+              if (cursor.phase === "producing") {
+                status = { kind: "live", bytes: cursor.offset };
+              }
+            } else {
+              const rest = decoder.decode();
+              if (rest) {
+                text = appendBoundedText(text, rest);
+              }
+              acceptedCursor = cursor;
+              status = { kind: event.phase, bytes: cursor.offset };
+              return;
             }
             acceptedCursor = cursor;
-            status = { kind: event.phase, bytes: cursor.offset };
-            return;
           }
-          acceptedCursor = cursor;
+        } catch (caught) {
+          if (!isHostReopen(caught)) {
+            throw caught;
+          }
+          reopen = true;
         }
         if (signal.aborted) {
           return;
         }
-        if (!jumped) {
+        if (!reopen) {
           throw new Error("The file stream ended before completion. Refresh to retry.");
         }
         await subscription.cancel();
