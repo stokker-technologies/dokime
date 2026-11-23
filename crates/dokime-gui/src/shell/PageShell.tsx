@@ -24,7 +24,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { cn } from "@/lib/utils";
 import { SvelteMount, useSvelteSlots } from "../components/SvelteMount";
 import PageHeader from "./PanelHeader.svelte";
-import DesktopPanelHeader from "./DesktopPanelHeader.svelte";
 import { usePageChrome } from "./page-chrome";
 import { pageContentClass } from "./page-layout";
 
@@ -86,13 +85,11 @@ export function PanelHeader({
   actions,
   overflow,
   onBack,
-  focused,
 }: {
   title: string;
   actions?: ReactNode;
   overflow?: ReactNode;
   onBack?: () => void;
-  focused?: boolean;
 }) {
   const menu = overflow ? (
     <DropdownMenu>
@@ -115,11 +112,7 @@ export function PanelHeader({
   });
   return (
     <>
-      {focused === undefined ? (
-        <SvelteMount component={PageHeader} props={{ title, onBack, ...rendered }} />
-      ) : (
-        <SvelteMount component={DesktopPanelHeader} props={{ title, onBack, focused, ...rendered }} />
-      )}
+      <SvelteMount component={PageHeader} props={{ title, onBack, ...rendered }} />
       {portals}
     </>
   );

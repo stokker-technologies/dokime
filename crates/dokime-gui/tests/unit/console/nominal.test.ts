@@ -30,7 +30,7 @@ import {
   RETAINED_RECORDS,
 } from "@/shell/console-buffer";
 import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, FOLLOW_SLACK_PX } from "@/shell/console-follow";
-import { useConsoleRecords } from "@/shell/console-records";
+import { observeConsoleRecords } from "@/shell/console-records";
 
 /* === Re-Exports === */
 
@@ -46,7 +46,6 @@ const EXECUTION_PAGE = consoleBufferKey({ cycleId: null, executionId: null, leve
 const BOTTOM = 2_000;
 
 const fixture = vi.hoisted(() => ({
-  effects: [] as (() => (() => void) | undefined)[],
   open: vi.fn(),
   notifyError: vi.fn(),
   current: true,
@@ -133,24 +132,11 @@ function stream() {
 }
 
 function ConsoleFixture(selection = { cycleId: "cycle-1", executionId: null as string | null, enabled: true, level: "info" as const }) {
-  useConsoleRecords(selection);
-  const cleanups = fixture.effects.splice(0).map((effect) => effect());
-  return () => {
-    for (const cleanup of cleanups) cleanup?.();
-  };
+  return observeConsoleRecords(fixture.session.identity, selection);
 }
 
 /* === Entry Point === */
 
-vi.mock("react", () => ({
-  useCallback: (callback: unknown) => callback,
-  useEffect: (effect: () => (() => void) | undefined) => fixture.effects.push(effect),
-}));
-vi.mock("zustand", () => ({
-  useStore: (store: typeof consoleRecordsStore, select: (state: ReturnType<typeof consoleRecordsStore.getState>) => unknown) =>
-    select(store.getState()),
-}));
-vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
 vi.mock("@/lib/api/native-logs", async (original) => ({
   ...(await original<typeof import("@/lib/api/native-logs")>()),
   openTraceStream: fixture.open,
@@ -160,7 +146,6 @@ vi.mock("@/lib/notifications", () => ({ toast: { error: fixture.notifyError } })
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("window", globalThis);
-  fixture.effects.length = 0;
   fixture.current = true;
   fixture.open.mockReset();
   fixture.notifyError.mockReset();

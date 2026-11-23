@@ -45,7 +45,7 @@
   const progressText = $derived(
     executionProgress ? executionProgressText(execution, executionProgress.steps, live, elapsed) : (progress ?? ""),
   );
-  const renameButton = buttonVariants({ size: "sm", variant: "outline", class: "ml-auto" });
+  const renameButton = cn(buttonVariants({ size: "sm", variant: "outline" }), "ml-auto");
 
   $effect(() =>
     observeElapsedSeconds(startedAt, running, (seconds) => {

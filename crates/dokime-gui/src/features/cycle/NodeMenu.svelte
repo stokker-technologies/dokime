@@ -4,6 +4,7 @@
   import { Archive, ArchiveRestore, Check, Ellipsis, LockKeyhole, Play, Plus, Repeat, RotateCcw, Settings2, Trash2 } from "lucide-svelte";
   import type { Snippet } from "svelte";
   import { buttonVariants } from "../../components/ui/button-variants";
+  import { cn } from "../../lib/utils";
   import { nodeMenuGroups, type NodeMenuItem } from "./cycle-workspace-model";
   import type { CycleMenu, ExecutionMenu } from "./node-menu";
 
@@ -48,7 +49,10 @@
 
 <DropdownMenu.Root>
   <DropdownMenu.Trigger
-    class={buttonVariants({ variant: "outline", size: "icon", class: "size-[var(--bar-control-height)]" })}
+    class={cn(buttonVariants({ variant: "outline", size: "icon" }), "size-[var(--bar-control-height)]")}
+    data-slot="button"
+    data-size="icon"
+    data-variant="outline"
     aria-label={menu.kind === "cycle" ? "Cycle Actions" : "Execution Actions"}
     ><Ellipsis /></DropdownMenu.Trigger
   >
