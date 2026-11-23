@@ -135,6 +135,7 @@ impl Store {
         self.sample_window(SampleWindow {
             execution,
             streams: &[stream.into()],
+            fields: &[],
             after: &[(stream.into(), after)],
             through,
             start_ns: i64::MIN,

@@ -357,7 +357,7 @@ impl Store {
                     start_ns: window.start_ns,
                     end_ns: window.end_ns,
                 },
-                &[],
+                window.fields,
                 |batch| {
                     for row in 0..batch.num_rows() {
                         let sample = codec.sample(&stream, &batch, row)?;
@@ -387,6 +387,7 @@ impl Store {
         self.sample_window(SampleWindow {
             execution,
             streams: &[],
+            fields: &[],
             after: &[],
             through,
             start_ns: i64::MIN,

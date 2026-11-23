@@ -17,6 +17,8 @@ pub(crate) mod composition;
 #[cfg(test)]
 mod record_fanout;
 mod root_claim;
+#[cfg(test)]
+mod sample_follow;
 mod state;
 mod status;
 #[cfg(test)]
