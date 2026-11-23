@@ -23,7 +23,7 @@
     resetKey?: string;
     viewportMode?: PlotViewportMode;
   } = $props();
-  // A revision that keeps its frame, such as a statistics update, reads no instant again.
+  // A revision that keeps its frame, such as a statistics update, neither reads nor cuts it again.
   const cartesian = $derived(plot.cartesian);
   const timeline = $derived(xyTimeline(cartesian));
   const incoming = $derived({ plot, timeline });
@@ -33,7 +33,8 @@
   );
   // The held series and frame come from one revision, so their columns stay paired.
   const shown = $derived(playback.data.plot);
-  const frame = $derived(playback.data.timeline.until(playback.instant));
+  const shownTimeline = $derived(playback.data.timeline);
+  const frame = $derived(shownTimeline.until(playback.instant));
   const timed = $derived(playback.instants.length > 0);
 </script>
 

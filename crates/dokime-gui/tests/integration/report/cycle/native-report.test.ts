@@ -29,8 +29,6 @@ import ReportShell from "@/report/ReportShell.svelte";
 import ReportCycleWorkspace from "@/report/ReportCycleWorkspace.svelte";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { defaultBrand } from "@/lib/brand";
-import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
-import { emptyLivePlotState } from "@/plots/live-frames";
 import { materializeReport, readReportCapture, reportOutcome } from "@/report/native-report";
 import {
   AppearanceLogoSchema,
@@ -341,14 +339,7 @@ test("Captured Plot Bindings Preserve Categories and Sample Instants", async () 
       assert.equal(payload.series[0].points[0].instant, timed ? "1970-01-01T00:00:01Z" : null);
     }
     if (playback) {
-      const descriptor = source.document("execution")?.cards[0].plots[0];
-      assert.ok(descriptor);
-      const { container: host, unmount } = render(PlotGroupGrid, {
-        title: "Values",
-        documentPlots: [descriptor],
-        viewportMode: "fit",
-        liveStates: new Map([[metadata.identifier, { ...emptyLivePlotState(), payload }]]),
-      });
+      const { container: host, unmount } = render(ReportCycleWorkspace, { source, selection: { executionId: "execution" } });
       onTestFinished(unmount);
       assert.ok(xy || host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 9 · "));
       const slider = host.querySelector<HTMLElement>('[role="slider"]');
