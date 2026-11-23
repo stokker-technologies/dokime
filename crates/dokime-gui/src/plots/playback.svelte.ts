@@ -2,7 +2,7 @@
 import { instantTime } from "./instants";
 
 /** The Wall Clock and the Sample Time Playback Counts From. */
-type Clock = { wall: number; time: bigint };
+type Clock = { wallMs: number; timeNs: bigint };
 type Selection<T> = { data: T; instants: string[]; index: number; clock: Clock | null };
 
 /** How Often Playback Moves to the Instant Its Clock Has Reached. */
@@ -11,13 +11,13 @@ export const PLAYBACK_TICK_MS = 100;
 /** Sample Time Played per Unit of Wall Time. */
 export const PLAYBACK_SPEEDS = [1, 2, 5, 10, 60, 600] as const;
 
-function started(time: bigint): Clock {
-  return { wall: performance.now(), time };
+function started(timeNs: bigint): Clock {
+  return { wallMs: performance.now(), timeNs };
 }
 
 /** The Sample Time a Clock Has Reached, in Nanoseconds. */
 function reached(clock: Clock, speed: number) {
-  return clock.time + BigInt(Math.round((performance.now() - clock.wall) * speed * 1_000_000));
+  return clock.timeNs + BigInt(Math.round((performance.now() - clock.wallMs) * speed * 1_000_000));
 }
 
 /** The Last of the Ascending Times at or Before the Target. */
