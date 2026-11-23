@@ -239,6 +239,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
 
             @step("Follow")
             async def follow(self, ctx: Context) -> None:
+                await ctx.sleep(1.0)
                 await ctx.record(self.event, 1)
                 await following.wait()
                 await ctx.sleep(1.0)
@@ -259,7 +260,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
             records = (FollowTestTemplate.event,)
             observers = (FollowLevel,)
 
-        # Start Following Once the Step Has Captured Its First Record.
+        # Both Followers Have Yielded Earlier Rows Before the Step Publishes More.
         host = await _start(self)
         client = host.client
         await client.plugins.register(FollowPlugin())
@@ -271,13 +272,14 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         levels = execution.samples("follow.level", row_type=float).follow()
         first = await anext(records)
         self.assertEqual(first.value, 1)
+        followed = [await anext(levels)]
+        self.assertEqual(followed[0].value, 0.0)
         following.set()
 
         # The Step Waits Until the Client Received Its Mid-Run Record and Later Samples.
         second = await anext(records)
         self.assertEqual(second.value, 2)
         self.assertGreater(second.sequence, first.sequence)
-        followed = [await anext(levels)]
         while followed[-1].value < 1.0:
             followed.append(await anext(levels))
         self.assertGreaterEqual(await execution.samples("follow.level", row_type=float).last(), followed[-1].value)
