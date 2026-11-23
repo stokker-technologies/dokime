@@ -61,7 +61,7 @@ const STREAMS: usize = 128;
 /// Paced Pages Whose Start Times Give the Live Cadence.
 const PAGES: usize = 8;
 /// Signal Rates in Hz, Cycled Over the Signals.
-const RATES: [usize; 4] = [1, 2, 5, 10];
+const RATES_HZ: [usize; 4] = [1, 2, 5, 10];
 /// Seconds of Signals Captured, So the Live Window Cuts the Oldest Rows.
 const SIGNAL_SECONDS: usize = 360;
 /// Signals, One Plot Each.
@@ -343,7 +343,7 @@ async fn signals(root: &Path) {
     store.create(&reports::execution(&streams, Document::default())).unwrap();
     store.open_streams("execution", &streams).unwrap();
     for (index, stream) in streams.iter().enumerate() {
-        let rate = RATES[index % RATES.len()];
+        let rate = RATES_HZ[index % RATES_HZ.len()];
         let batch = (0..SIGNAL_SECONDS * rate)
             .map(|ordinal| {
                 let value = reports::Reading { value: (ordinal as f64 * 0.1).sin() };

@@ -177,8 +177,10 @@ async fn serve(context: &Context, request: SnapshotsListRequest, listed: bool) -
         .await?;
         let (envelopes, next_page_token) =
             views::page(saved.envelopes, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
+        // A Continuation, or an `at` Read of a List's Cut, Finds the Reply Only Through Its Retained View.
+        let continued = !next_page_token.is_empty();
         if let Some(view) = view
-            && (listed || !next_page_token.is_empty())
+            && (listed || continued)
         {
             view.retain(context).instrument(tracing::debug_span!("plot.retain")).await?;
         }
