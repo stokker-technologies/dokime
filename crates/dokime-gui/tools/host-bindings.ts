@@ -287,7 +287,7 @@ const metadata = spawnSync("cargo", ["metadata", "--locked", "--format-version",
 if (metadata.status !== 0) throw new Error(`Resolve Locked Host Dependencies: ${metadata.stderr || "Cargo Metadata Failed"}`);
 const library = (
   JSON.parse(metadata.stdout) as { packages: { name: string; source: string | null; manifest_path: string }[] }
-).packages.find((entry) => entry.name === "harmos-protocol" && entry.source?.startsWith("git+"));
+).packages.find((entry) => entry.name === "harmos-protocol");
 if (!library) throw new Error("Resolve the Pinned Host Protocol Before Generating Desktop Messages");
 const libraryBytes = readFileSync(join(dirname(library.manifest_path), "src/descriptors.bin"));
 const librarySet = fromBinary(FileDescriptorSetSchema, libraryBytes);
