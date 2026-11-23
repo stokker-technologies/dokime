@@ -40,7 +40,9 @@ class _Handler(logging.StreamHandler):
     def emit(self, record: logging.LogRecord) -> None:
         buffer = _CURRENT.get()
         if buffer is None or not buffer.execution:
-            super().emit(record)
+            # Unscoped Diagnostics Keep Python's Warning Threshold, So Library Debug Output Stays Quiet.
+            if record.levelno >= logging.WARNING:
+                super().emit(record)
             return
         buffer.records.append(record)
 
