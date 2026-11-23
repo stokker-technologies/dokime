@@ -244,19 +244,7 @@ impl Delivery {
     }
 
     pub(super) async fn serve(root: TempDir, plots: Vec<PlotRequest>) -> Self {
-        let settings = publication::settings();
-        // Generous Bench Deadlines Let the Measurement Report Slow Paths Instead of Refusing Them.
-        let operations = services::ClientSettings {
-            read_timeout: Duration::from_secs(600),
-            mutation_timeout: Duration::from_secs(600),
-            watch_timeout: Duration::from_secs(600),
-            max_cases: 1000,
-            page_items: 1000,
-            message_bytes: settings.placement.message_bytes.get(),
-            stream_buffer: settings.placement.stream_window.get(),
-        };
-        let frame_bytes = operations.message_bytes as u64;
-        let server = services::serve(([127, 0, 0, 1], 0).into(), root.path(), settings, operations).await.unwrap();
+        let server = host(root.path()).await;
         let endpoint = format!("http://{}", server.endpoint());
         Self {
             reports: ReportsClient::connect(endpoint.clone()).await.unwrap(),
@@ -266,7 +254,7 @@ impl Delivery {
             root,
             server,
             plots,
-            frame_bytes,
+            frame_bytes: publication::settings().placement.message_bytes.get() as u64,
         }
     }
 
@@ -462,6 +450,22 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
     group.finish();
 }
 
+/// Serve a Storage Root on a Local Port With Generous Bench Deadlines.
+pub(super) async fn host(root: &Path) -> services::Server {
+    let settings = publication::settings();
+    // Generous Bench Deadlines Let the Measurement Report Slow Paths Instead of Refusing Them.
+    let operations = services::ClientSettings {
+        read_timeout: Duration::from_secs(600),
+        mutation_timeout: Duration::from_secs(600),
+        watch_timeout: Duration::from_secs(600),
+        max_cases: 1000,
+        page_items: 1000,
+        message_bytes: settings.placement.message_bytes.get(),
+        stream_buffer: settings.placement.stream_window.get(),
+    };
+    services::serve(([127, 0, 0, 1], 0).into(), root, settings, operations).await.unwrap()
+}
+
 pub(super) fn subject() -> ReportSubject {
     ReportSubject {
         kind: Some(report_subject::Kind::Execution("execution".into())),
@@ -548,20 +552,6 @@ pub(super) fn capture(store: &Store, seconds: Range<usize>) -> usize {
 
 /// The Typical Execution's Document: Summary, Records, Telemetry Series and Histogram, Wi-Fi and Status Plots.
 pub(super) fn document() -> Document {
-    let card = |identifier: String, body: Body| Card {
-        metadata: Some(Metadata { identifier, ..Default::default() }),
-        body: Some(body),
-        ..Default::default()
-    };
-    let section = |identifier: &str, cards: Vec<Card>| Section {
-        metadata: Some(Metadata {
-            identifier: identifier.into(),
-            ..Default::default()
-        }),
-        cards,
-        ..Default::default()
-    };
-    let plot = |identifier: String, plot: Plot| card(identifier, Body::Plot(plot.message));
     let series = |stream: &str| plot(format!("{stream}.series"), Plot::time_series(FieldReference::new(stream).field("value")));
     let tiles = [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Rms]
         .into_iter()
@@ -637,30 +627,24 @@ pub(super) fn sample(stream: &str, index: usize, source_ns: i64, row: Vec<u8>) -
 }
 
 pub(super) fn execution(streams: &[String], document: Document) -> Execution {
-    let message = |name: &str, fields: &[(&str, Type)]| DescriptorProto {
-        name: Some(name.into()),
-        field: fields
-            .iter()
-            .enumerate()
-            .map(|(index, (field, kind))| FieldDescriptorProto {
-                name: Some((*field).into()),
-                number: Some(index as i32 + 1),
-                label: Some(Label::Optional as i32),
-                r#type: Some(*kind as i32),
-                ..Default::default()
-            })
-            .collect(),
-        ..Default::default()
-    };
+    let streams = streams.iter().map(|stream| (stream.clone(), if stream == "wifi" { "Scan" } else { "Reading" })).collect::<Vec<_>>();
+    let messages = vec![
+        message("Reading", &[("value", Type::Double)]),
+        message("Scan", &[("channel", Type::Uint32), ("rssi_dbm", Type::Double), ("ssid", Type::String)]),
+    ];
+    definition("execution", "cycle", messages, &streams, "reading", document)
+}
+
+/// One Execution of the `delivery` Package: Its Row Messages, Streams With Their Row Message, a `Reading` Record and Its Document.
+pub(super) fn definition(
+    identifier: &str, cycle: &str, messages: Vec<DescriptorProto>, streams: &[(String, &str)], record: &str, document: Document,
+) -> Execution {
     let types = FileDescriptorSet {
         file: vec![FileDescriptorProto {
             name: Some("delivery.proto".into()),
             package: Some("delivery".into()),
             syntax: Some("proto3".into()),
-            message_type: vec![
-                message("Reading", &[("value", Type::Double)]),
-                message("Scan", &[("channel", Type::Uint32), ("rssi_dbm", Type::Double), ("ssid", Type::String)]),
-            ],
+            message_type: messages,
             ..Default::default()
         }],
     };
@@ -684,15 +668,15 @@ pub(super) fn execution(streams: &[String], document: Document) -> Execution {
     let records = RecordContracts {
         records: vec![RecordContract {
             metadata: Some(Metadata {
-                identifier: "reading".into(),
+                identifier: record.into(),
                 ..Default::default()
             }),
             message: "delivery.Reading".into(),
         }],
     };
     Execution {
-        identifier: "execution".into(),
-        cycle: "cycle".into(),
+        identifier: identifier.into(),
+        cycle: cycle.into(),
         origin: Some(Origin {
             kind: Some(origin::Kind::PluginRun(PluginRun {
                 plugin: "delivery".into(),
@@ -700,7 +684,7 @@ pub(super) fn execution(streams: &[String], document: Document) -> Execution {
                 digest: vec![1],
                 started_at: Some(Timestamp::default()),
                 test_case: Some(TestCase {
-                    streams: streams.to_vec(),
+                    streams: streams.iter().map(|(stream, _)| stream.clone()).collect(),
                     ..Default::default()
                 }),
             })),
@@ -709,9 +693,9 @@ pub(super) fn execution(streams: &[String], document: Document) -> Execution {
             types: Some(types),
             streams: streams
                 .iter()
-                .map(|stream| model::StreamDeclaration {
+                .map(|(stream, row)| model::StreamDeclaration {
                     id: stream.clone(),
-                    row: if stream == "wifi" { "delivery.Scan" } else { "delivery.Reading" }.into(),
+                    row: format!("delivery.{row}"),
                     ..Default::default()
                 })
                 .collect(),
@@ -730,6 +714,48 @@ pub(super) fn execution(streams: &[String], document: Document) -> Execution {
         .encode_to_vec(),
         ..Default::default()
     }
+}
+
+/// A Row Message Whose Fields Are Numbered in Order.
+pub(super) fn message(name: &str, fields: &[(&str, Type)]) -> DescriptorProto {
+    DescriptorProto {
+        name: Some(name.into()),
+        field: fields
+            .iter()
+            .enumerate()
+            .map(|(index, (field, kind))| FieldDescriptorProto {
+                name: Some((*field).into()),
+                number: Some(index as i32 + 1),
+                label: Some(Label::Optional as i32),
+                r#type: Some(*kind as i32),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+pub(super) fn card(identifier: String, body: Body) -> Card {
+    Card {
+        metadata: Some(Metadata { identifier, ..Default::default() }),
+        body: Some(body),
+        ..Default::default()
+    }
+}
+
+pub(super) fn section(identifier: &str, cards: Vec<Card>) -> Section {
+    Section {
+        metadata: Some(Metadata {
+            identifier: identifier.into(),
+            ..Default::default()
+        }),
+        cards,
+        ..Default::default()
+    }
+}
+
+pub(super) fn plot(identifier: String, plot: Plot) -> Card {
+    card(identifier, Body::Plot(plot.message))
 }
 
 /* === Tests === */
