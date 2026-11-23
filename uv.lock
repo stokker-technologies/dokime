@@ -285,8 +285,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "harmos-sdk", git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=ded8e21b98915d57996488018cae1c574eb4b45a" },
-    { name = "harmos-tools", git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=ded8e21b98915d57996488018cae1c574eb4b45a" },
+    { name = "harmos-sdk", git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" },
+    { name = "harmos-tools", git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" },
     { name = "packaging", specifier = "==26.3" },
 ]
 
@@ -393,7 +393,7 @@ wheels = [
 [[package]]
 name = "harmos-sdk"
 version = "0.1.14"
-source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a" }
+source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
 dependencies = [
     { name = "grpcio" },
     { name = "protobuf" },
@@ -402,7 +402,7 @@ dependencies = [
 [[package]]
 name = "harmos-tools"
 version = "0.0.0"
-source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a" }
+source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
 dependencies = [
     { name = "clang-format" },
     { name = "protobuf" },
