@@ -2,6 +2,9 @@
 
 type Selection<T> = { data: T; instants: string[]; index: number; playing: boolean };
 
+/** How Long Playback Shows Each Captured Instant. */
+export const PLAYBACK_FRAME_MS = 200;
+
 export function plotPlayback<T>(incoming: () => T, available: () => string[]) {
   let held = $state.raw<Selection<T> | null>(null);
   const data = $derived(held?.data ?? incoming());
@@ -19,7 +22,7 @@ export function plotPlayback<T>(incoming: () => T, available: () => string[]) {
       }
       const next = Math.min(held.index + 1, held.instants.length - 1);
       held = { ...held, index: next, playing: next < held.instants.length - 1 };
-    }, 200);
+    }, PLAYBACK_FRAME_MS);
     return () => globalThis.clearInterval(timer);
   });
 
