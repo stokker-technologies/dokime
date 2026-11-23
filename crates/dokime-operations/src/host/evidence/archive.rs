@@ -200,7 +200,7 @@ pub(crate) fn materialize(
 /* === Private Functions === */
 
 async fn build(context: &Context, execution: &str, key: &str) -> Result<FileReference> {
-    let _admitted = context.frozen.lock().await;
+    let _admitted = context.archives.lock().await;
     let (saved, revision) = administration::message::<FileReference>(context, key).await?;
     if !revision.is_empty() {
         return Ok(saved);

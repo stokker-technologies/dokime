@@ -197,7 +197,7 @@ pub(crate) async fn render(context: &Context, request: &ReportsCreateRequest) ->
 /* === Private Functions === */
 
 async fn materialize(context: &Context, execution: &str) -> Result<(String, FileReference)> {
-    let _admitted = context.frozen.lock().await;
+    let _admitted = context.reports.lock().await;
     if let Some(frozen) = frozen(context, execution).await? {
         return Ok(frozen);
     }

@@ -210,6 +210,15 @@ impl Delivery {
             }
         }
 
+        // Executions Sealed Before Freezing Existed Compute Their Plots Once per Host
+        let started = Instant::now();
+        let slowest = delivery.plots().await;
+        println!(
+            "Plots Before Freeze | {:.6} ms | slowest={:.6} ms",
+            started.elapsed().as_secs_f64() * 1000.0,
+            slowest.as_secs_f64() * 1000.0
+        );
+
         // Freeze the Report and Then the Evidence Archive Once, as Sealing Does
         let started = Instant::now();
         delivery
@@ -338,7 +347,9 @@ impl Delivery {
         let mut digest = Sha256::new();
         let mut at = selected.resolved_at;
         let mut offset = 0;
+        let mut reading = Duration::ZERO;
         while offset < reference.length {
+            let started = Instant::now();
             let reply = self
                 .files
                 .read(FilesReadRequest {
@@ -350,6 +361,7 @@ impl Delivery {
                 .await
                 .unwrap()
                 .into_inner();
+            reading += started.elapsed();
             assert!(!reply.data.is_empty() && reply.sha256 == reference.sha256, "Deliver: Read the Complete File at Its Cut");
             at = reply.resolved_at;
             offset += reply.data.len() as u64;
@@ -357,7 +369,16 @@ impl Delivery {
             written.write_all(&reply.data).await.unwrap();
         }
         assert_eq!(digest.finalize().as_slice(), reference.sha256.as_slice(), "Deliver: Verify the File Digest");
+        let syncing = Instant::now();
         written.sync_all().await.unwrap();
+        if env::var_os("DOKIME_BENCH_ONCE").is_some() {
+            println!(
+                "Delivery Stages | read={:.6} ms | sync={:.6} ms | {} bytes",
+                reading.as_secs_f64() * 1000.0,
+                syncing.elapsed().as_secs_f64() * 1000.0,
+                reference.length
+            );
+        }
     }
 }
 

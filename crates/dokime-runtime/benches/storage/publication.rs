@@ -271,7 +271,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     });
     super::boundary(
         "Execution End and Host Shutdown, 65,536 Rows",
-        "warm populated host; answer final prompt, execution cleanup, stream finalization, seal, final snapshot join and shutdown; durable; capture excluded",
+        "warm populated host; answer final prompt, execution cleanup, stream finalization, seal, report and evidence archive freeze, final snapshot join and shutdown; durable; capture excluded",
     );
     group.bench_function("execution_end_and_shutdown/65536", |b| {
         let plugin = plugin.get_or_insert_with(|| {
