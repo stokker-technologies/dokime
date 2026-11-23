@@ -103,8 +103,6 @@ impl Store {
         }
         transaction.execute("DELETE FROM administration WHERE substr(id,1,length(?1))=?1", [format!("execution-file/{execution}/")])?;
         transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;
-        transaction
-            .execute("DELETE FROM administration WHERE substr(id,1,length(?1))=?1", [crate::plot_windows::extent_prefix(execution)])?;
         let mut statement = transaction.prepare("SELECT id,payload FROM administration WHERE id LIKE 'artifact/%'")?;
         let artifacts = statement
             .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?

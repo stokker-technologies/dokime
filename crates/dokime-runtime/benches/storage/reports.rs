@@ -20,6 +20,7 @@ use std::{
     collections::BTreeMap,
     env,
     fmt::Debug,
+    ops::Range,
     path::Path,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -77,7 +78,8 @@ const STATUS: usize = 8;
 /// One Wi-Fi Scan Every Three Seconds Reports Forty Networks.
 const SCAN_SECONDS: usize = 3;
 const SCAN_ROWS: usize = 40;
-const RECORDS: usize = 12;
+/// One Record Every 25 Seconds.
+const RECORD_SECONDS: usize = 25;
 const BATCH_ROWS: usize = 4096;
 const BASE_NS: i64 = 1_788_220_800_000_000_000;
 
@@ -88,7 +90,7 @@ const BASE_NS: i64 = 1_788_220_800_000_000_000;
 /* === Structs === */
 
 #[derive(Clone, Default)]
-pub(super) struct Times(Arc<Mutex<BTreeMap<String, Vec<f64>>>>);
+pub(super) struct Times(pub(super) Arc<Mutex<BTreeMap<String, Vec<f64>>>>);
 
 #[derive(Default)]
 struct ReportEvent {
@@ -114,10 +116,10 @@ struct Scan {
     ssid: String,
 }
 
-struct Delivery {
-    root: TempDir,
-    server: services::Server,
-    reports: ReportsClient<Channel>,
+pub(super) struct Delivery {
+    pub(super) root: TempDir,
+    pub(super) server: services::Server,
+    pub(super) reports: ReportsClient<Channel>,
     files: FilesClient<Channel>,
     evidence: EvidenceClient<Channel>,
     snapshots: SnapshotsClient<Channel>,
@@ -241,7 +243,7 @@ impl Delivery {
         Self::serve(root, plots).await
     }
 
-    async fn serve(root: TempDir, plots: Vec<PlotRequest>) -> Self {
+    pub(super) async fn serve(root: TempDir, plots: Vec<PlotRequest>) -> Self {
         let settings = publication::settings();
         // Generous Bench Deadlines Let the Measurement Report Slow Paths Instead of Refusing Them.
         let operations = services::ClientSettings {
@@ -316,7 +318,7 @@ impl Delivery {
     }
 
     /// Download Evidence the Way the Desktop Does: Resolve the Archive, Then Stream and Verify It.
-    async fn archive(&mut self) -> FileReference {
+    pub(super) async fn archive(&mut self) -> FileReference {
         let started = Instant::now();
         let response = self
             .evidence
@@ -460,15 +462,13 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
     group.finish();
 }
 
-/* === Private Functions === */
-
-fn subject() -> ReportSubject {
+pub(super) fn subject() -> ReportSubject {
     ReportSubject {
         kind: Some(report_subject::Kind::Execution("execution".into())),
     }
 }
 
-fn stages(times: &Times, case: &str, length: u64) {
+pub(super) fn stages(times: &Times, case: &str, length: u64) {
     if env::var_os("DOKIME_BENCH_ONCE").is_none() {
         return;
     }
@@ -478,33 +478,38 @@ fn stages(times: &Times, case: &str, length: u64) {
     }
 }
 
-/// Write and Seal the Typical Execution Directly Into a Fresh Storage Root.
-async fn seal(root: &Path) {
-    let store = Store::open(root).unwrap();
-    let telemetry = (0..TELEMETRY).map(|index| format!("telemetry.{index}")).collect::<Vec<_>>();
-    let status = (0..STATUS).map(|index| format!("status.{index}")).collect::<Vec<_>>();
-    let streams = telemetry.iter().chain(&status).cloned().chain(["wifi".to_string()]).collect::<Vec<_>>();
-    store.create(&execution(&streams)).unwrap();
+/// Create the Typical Execution With Its Document and Open Its Streams.
+pub(super) fn open(store: &Store, document: Document) -> Vec<String> {
+    let telemetry = (0..TELEMETRY).map(|index| format!("telemetry.{index}"));
+    let status = (0..STATUS).map(|index| format!("status.{index}"));
+    let streams = telemetry.chain(status).chain(["wifi".to_string()]).collect::<Vec<_>>();
+    store.create(&execution(&streams, document)).unwrap();
     store.open_streams("execution", &streams).unwrap();
+    streams
+}
+
+/// Write the Typical Capture's Rows and Records Within a Span of Whole Seconds, Returning Its Row Count.
+pub(super) fn capture(store: &Store, seconds: Range<usize>) -> usize {
     let mut rows = 0;
-    for (stream, rate) in telemetry.iter().map(|stream| (stream, 1000)).chain(status.iter().map(|stream| (stream, 10))) {
-        let count = SECONDS * rate;
+    let telemetry = (0..TELEMETRY).map(|index| (format!("telemetry.{index}"), 1000));
+    for (stream, rate) in telemetry.chain((0..STATUS).map(|index| (format!("status.{index}"), 10))) {
+        let indices = seconds.start * rate..seconds.end * rate;
         let period_ns = 1_000_000_000 / rate as i64;
-        for first in (0..count).step_by(BATCH_ROWS) {
-            let batch = (first..(first + BATCH_ROWS).min(count))
+        for first in indices.clone().step_by(BATCH_ROWS) {
+            let batch = (first..(first + BATCH_ROWS).min(indices.end))
                 .map(|index| {
                     let value = Reading {
                         value: 10.0 * (index as f64 * 0.01).sin() + (index % 7) as f64 * 0.1,
                     };
-                    sample(stream, index, BASE_NS + index as i64 * period_ns, value.encode_to_vec())
+                    sample(&stream, index, BASE_NS + index as i64 * period_ns, value.encode_to_vec())
                 })
                 .collect::<Vec<_>>();
             store.sample_batch("execution", &batch).unwrap();
         }
-        rows += count;
+        rows += indices.len();
     }
-    let scans = SECONDS / SCAN_SECONDS;
-    let batch = (0..scans * SCAN_ROWS)
+    let scans = seconds.start.div_ceil(SCAN_SECONDS) * SCAN_ROWS..seconds.end.div_ceil(SCAN_SECONDS) * SCAN_ROWS;
+    let batch = scans
         .map(|index| {
             let (scan, network) = (index / SCAN_ROWS, index % SCAN_ROWS);
             let value = Scan {
@@ -519,13 +524,13 @@ async fn seal(root: &Path) {
     for chunk in batch.chunks(BATCH_ROWS) {
         store.sample_batch("execution", chunk).unwrap();
     }
-    for index in 0..RECORDS {
+    for index in seconds.start.div_ceil(RECORD_SECONDS)..seconds.end.div_ceil(RECORD_SECONDS) {
         let record = RecordsAppendRequest {
             execution: "execution".into(),
             kind: "reading".into(),
             payload: Reading { value: index as f64 }.encode_to_vec(),
             source_at: Some(Timestamp {
-                seconds: BASE_NS / 1_000_000_000 + (index * 25) as i64,
+                seconds: BASE_NS / 1_000_000_000 + (index * RECORD_SECONDS) as i64,
                 nanos: 0,
             }),
             request_id: format!("record-{index}"),
@@ -533,57 +538,16 @@ async fn seal(root: &Path) {
         let evidence = Evidence {
             kind: "record:reading".into(),
             payload: record.encode_to_vec(),
-            source_ns: BASE_NS + (index * 25) as i64 * 1_000_000_000,
+            source_ns: BASE_NS + (index * RECORD_SECONDS) as i64 * 1_000_000_000,
             ..Default::default()
         };
         store.append("execution", evidence).unwrap();
     }
-    println!("Delivery Source | {} streams | {rows} samples | {} plots | {RECORDS} records", streams.len(), TELEMETRY + STATUS + 3);
-    store.close_streams("execution").unwrap();
-    store.close("execution", Termination::Completed, ExecutionOutcome::default()).unwrap();
-    store.seal("execution", Default::default()).unwrap();
-    store.shutdown_samples().await.unwrap();
+    rows
 }
 
-fn sample(stream: &str, index: usize, source_ns: i64, row: Vec<u8>) -> Sample {
-    Sample {
-        sequence: index as u64,
-        source_ns,
-        receipt_ns: source_ns,
-        stream: stream.into(),
-        row,
-        ..Default::default()
-    }
-}
-
-fn execution(streams: &[String]) -> Execution {
-    let message = |name: &str, fields: &[(&str, Type)]| DescriptorProto {
-        name: Some(name.into()),
-        field: fields
-            .iter()
-            .enumerate()
-            .map(|(index, (field, kind))| FieldDescriptorProto {
-                name: Some((*field).into()),
-                number: Some(index as i32 + 1),
-                label: Some(Label::Optional as i32),
-                r#type: Some(*kind as i32),
-                ..Default::default()
-            })
-            .collect(),
-        ..Default::default()
-    };
-    let types = FileDescriptorSet {
-        file: vec![FileDescriptorProto {
-            name: Some("delivery.proto".into()),
-            package: Some("delivery".into()),
-            syntax: Some("proto3".into()),
-            message_type: vec![
-                message("Reading", &[("value", Type::Double)]),
-                message("Scan", &[("channel", Type::Uint32), ("rssi_dbm", Type::Double), ("ssid", Type::String)]),
-            ],
-            ..Default::default()
-        }],
-    };
+/// The Typical Execution's Document: Summary, Records, Telemetry Series and Histogram, Wi-Fi and Status Plots.
+pub(super) fn document() -> Document {
     let card = |identifier: String, body: Body| Card {
         metadata: Some(Metadata { identifier, ..Default::default() }),
         body: Some(body),
@@ -606,7 +570,7 @@ fn execution(streams: &[String]) -> Execution {
             ..Default::default()
         })
         .collect();
-    let document = Document {
+    Document {
         metadata: Some(Metadata {
             identifier: "delivery.report".into(),
             ..Default::default()
@@ -639,6 +603,66 @@ fn execution(streams: &[String]) -> Execution {
             ),
             section("status", (0..STATUS).map(|index| series(&format!("status.{index}"))).collect()),
         ],
+    }
+}
+
+/* === Private Functions === */
+
+/// Write and Seal the Typical Execution Directly Into a Fresh Storage Root.
+async fn seal(root: &Path) {
+    let store = Store::open(root).unwrap();
+    let streams = open(&store, document());
+    let rows = capture(&store, 0..SECONDS);
+    println!(
+        "Delivery Source | {} streams | {rows} samples | {} plots | {} records",
+        streams.len(),
+        TELEMETRY + STATUS + 3,
+        SECONDS.div_ceil(RECORD_SECONDS)
+    );
+    store.close_streams("execution").unwrap();
+    store.close("execution", Termination::Completed, ExecutionOutcome::default()).unwrap();
+    store.seal("execution", Default::default()).unwrap();
+    store.shutdown_samples().await.unwrap();
+}
+
+fn sample(stream: &str, index: usize, source_ns: i64, row: Vec<u8>) -> Sample {
+    Sample {
+        sequence: index as u64,
+        source_ns,
+        receipt_ns: source_ns,
+        stream: stream.into(),
+        row,
+        ..Default::default()
+    }
+}
+
+fn execution(streams: &[String], document: Document) -> Execution {
+    let message = |name: &str, fields: &[(&str, Type)]| DescriptorProto {
+        name: Some(name.into()),
+        field: fields
+            .iter()
+            .enumerate()
+            .map(|(index, (field, kind))| FieldDescriptorProto {
+                name: Some((*field).into()),
+                number: Some(index as i32 + 1),
+                label: Some(Label::Optional as i32),
+                r#type: Some(*kind as i32),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    };
+    let types = FileDescriptorSet {
+        file: vec![FileDescriptorProto {
+            name: Some("delivery.proto".into()),
+            package: Some("delivery".into()),
+            syntax: Some("proto3".into()),
+            message_type: vec![
+                message("Reading", &[("value", Type::Double)]),
+                message("Scan", &[("channel", Type::Uint32), ("rssi_dbm", Type::Double), ("ssid", Type::String)]),
+            ],
+            ..Default::default()
+        }],
     };
     let suites = Suites {
         suites: vec![Suite {

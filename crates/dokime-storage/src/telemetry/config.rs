@@ -44,6 +44,8 @@ pub struct StorageSettings {
 pub struct PreviewSettings {
     pub bucket_count: NonZeroUsize,
     pub bucket_interval: Duration,
+    /// The Most Value Histogram Bins a Field Keeps; Plots Request at Most This Many.
+    pub histogram_bins: NonZeroUsize,
 }
 
 /* === Enums === */
@@ -69,6 +71,7 @@ pub fn storage_defaults() -> StorageSettings {
         previews: PreviewSettings {
             bucket_count: NonZeroUsize::new(256).unwrap(),
             bucket_interval: Duration::from_millis(1),
+            histogram_bins: NonZeroUsize::new(1024).unwrap(),
         },
     }
 }

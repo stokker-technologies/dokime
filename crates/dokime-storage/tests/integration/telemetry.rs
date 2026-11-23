@@ -712,6 +712,82 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     Ok(())
 }
 #[test]
+fn live_statistics_equal_one_pass_over_the_same_rows() -> Result<()> {
+    #[derive(Clone, PartialEq, Message)]
+    struct Reading {
+        #[prost(double, optional, tag = "1")]
+        value: Option<f64>,
+    }
+
+    // Declare an Optional Measurement So Rows Can Miss It
+    let open = || -> Result<(tempfile::TempDir, Store)> {
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        let mut execution = fixture::execution();
+        let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+        let file = &mut catalog.types.as_mut().unwrap().file[0];
+        file.syntax = Some("proto2".into());
+        file.message_type[0].field[0].r#type = Some(Type::Double as i32);
+        execution.catalog = catalog.encode_to_vec();
+        store.create(&execution)?;
+        store.open_stream("execution", "readings")?;
+        Ok((root, store))
+    };
+    let rows = (0..4000usize)
+        .map(|index| {
+            let value = match index % 13 {
+                0 => None,
+                1 => Some(f64::NAN),
+                2 => Some(f64::INFINITY),
+                _ => Some(((index * 7919) % 1009) as f64 * 0.25 - 100.0),
+            };
+            Sample {
+                stream: "readings".into(),
+                // Repeated and Earlier Source Times Exercise the Time Buckets.
+                source_ns: (index as i64 / 3) * 1_000_000 - if index % 97 == 0 { 5_000_000 } else { 0 },
+                sequence: index as u64,
+                row: Reading { value }.encode_to_vec(),
+                ..Default::default()
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Save Uneven Flushes, Then Read Live With the Last Rows Still Pending
+    let (_incremental, live) = open()?;
+    for chunk in [&rows[..700], &rows[700..1901], &rows[1901..3500]] {
+        live.sample_batch("execution", chunk)?;
+        live.flush_samples()?;
+    }
+    live.sample_batch("execution", &rows[3500..])?;
+    let (reader, _cancellation) = live.live_read_session()?;
+    let through = reader.accepted_frontier("execution")?;
+    assert!(through > reader.metadata("execution")?.frontier);
+
+    // Save the Same Rows at Once, and Read Them Again Without Their Saved Statistics
+    let (whole_root, whole) = open()?;
+    whole.sample_batch("execution", &rows)?;
+    whole.flush_samples()?;
+    let window = NumericWindow {
+        bins: NonZeroUsize::new(64).unwrap(),
+        ..numeric(through)
+    };
+    let bounds = |store: &Store| store.numeric_bounds("execution", "readings", "value", through);
+    let incremental =
+        (bounds(&reader)?, reader.series_summary(&window)?, reader.histogram_window(window, 24)?, reader.time_series_window(window)?);
+    let once = (bounds(&whole)?, whole.series_summary(&window)?, whole.histogram_window(window, 24)?, whole.time_series_window(window)?);
+    assert_eq!(incremental, once);
+    Connection::open(whole_root.path().join("execution.sqlite3"))?.execute("DELETE FROM telemetry_previews", [])?;
+    let (reader, _cancellation) = whole.read_session()?;
+    assert_eq!((bounds(&reader)?, reader.series_summary(&window)?, reader.histogram_window(window, 24)?), (once.0, once.1, once.2));
+
+    // Missing, NaN and Infinite Values Are Missing Measurements Everywhere
+    let finite = rows.iter().filter(|row| Reading::decode(row.row.as_slice()).unwrap().value.is_some_and(f64::is_finite)).count();
+    assert_eq!(incremental.1.count, finite as u64);
+    assert_eq!(incremental.2.bins.iter().map(|bin| bin.count).sum::<u64>(), finite as u64);
+    Ok(())
+}
+
+#[test]
 fn integer_document_medians_preserve_exact_values() -> Result<()> {
     let base = 1_152_921_504_606_847_975u64;
     for signed in [false, true] {
@@ -773,7 +849,7 @@ fn integer_document_medians_preserve_exact_values() -> Result<()> {
     Ok(())
 }
 #[test]
-fn histogram_medians_match_native_integer_medians() -> Result<()> {
+fn statistics_medians_match_native_integer_medians() -> Result<()> {
     let base = (1u64 << 60) + 487;
     for signed in [false, true] {
         let root = tempfile::tempdir()?;
@@ -807,8 +883,6 @@ fn histogram_medians_match_native_integer_medians() -> Result<()> {
                 ..store.cut("execution")?
             };
             let expected = store.document_value(&cut, &expression)?;
-            let histogram = store.histogram_window(numeric(through), 2)?;
-            assert_eq!(histogram.statistics.unwrap().median, Some(expected.clone()));
             assert_eq!(store.numeric_statistics(&numeric(through))?.median, Some(expected));
         }
     }
@@ -1118,7 +1192,8 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     )?;
     assert_eq!(histogram.count, 4);
     let bins = histogram.bins.iter().map(|bin| (bin.lower, bin.upper, bin.count)).collect::<Vec<_>>();
-    assert_eq!(bins, vec![(2.0, 4.0, 2), (4.0, 6.0, 2)]);
+    // Two Power-of-Two Bins Cover 2 Through 6 Only at Width 4.
+    assert_eq!(bins, vec![(0.0, 4.0, 2), (4.0, 8.0, 2)]);
     Ok(())
 }
 

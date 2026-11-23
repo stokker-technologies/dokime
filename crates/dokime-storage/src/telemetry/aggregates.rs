@@ -33,7 +33,8 @@ use tracing::info_span;
 // Local Imports
 use super::config::PreviewSettings;
 use super::previews::{self, Envelope};
-use crate::scalar::{self, ScalarValue};
+use super::summary::Running;
+use crate::scalar::ScalarValue;
 use crate::{Error, NumericWindow, Result, Store};
 
 /* === Constants === */
@@ -46,8 +47,8 @@ pub(crate) type SummaryReads = BTreeMap<SummarySelection, Arc<NumericRead>>;
 
 /* === Structs === */
 
-/// Product Projection of Library Aggregate Results; No Persisted Running Moments.
-#[derive(Clone)]
+/// A Numeric Selection's Count, Extremes, Capture-Order Edges, Total, Mean and Population Spread.
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct NumericSummary {
     pub count: u64,
     pub min: ScalarValue,
@@ -77,21 +78,21 @@ pub(crate) struct SummarySelection {
     end_ns: i64,
 }
 
-pub(super) struct Numeric<'a> {
-    pub(super) values: Values<'a>,
-    pub(super) nulls: Option<NullBuffer>,
+pub(crate) struct Numeric<'a> {
+    pub(crate) values: Values<'a>,
+    pub(crate) nulls: Option<NullBuffer>,
 }
 
-/// Stored Product Envelopes Advanced During File Publication.
+/// Stored Envelopes Advanced During File Publication; One of an Earlier Layout Is Left As Saved.
 pub(super) struct Statistics {
     settings: PreviewSettings,
-    previews: BTreeMap<String, Envelope>,
+    previews: BTreeMap<String, Option<Envelope>>,
     touched: BTreeMap<String, u64>,
 }
 
 /* === Enums === */
 
-pub(super) enum Values<'a> {
+pub(crate) enum Values<'a> {
     Signed(&'a [i64]),
     Unsigned(&'a [u64]),
     Float(&'a [f64]),
@@ -100,6 +101,12 @@ pub(super) enum Values<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Numeric<'_> {
+    pub(crate) fn valid(&self, row: usize) -> bool {
+        self.nulls.as_ref().is_none_or(|nulls| nulls.is_valid(row))
+    }
+}
 
 impl From<NumericWindow<'_>> for SummarySelection {
     fn from(window: NumericWindow<'_>) -> Self {
@@ -126,7 +133,9 @@ impl Statistics {
 
     pub(super) fn advance(&mut self, batch: &RecordBatch, last: u64) -> Result<()> {
         for field in numeric_fields(batch)? {
-            let envelope = self.previews.entry(field.clone()).or_insert_with(|| Envelope::empty(self.settings));
+            let Some(envelope) = self.previews.entry(field.clone()).or_insert_with(|| Some(Envelope::empty(self.settings))) else {
+                continue;
+            };
             previews::extend(envelope, batch, &field, self.settings.bucket_count.get())?;
             if !envelope.buckets.is_empty() {
                 self.touched.insert(field, last);
@@ -137,24 +146,21 @@ impl Statistics {
 
     pub(super) fn save(&self, connection: &Connection, id: &str) -> Result<()> {
         for (field, through) in &self.touched {
-            previews::save(connection, id, field, *through, &self.previews[field])?;
+            if let Some(envelope) = &self.previews[field] {
+                previews::save(connection, id, field, *through, envelope)?;
+            }
         }
         Ok(())
     }
 }
 
 impl Store {
+    /// A Selection's Summary: the Field's Incremental Statistics When It Selects Every Value, Otherwise One Pass.
     pub(crate) fn numeric_summary(&self, window: NumericWindow<'_>) -> Result<NumericSummary> {
         self.check_read()?;
-        let window = if (window.start_ns != i64::MIN || window.end_ns != i64::MAX) && self.preview_bounds(window)?.is_some() {
-            NumericWindow {
-                start_ns: i64::MIN,
-                end_ns: i64::MAX,
-                ..window
-            }
-        } else {
-            window
-        };
+        if let Some(envelope) = self.envelope(window)? {
+            return envelope.summary.finish();
+        }
         // Only Finite Read Sessions Share Results; Live Tails and Projected Selections Are Recomputed.
         let summaries = if self.has_projection(window)? { None } else { self.summaries.as_ref() };
         let selection = SummarySelection::from(window);
@@ -172,58 +178,12 @@ impl Store {
         if let Some(summary) = saved.as_ref().and_then(|saved| saved.as_ref()) {
             return Ok(summary.clone());
         }
-        let kinds = [
-            Aggregate::Count,
-            Aggregate::Min,
-            Aggregate::Max,
-            Aggregate::First,
-            Aggregate::Last,
-            Aggregate::Sum,
-            Aggregate::Mean,
-            Aggregate::Std,
-            Aggregate::Rms,
-        ];
-        let memory_bytes = self.storage_settings()?.query_bytes.get() / kinds.len();
-        let mut accumulators = kinds.map(|kind| Accumulator::with_settings(Agg::Of(kind), QueryAccumulatorSettings { memory_bytes }));
-        let field = FieldPath::from(format!("values.{}", window.field).as_str());
-        let mut position = 0;
-        self.evaluated_batches(window, &[window.field.into()], |batch| {
-            for row in 0..batch.num_rows() {
-                position += 1;
-                let value = field.value(&batch, row)?;
-                for accumulator in &mut accumulators {
-                    accumulator.push(position, &value)?;
-                }
-            }
-            Ok(true)
+        let mut running = Running::default();
+        self.numeric_batches(window, |_, column| {
+            running.extend(&column.values, |row| column.valid(row));
+            Ok(())
         })?;
-        let mut results = accumulators
-            .into_iter()
-            .map(|accumulator| accumulator.finish(&mut || Ok(())))
-            .collect::<harmos_query::Result<Vec<_>>>()?
-            .into_iter();
-        let ScalarValue::Unsigned(count) = results.next().unwrap() else {
-            return Err(Error::Corrupt("numeric count is not unsigned"));
-        };
-        let min = results.next().unwrap();
-        let max = results.next().unwrap();
-        let first = results.next().unwrap();
-        let last = results.next().unwrap();
-        let sum = results.next().unwrap();
-        let average = results.next().unwrap();
-        let standard_deviation = scalar::number(&results.next().unwrap()).unwrap_or_default();
-        let rms = scalar::number(&results.next().unwrap()).unwrap_or_default();
-        let summary = NumericSummary {
-            count,
-            min,
-            max,
-            first,
-            last,
-            sum,
-            average,
-            standard_deviation,
-            rms,
-        };
+        let summary = running.finish()?;
         if let Some(saved) = saved.as_mut() {
             **saved = Some(summary.clone());
         }
@@ -284,7 +244,7 @@ pub(super) fn numeric_fields(batch: &RecordBatch) -> Result<Vec<String>> {
 }
 
 /// Resolve a Numeric Value Column With the Validity of Every Enclosing Structure Folded In.
-pub(super) fn numeric<'a>(batch: &'a RecordBatch, path: &str) -> Result<Numeric<'a>> {
+pub(crate) fn numeric<'a>(batch: &'a RecordBatch, path: &str) -> Result<Numeric<'a>> {
     let mut array = batch.column_by_name("values").ok_or(Error::Corrupt("values column missing"))?;
     let mut nulls = array.nulls().cloned();
     for name in path.split('.') {

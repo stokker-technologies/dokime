@@ -19,13 +19,14 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use arrow_array::{Array, BooleanArray, Int64Array, RecordBatch, StructArray, UInt64Array};
 use harmos_query::transform::{FieldPath, FieldPathExecution};
 use prost_reflect::{DynamicMessage, ReflectMessage, Value};
 
 // Local Imports
+use crate::telemetry::aggregates::{self, Numeric, Values};
+use crate::telemetry::previews::{Bucket, Point};
 use crate::{Error, Result, Store};
-
-use std::collections::BTreeMap;
 
 /* === Constants === */
 
@@ -56,6 +57,13 @@ pub struct NumericWindow<'a> {
     pub start_ns: i64,
     pub end_ns: i64,
     pub bins: NonZeroUsize,
+}
+
+/// Fixed-Width Display Bins of a Window Read From Its Rows.
+pub(crate) struct WindowBins {
+    start_ns: i64,
+    width: i128,
+    bins: Vec<Option<Bucket>>,
 }
 
 #[derive(Clone, Debug)]
@@ -101,116 +109,105 @@ impl Store {
             end_ns: i64::MAX,
             bins: NonZeroUsize::MIN,
         };
-        if let Some(bounds) = self.preview_bounds(window)? {
-            return Ok(Some(bounds));
+        if let Some(envelope) = self.envelope(window)? {
+            return Ok(envelope.bounds());
         }
         let mut bounds = None::<(i64, i64)>;
-        self.numeric_values(
-            NumericWindow {
-                execution,
-                stream,
-                field,
-                through,
-                after: 0,
-                start_ns: i64::MIN,
-                end_ns: i64::MAX,
-                bins: NonZeroUsize::MIN,
-            },
-            |_, time, _| {
-                bounds = Some(bounds.map_or((time, time), |(start, end)| (start.min(time), end.max(time))));
-                Ok(())
-            },
-        )?;
+        self.numeric_values(window, |_, time, _| {
+            bounds = Some(bounds.map_or((time, time), |(start, end)| (start.min(time), end.max(time))));
+            Ok(())
+        })?;
         Ok(bounds)
     }
 
-    pub(crate) fn numeric_values(&self, window: NumericWindow<'_>, mut read: impl FnMut(u64, i64, f64) -> Result<()>) -> Result<()> {
+    /// Read a Window's Numeric Column Batch by Batch; Booleans Read as Zero and One.
+    pub(crate) fn numeric_batches(
+        &self, window: NumericWindow<'_>, mut read: impl FnMut(&RecordBatch, &Numeric<'_>) -> Result<()>,
+    ) -> Result<()> {
+        let path = FieldPath::from(format!("values.{}", window.field).as_str());
         self.evaluated_batches(window, &[window.field.into()], |batch| {
-            use arrow_array::{Int64Array, StructArray, UInt64Array};
-            let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("sample metadata differs"))?;
-            let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
-            let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
-            let column = FieldPath::from(format!("values.{}", window.field).as_str());
-            for row in 0..batch.num_rows() {
-                if let Some(value) = crate::scalar::number(&column.value(&batch, row)?) {
-                    read(positions.value(row), times.value(row), value)?;
-                }
+            if let Ok(column) = aggregates::numeric(&batch, window.field) {
+                read(&batch, &column)?;
+            } else if let Some(flags) = path.array(&batch).ok().and_then(|array| array.as_any().downcast_ref::<BooleanArray>().cloned()) {
+                let values = (0..flags.len()).map(|row| u64::from(flags.value(row))).collect::<Vec<_>>();
+                read(
+                    &batch,
+                    &Numeric {
+                        values: Values::Unsigned(&values),
+                        nulls: flags.logical_nulls(),
+                    },
+                )?;
             }
             Ok(true)
         })
     }
 
+    /// Visit a Window's Valid Finite Values With Their Positions and Source Times, in Row Order.
+    pub(crate) fn numeric_values(&self, window: NumericWindow<'_>, mut read: impl FnMut(u64, i64, f64) -> Result<()>) -> Result<()> {
+        self.numeric_batches(window, |batch, column| visit(batch, column, &mut read))
+    }
+
     pub fn numeric_bins(&self, window: NumericWindow<'_>) -> Result<Vec<NumericBin>> {
-        if window.end_ns < window.start_ns {
-            return Err(Error::Invalid("Read Plot Window: Choose Increasing Bounds".into()));
-        }
         if let Some(bins) = self.preview_bins(window)? {
             return Ok(bins);
         }
+        let mut bins = WindowBins::new(&window)?;
+        self.numeric_values(window, |position, time, value| bins.push(position, time, value))?;
+        Ok(bins.finish())
+    }
+}
+
+impl WindowBins {
+    pub(crate) fn new(window: &NumericWindow<'_>) -> Result<Self> {
+        if window.end_ns < window.start_ns {
+            return Err(Error::Invalid("Read Plot Window: Choose Increasing Bounds".into()));
+        }
         let span = (i128::from(window.end_ns) - i128::from(window.start_ns) + 1).max(1);
-        let width = ((span + window.bins.get() as i128 - 1) / window.bins.get() as i128).max(1);
-        let mut bins = BTreeMap::<usize, (NumericBin, i64, i64)>::new();
-        self.numeric_values(window, |position, source_ns, value| {
-            let position = position as i64;
-            let index = ((i128::from(source_ns) - i128::from(window.start_ns)) / width) as usize;
-            let (bin, first_position, last_position) = bins.entry(index).or_insert_with(|| {
-                (
-                    NumericBin {
-                        start_ns: source_ns,
-                        end_ns: source_ns,
-                        count: 0,
-                        min: value,
-                        max: value,
-                        mean: 0.0,
-                        scaled_squares: 0.0,
-                        scale: 0.0,
-                        first: value,
-                        last: value,
-                        first_ns: source_ns,
-                        last_ns: source_ns,
-                        min_ns: source_ns,
-                        max_ns: source_ns,
-                    },
-                    position,
-                    position,
-                )
-            });
-            // Each Retained Input Row Is Examined Once; Only Requested Buckets Survive.
-            bin.count += 1;
-            let scale = bin.scale.max(value.abs());
-            let factor = if scale == 0.0 { 0.0 } else { bin.scale / scale };
-            let previous = if scale == 0.0 { 0.0 } else { bin.mean / scale };
-            let normalized = if scale == 0.0 { 0.0 } else { value / scale };
-            bin.mean = (previous + (normalized - previous) / bin.count as f64).clamp(-1.0, 1.0) * scale;
-            bin.scaled_squares = bin.scaled_squares * factor * factor + normalized * normalized;
-            bin.scale = scale;
-            bin.start_ns = bin.start_ns.min(source_ns);
-            bin.end_ns = bin.end_ns.max(source_ns);
-            if value < bin.min {
-                bin.min = value;
-                bin.min_ns = source_ns;
+        Ok(Self {
+            start_ns: window.start_ns,
+            width: ((span + window.bins.get() as i128 - 1) / window.bins.get() as i128).max(1),
+            bins: vec![None; window.bins.get()],
+        })
+    }
+
+    /// Merge One Value Into Its Bin; Values Outside the Window Belong to No Bin.
+    pub(crate) fn push(&mut self, position: u64, time: i64, value: f64) -> Result<()> {
+        let point = Point { time: time.into(), position, value };
+        let index = usize::try_from((i128::from(time) - i128::from(self.start_ns)) / self.width).ok();
+        match index.and_then(|index| self.bins.get_mut(index)) {
+            Some(Some(bin)) => bin.merge(Bucket::new(point)),
+            Some(empty) => {
+                *empty = Some(Bucket::new(point));
+                Ok(())
             }
-            if value > bin.max {
-                bin.max = value;
-                bin.max_ns = source_ns;
-            }
-            if position < *first_position {
-                *first_position = position;
-                bin.first = value;
-                bin.first_ns = source_ns;
-            }
-            if position > *last_position {
-                *last_position = position;
-                bin.last = value;
-                bin.last_ns = source_ns;
-            }
-            Ok(())
-        })?;
-        Ok(bins.into_values().map(|(bin, _, _)| bin).collect())
+            None => Ok(()),
+        }
+    }
+
+    pub(crate) fn finish(self) -> Vec<NumericBin> {
+        self.bins.iter().flatten().map(Bucket::bin).collect()
     }
 }
 
 /* === Public Functions === */
+
+/// Visit One Batch's Valid Finite Values With Their Positions and Source Times, in Row Order.
+pub(crate) fn visit(batch: &RecordBatch, column: &Numeric<'_>, mut read: impl FnMut(u64, i64, f64) -> Result<()>) -> Result<()> {
+    let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("sample metadata differs"))?;
+    let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+    let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+    for row in (0..batch.num_rows()).filter(|row| column.valid(*row)) {
+        let value = match column.values {
+            Values::Signed(values) => values[row] as f64,
+            Values::Unsigned(values) => values[row] as f64,
+            Values::Float(values) => values[row],
+        };
+        if value.is_finite() {
+            read(positions.value(row), times.value(row), value)?;
+        }
+    }
+    Ok(())
+}
 
 /* === Private Functions === */
 

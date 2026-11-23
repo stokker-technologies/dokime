@@ -27,7 +27,8 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use super::aggregates::{self, Values};
 use super::config::PreviewSettings;
-use crate::{Error, NumericBin, NumericWindow, Store};
+use super::summary::{Grid, Running};
+use crate::{BatchSelection, Error, NumericBin, NumericWindow, Store};
 
 /* === Constants === */
 
@@ -38,13 +39,6 @@ pub(crate) const SCHEMA: &str = "CREATE TABLE telemetry_previews(file TEXT NOT N
 /* === Type Aliases === */
 
 /* === Structs === */
-
-struct SavedPreview {
-    through: u64,
-    start_ns: i64,
-    end_ns: i64,
-    payload: Option<Vec<u8>>,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Point {
@@ -72,11 +66,17 @@ struct Rows<'a> {
     nulls: Option<&'a NullBuffer>,
 }
 
+/// A Field's Durable Statistics: Adaptive Time Buckets, Running Moments and an Exact Value Histogram.
+///
+/// The writer advances them with every saved chunk in row order, so a read extending the saved
+/// envelope with rows still pending equals one built from every row at once.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Envelope {
     pub(crate) origin: i128,
     pub(crate) width: i128,
     pub(crate) buckets: BTreeMap<i128, Bucket>,
+    pub(crate) summary: Running,
+    pub(crate) histogram: Grid,
 }
 
 /* === Enums === */
@@ -86,7 +86,7 @@ pub(crate) struct Envelope {
 /* === Implementations === */
 
 impl Bucket {
-    fn new(point: Point) -> Self {
+    pub(crate) fn new(point: Point) -> Self {
         Self {
             first: point,
             last: point,
@@ -99,7 +99,27 @@ impl Bucket {
         }
     }
 
-    fn merge(&mut self, other: Self) -> Result<(), Error> {
+    /// One Display Bin: Its Time Span, Count, Extremes and Edge Values.
+    pub(crate) fn bin(&self) -> NumericBin {
+        NumericBin {
+            start_ns: self.first.time as i64,
+            end_ns: self.last.time as i64,
+            count: self.count,
+            first_ns: self.first.time as i64,
+            last_ns: self.last.time as i64,
+            min_ns: self.min.time as i64,
+            max_ns: self.max.time as i64,
+            min: self.min.value,
+            max: self.max.value,
+            mean: self.mean,
+            scaled_squares: self.squares,
+            scale: self.scale,
+            first: self.first.value,
+            last: self.last.value,
+        }
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) -> Result<(), Error> {
         let order = |point: Point| (point.time, point.position);
         if order(other.first) < order(self.first) {
             self.first = other.first;
@@ -133,7 +153,14 @@ impl Envelope {
             origin: 0,
             width: settings.bucket_interval.as_nanos() as i128,
             buckets: BTreeMap::new(),
+            summary: Running::default(),
+            histogram: Grid::new(settings.histogram_bins.get()),
         }
+    }
+
+    /// The Earliest and Latest Source Times of Its Values.
+    pub(crate) fn bounds(&self) -> Option<(i64, i64)> {
+        Some((self.buckets.first_key_value()?.1.first.time as i64, self.buckets.last_key_value()?.1.last.time as i64))
     }
 
     pub(crate) fn fit(&mut self, maximum: usize) -> Result<(), Error> {
@@ -221,60 +248,48 @@ impl Rows<'_> {
 }
 
 impl Store {
-    fn saved_preview(&self, window: NumericWindow<'_>, with_payload: bool) -> Result<Option<SavedPreview>, Error> {
-        if self.has_projection(window)? {
+    /// A Field's Envelope Through a Window's Cut When the Window Selects Every Value of the Field: the Saved
+    /// Envelope, Extended With the Rows a Live Read Still Holds Pending.
+    pub(crate) fn envelope(&self, window: NumericWindow<'_>) -> Result<Option<Envelope>, Error> {
+        if window.after != 0 || self.has_projection(window)? {
             return Ok(None);
         }
-        let connection = self.lock()?;
-        let selected:Option<(u64,SavedPreview)>=connection.query_row("SELECT p.through,p.start_ns,p.end_ns,CASE WHEN ?4 THEN p.payload END FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 AND f.stream=?2 AND p.field=?3",params![window.execution,window.stream,window.field,with_payload],|row|Ok((row.get::<_,i64>(0)? as u64,SavedPreview {through:row.get::<_,i64>(0)? as u64,start_ns:row.get(1)?,end_ns:row.get(2)?,payload:row.get(3)?}))).optional()?;
-        let Some((through, preview)) = selected else {
+        let selected: Option<(i64, i64, i64, Vec<u8>)> = self
+            .lock()?
+            .prepare_cached("SELECT p.through,p.start_ns,p.end_ns,p.payload FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 AND f.stream=?2 AND p.field=?3")?
+            .query_row(params![window.execution, window.stream, window.field], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+            .optional()?;
+        let Some((through, start_ns, end_ns, payload)) = selected else {
             return Ok(None);
         };
-        if window.after != 0 || window.through < through || window.start_ns > preview.start_ns || window.end_ns < preview.end_ns {
+        if window.through < through as u64 || window.start_ns > start_ns || window.end_ns < end_ns {
             return Ok(None);
         }
-        let accepted = self.accepted_position(&connection, window.execution)?;
-        let saved = crate::store::saved_position(&connection, window.execution)?;
-        if window.through > saved && accepted > saved {
+        let Some(mut envelope) = decode(&payload) else {
             return Ok(None);
+        };
+        // Saved Rows After the Preview Have No Value for Its Field, So Only Pending Rows Can Extend It.
+        if window.through > through as u64 {
+            let maximum = self.storage_settings()?.previews.bucket_count.get();
+            let selection = BatchSelection {
+                after: through as u64,
+                ..BatchSelection::from(window)
+            };
+            for batch in self.pending_batches(window.execution, window.stream)? {
+                let batch = super::reader::tail(&batch, &selection)?;
+                if batch.num_rows() > 0 {
+                    extend(&mut envelope, &batch, window.field, maximum)?;
+                }
+            }
         }
-        Ok(Some(preview))
-    }
-    pub(crate) fn preview_bounds(&self, window: NumericWindow<'_>) -> Result<Option<(i64, i64)>, Error> {
-        Ok(self.saved_preview(window, false)?.map(|preview| (preview.start_ns, preview.end_ns)))
-    }
-    /// The Saved Position Through Which a Window Selects Every Value of Its Field, If It Does.
-    pub(crate) fn preview_through(&self, window: NumericWindow<'_>) -> Result<Option<u64>, Error> {
-        Ok(self.saved_preview(window, false)?.map(|preview| preview.through))
+        Ok(Some(envelope))
     }
     pub(crate) fn preview_bins(&self, window: NumericWindow<'_>) -> Result<Option<Vec<NumericBin>>, Error> {
-        let Some(preview) = self.saved_preview(window, true)? else {
+        let Some(mut envelope) = self.envelope(window)? else {
             return Ok(None);
         };
-        let mut envelope: Envelope = postcard::from_bytes(&preview.payload.ok_or(Error::Corrupt("preview payload is absent"))?)?;
         envelope.fit(window.bins.get())?;
-        Ok(Some(
-            envelope
-                .buckets
-                .values()
-                .map(|b| NumericBin {
-                    start_ns: b.first.time as i64,
-                    end_ns: b.last.time as i64,
-                    count: b.count,
-                    first_ns: b.first.time as i64,
-                    last_ns: b.last.time as i64,
-                    min_ns: b.min.time as i64,
-                    max_ns: b.max.time as i64,
-                    min: b.min.value,
-                    max: b.max.value,
-                    mean: b.mean,
-                    scaled_squares: b.squares,
-                    scale: b.scale,
-                    first: b.first.value,
-                    last: b.last.value,
-                })
-                .collect(),
-        ))
+        Ok(Some(envelope.buckets.values().map(Bucket::bin).collect()))
     }
     pub(crate) fn has_projection(&self, window: NumericWindow<'_>) -> Result<bool, Error> {
         let plan = self.projection.lock().map_err(|_| Error::Data("restart after the projection lock failed"))?;
@@ -288,16 +303,21 @@ impl Store {
 
 /* === Public Functions === */
 
-/// Every Saved Preview of One Stream File, by Field.
-pub(super) fn load(connection: &Connection, id: &str) -> Result<BTreeMap<String, Envelope>, Error> {
+/// Every Saved Preview of One Stream File, by Field; One of an Earlier Layout Is None and Stays As Saved.
+pub(super) fn load(connection: &Connection, id: &str) -> Result<BTreeMap<String, Option<Envelope>>, Error> {
     let mut query = connection.prepare_cached("SELECT field,payload FROM telemetry_previews WHERE file=?1")?;
     query
         .query_map([id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?
         .map(|row| {
             let (field, bytes) = row?;
-            Ok((field, postcard::from_bytes::<Envelope>(&bytes)?))
+            Ok((field, decode(&bytes)))
         })
         .collect()
+}
+
+/// A Saved Envelope Unless It Has an Earlier Layout, Whose Reads Fall Back to the Field's Rows.
+fn decode(bytes: &[u8]) -> Option<Envelope> {
+    postcard::from_bytes(bytes).ok()
 }
 
 /// Save One Field's Preview Through the Last Position of the Latest Chunk That Gave It a Value.
@@ -315,6 +335,8 @@ pub(super) fn save(connection: &Connection, id: &str, field: &str, through: u64,
 /// including an earlier time, takes the ordinary push, which inserts and coarsens as before.
 pub(super) fn extend(envelope: &mut Envelope, batch: &RecordBatch, field: &str, maximum: usize) -> Result<(), Error> {
     let column = aggregates::numeric(batch, field)?;
+    envelope.summary.extend(&column.values, |row| column.valid(row));
+    envelope.histogram.extend(&column.values, |row| column.valid(row));
     let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("storage metadata differs"))?;
     let times = metadata
         .column_by_name("source_ns")
