@@ -13,6 +13,8 @@ Plugin::of::<ExamplePlugin>("0.1.0")
 
 The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
 with empty payloads. Hooks share plugin-owned state with other operations.
+Host-backed `ctx.sleep(...)` and `ctx.now()` use the library context's clock.
+The product generator retains clock dependencies and excludes duplicate clock resources.
 
 Operation and template contexts accept the library's typed requests and untyped
 JSON calls through the same method:

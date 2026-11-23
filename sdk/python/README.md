@@ -48,6 +48,11 @@ request declaration is required. Catch `dokime_sdk.operations.OperationError` an
 returns the same structured evidence, including host retry decisions. The callee's operation policy applies unless the call supplies
 an override.
 
+Declare `failure = remote_failure` on the plugin class to map an exception to an
+`OperationError` or return `None`. The library applies this mapper once at its
+invocation boundary. Unmapped exceptions become permanent failures containing
+the exception text and the handler's operation identity.
+
 ## Standard Logging
 
 Use `log = logging.getLogger(__name__)` and ordinary synchronous `log.debug(...)`,

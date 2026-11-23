@@ -116,6 +116,8 @@ returns product description values without starting a listener.
 Plugin author classes may override `initialize(dokime::operations::Context&)` and
 `finalize(dokime::operations::Context&)`. The SDK encodes them as protected
 `<plugin>.initialize` and `<plugin>.finalize` operations with empty payloads.
+Clock reads and waits use the library context. The product generator excludes
+duplicate clock resources while retaining their operation dependencies.
 
 Each execution owns a template instance shared by initialize, steps, observers,
 criteria and cleanup. Use template fields for execution state. The optional
