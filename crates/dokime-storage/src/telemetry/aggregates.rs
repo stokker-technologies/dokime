@@ -185,7 +185,7 @@ impl Ranked {
                 let lower = (numerator / 100) as usize;
                 let (_, low, above) = floats.select_nth_unstable_by(lower, f64::total_cmp);
                 let low = *low;
-                let high = if numerator % 100 == 0 { low } else { above.iter().copied().min_by(f64::total_cmp).unwrap_or(low) };
+                let high = if numerator.is_multiple_of(100) { low } else { above.iter().copied().min_by(f64::total_cmp).unwrap_or(low) };
                 let fraction = (numerator % 100) as f64 / 100.0;
                 let answer = if low == high {
                     low

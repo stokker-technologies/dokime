@@ -410,7 +410,7 @@ fn narrowest(low: f64, high: f64, resolution: usize) -> i32 {
         let scale = 2f64.powi(-exponent);
         let (lower, upper) = ((low * scale).floor(), (high * scale).floor());
         let limit = 2f64.powi(KEY_BITS);
-        (lower.abs() < limit && upper.abs() < limit).then(|| upper - lower + 1.0)
+        (lower.abs() < limit && upper.abs() < limit).then_some(upper - lower + 1.0)
     };
     let magnitude = low.abs().max(high.abs());
     let representable = if magnitude > 0.0 { (magnitude.log2().ceil() as i32).saturating_sub(KEY_BITS) } else { -1074 };
