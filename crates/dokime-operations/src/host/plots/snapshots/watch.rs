@@ -290,7 +290,8 @@ fn progress(
         let shown = observed.get(plot.id()).copied();
         let latest = published(execution, plot);
         let at = plot.request.at.as_ref().and_then(|at| at.positions.first()).map(|position| position.sequence);
-        let live = plot.request.window_s.is_some() && at.is_none();
+        // Every Uncut Plot Follows Published Rows, With or Without a Live Window.
+        let live = at.is_none();
         let cut = at.is_some();
         let current = shown.zip(latest).is_some_and(|(shown, latest)| latest <= shown);
         // While the Execution Takes Data, a Live Plot Reads Every Published Position and Another Plot at Most Its Cut.
@@ -376,7 +377,7 @@ mod tests {
     }
 
     #[test]
-    fn saved_and_cut_plots_wait_for_rows_they_can_read() {
+    fn uncut_plots_follow_published_rows_and_cut_plots_stop_at_their_cut() {
         let mut saved = plot("saved", PlotRequest { stream: "a".into(), ..Default::default() });
         saved.request.window_s = None;
         let cut = ReadCut {
@@ -394,10 +395,11 @@ mod tests {
         let plots = [saved, cut];
         let observed = BTreeMap::from([("saved".into(), 150), ("cut".into(), 150)]);
 
-        // A Pending Row Waits for Its Flush Without a Live Window, and a Cut Plot Never Reads Past Its Cut.
+        // A Pending Row Refreshes a Plot Without a Live Window at Once, and a Cut Plot Never Reads Past Its Cut.
         let pending = |_: &str, _: &Plot| Some(160);
-        assert_eq!(progress(&plots, &observed, pending, |_, _| Some((ExecutionState::Open, 150))), WatchProgress::Waiting);
-        assert_eq!(progress(&plots, &observed, pending, |_, _| Some((ExecutionState::Open, 165))), WatchProgress::Refresh(vec![0]));
+        assert_eq!(progress(&plots, &observed, pending, |_, _| Some((ExecutionState::Open, 150))), WatchProgress::Refresh(vec![0]));
+        let current = |_: &str, _: &Plot| Some(150);
+        assert_eq!(progress(&plots, &observed, current, |_, _| Some((ExecutionState::Open, 150))), WatchProgress::Waiting);
     }
 
     #[test]
