@@ -9,12 +9,12 @@
   import OperatorNotes from "../../components/document/OperatorNotes.svelte";
   import OperatorNotesContent from "../../components/document/OperatorNotesContent.svelte";
   import { createExecutionProgress } from "../../app/live/execution-progress.svelte";
-  import { fetchNativeTestExecutionDetail } from "../../lib/api/native-execution";
+  import type { LiveExecutionProgress } from "../../app/live/execution-progress";
   import type { HubLiveState, PromptRequest, TestCyclePlan } from "../../lib/types";
   import type { FocusMode } from "../../shell/focus-mode";
   import { publishPageChrome } from "../../shell/page-chrome.svelte";
   import { storeState } from "../../stores/store-state";
-  import type { createCycleCommands } from "./cycle-queries";
+  import { type createCycleCommands, executionDetailQueryOptions } from "./cycle-queries";
   import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
   import DocumentPagination from "./DocumentPagination.svelte";
   import { createScopedDocumentQuery } from "./document-query.svelte";
@@ -30,7 +30,6 @@
   import type { ExecutionMenu } from "./node-menu";
   import { createPlotWindow } from "./plot-window-state";
   import PromptQueue from "./PromptQueue.svelte";
-  import { workflowQueryKeys } from "./workflow-query-keys";
 
   let {
     context,
@@ -46,6 +45,8 @@
     menu,
     prompts,
     onSelectExecution,
+    observedExecutionId,
+    progress,
   }: {
     context: LiveCycleContext;
     commands: ReturnType<typeof createCycleCommands>;
@@ -60,6 +61,8 @@
     menu: ExecutionMenu;
     prompts: PromptRequest[];
     onSelectExecution: (executionId: string) => void;
+    observedExecutionId: string | null;
+    progress: LiveExecutionProgress | null;
   } = $props();
 
   const session = () => context.session;
@@ -73,15 +76,7 @@
   const started = $derived(row.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null);
   const startedId = $derived(started?.test_execution_id ?? null);
   const scope = $derived(startedId ? { cycleId, executionId: startedId } : { cycleId, caseId: row.case.caseId });
-  const detail = createQuery(() => {
-    const id = startedId;
-    const { identity } = session();
-    return {
-      enabled: Boolean(id),
-      queryKey: [...workflowQueryKeys.executionDetail(id), identity.generation],
-      queryFn: () => fetchNativeTestExecutionDetail(identity, id ?? ""),
-    };
-  }, client);
+  const detail = createQuery(() => executionDetailQueryOptions(session().identity, startedId), client);
   const execution = $derived(detail.data ?? started);
   const documentQuery = createScopedDocumentQuery(session, () => ({ cycleId, executionId: startedId, enabled: Boolean(startedId) }));
   const document = $derived(started ? (documentQuery.data ?? null) : null);
@@ -109,7 +104,7 @@
   const executionId = $derived(row.execution?.test_execution_id ?? null);
   const pagePrompts = $derived(executionPagePrompts(prompts, executionId));
   const commanded = $derived(execution ?? row.execution);
-  const progress = createExecutionProgress(session, () => startedId);
+  const selectedProgress = createExecutionProgress(session, () => (startedId === observedExecutionId ? null : startedId));
   const actions = $derived(
     executionActions(
       {
@@ -121,7 +116,7 @@
         row,
       },
       commands,
-      progress(),
+      startedId === observedExecutionId ? progress : selectedProgress(),
     ),
   );
   const primaryAction = $derived(actions?.state.actions[0]);

@@ -15,10 +15,10 @@
 
 import type { ConnectedSession } from "@/app/native-session/session";
 import type { SettingValues } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { settingsQueryKeys } from "@/features/settings/settings-queries";
-import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
-import { updateNativePluginSettings } from "@/lib/api/native-settings";
+import { admittedPluginRecords } from "@/lib/api/native-plugins";
+import { pluginsListQueryOptions } from "../plugins/plugin-queries";
+import { getNativePluginSettings, updateNativePluginSettings } from "@/lib/api/native-settings";
 import { appearanceQueryKey } from "@/app/desktop-appearance";
 
 /* === Query Keys === */
@@ -29,27 +29,21 @@ export const pluginQueryKeys = {
     generation
       ? ([...pluginQueryKeys.all, "detail", generation, pluginId] as const)
       : ([...pluginQueryKeys.all, "detail", pluginId] as const),
-  list: (generation?: string) =>
-    generation ? ([...pluginQueryKeys.all, "list", generation] as const) : ([...pluginQueryKeys.all, "list"] as const),
 };
 
 /* === Hooks === */
 
-export function installedPluginsListOptions(session: ConnectedSession) {
-  return {
-    queryFn: () => listNativeAdmittedPlugins(session.identity),
-    queryKey: pluginQueryKeys.list(session.identity.generation),
-  };
-}
-
 export function installedPluginDetailsOptions(session: ConnectedSession, pluginId: string, ownerKey: string) {
   return {
     enabled: Boolean(pluginId),
-    queryFn: () => {
-      if (!pluginId) {
+    queryFn: async () => {
+      const entries = await session.queryClient.query({ ...pluginsListQueryOptions(session), staleTime: Number.POSITIVE_INFINITY });
+      const plugin = admittedPluginRecords(entries).find((candidate) => candidate.plugin_id === pluginId);
+      if (!plugin) {
         return null;
       }
-      return getInstalledPluginDetail(session.identity, pluginId);
+      const config = await getNativePluginSettings(session.identity, pluginId);
+      return { ...plugin, ...config };
     },
     queryKey: [...pluginQueryKeys.detail(pluginId, session.identity.generation), ownerKey],
   };
@@ -62,7 +56,7 @@ export function installedPluginSettingsOptions(session: ConnectedSession) {
       updateNativePluginSettings(session.identity, pluginId, values),
     onSuccess: async (_settings: unknown, variables: { pluginId: string; values: SettingValues }) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() }),
+        queryClient.invalidateQueries({ queryKey: pluginsListQueryOptions(session).queryKey }),
         queryClient.invalidateQueries({ queryKey: settingsQueryKeys.frame() }),
         queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId, session.identity.generation) }),
         queryClient.invalidateQueries({ queryKey: appearanceQueryKey }),

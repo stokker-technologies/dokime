@@ -7,11 +7,15 @@
   import Button from "../../../components/ui/Button.svelte";
   import { buttonVariants } from "../../../components/ui/button-variants";
   import DialogContent from "../../../components/ui/DialogContent.svelte";
-  import type { InstallPluginProgress, ManagedPlugin, PluginSource } from "../../../lib/api/native-plugins";
+  import {
+    admittedPluginRecords,
+    type InstallPluginProgress,
+    type ManagedPlugin,
+    type PluginSource,
+  } from "../../../lib/api/native-plugins";
   import { failureOf } from "../../../lib/notification-details";
   import { toast } from "../../../lib/notifications";
   import { isTauriDesktop } from "../../../lib/surface-environment";
-  import { installedPluginsListOptions } from "../installed-plugins/installed-plugin-queries";
   import PluginDropZone from "../plugins/PluginDropZone.svelte";
   import PluginTable, { type PluginRow } from "../plugins/PluginTable.svelte";
   import { bundleSettingsPage, programRows, programSource } from "../plugins/plugin-programs";
@@ -37,10 +41,6 @@
   );
   const plugins = createQuery(
     () => pluginsListQueryOptions(session),
-    () => client,
-  );
-  const programs = createQuery(
-    () => installedPluginsListOptions(session),
     () => client,
   );
   let installOpen = $state(false);
@@ -69,7 +69,7 @@
   );
 
   const entries = $derived(plugins.data ?? []);
-  const installed = $derived(programs.data ?? []);
+  const installed = $derived(admittedPluginRecords(entries));
   const frame = $derived(settings.data ?? null);
   const unavailable = $derived(
     session.snapshot.connection.backend?.target
@@ -138,7 +138,7 @@
       {entries}
       programs={builtInRows}
       generation={session.identity.generation}
-      loading={plugins.isPending || programs.isPending}
+      loading={plugins.isPending}
       reloading={reload.isPending}
       removingId={remove.isPending ? (remove.variables ?? null) : null}
       changingEnabled={setEnabled.isPending}
@@ -147,7 +147,7 @@
       onSetEnabled={toggle}
       {openSettings}
       settingsSectionOf={(entry) => bundleSettingsPage(entry, installed, frame)}
-      failure={plugins.error || programs.error ? failure : undefined}
+      failure={plugins.error ? failure : undefined}
     >
       {#snippet actions()}
         <Button disabled={!desktop || install.isPending} onclick={() => (installOpen = true)}>Install Plugin</Button>
@@ -189,10 +189,9 @@
 
 {#snippet failure()}
   <ErrorCard
-    failure={failureOf(plugins.error ?? programs.error, "Plugins Unavailable")}
+    failure={failureOf(plugins.error, "Plugins Unavailable")}
     onRetry={() => {
       void plugins.refetch();
-      void programs.refetch();
     }}
   />
 {/snippet}
@@ -217,7 +216,9 @@
 <Dialog.Root
   open={Boolean(candidate)}
   onOpenChange={(open) => {
-    if (!open && !remove.isPending) candidate = null;
+    if (!open && !remove.isPending) {
+      candidate = null;
+    }
   }}
 >
   <DialogContent showCloseButton={!remove.isPending}>

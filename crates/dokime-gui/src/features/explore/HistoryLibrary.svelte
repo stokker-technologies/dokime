@@ -14,6 +14,8 @@
   import type { NotificationFailure } from "../../lib/notification-details";
   import { exploreEntryKey, type ExploreEntry, type ExploreTarget } from "./explore-contracts";
 
+  import { formatHistoryDate } from "./history-format";
+
   let {
     archived,
     cycles,
@@ -56,11 +58,6 @@
       order,
     ),
   );
-
-  function formatDate(iso: string): string {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
-  }
 </script>
 
 {#snippet failureRow()}
@@ -149,7 +146,7 @@
           {entry.source.label}
         </Badge>
       </td>
-      <td class="px-2 text-right text-muted-foreground">{formatDate(entry.updated_at)}</td>
+      <td class="px-2 text-right text-muted-foreground">{formatHistoryDate(entry.updated_at)}</td>
       <td class="px-4">
         {#snippet icon()}
           <ArrowRight />

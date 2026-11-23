@@ -4,11 +4,13 @@
   import type { ConnectedSession } from "@/app/native-session/session";
   import ErrorCard from "@/components/ErrorCard.svelte";
   import Button from "@/components/ui/Button.svelte";
-  import { readNativeListener, regenerateNativeCertificate, updateNativeListener } from "@/lib/api/native-remote";
+  import { regenerateNativeCertificate, updateNativeListener } from "@/lib/api/native-remote";
   import { commands } from "@/lib/desktop/commands";
   import { failureOf } from "@/lib/notification-details";
   import { toast } from "@/lib/notifications";
   import { isTauriDesktop } from "@/lib/surface-environment";
+  import { preferencesKey, preferencesQuery } from "../application-preferences";
+  import type { ScopedPreferencesSnapshot } from "@/lib/api/native-remote";
   import ApplicationPreferences from "../ApplicationPreferences.svelte";
   import SettingsCard from "../SettingsCard.svelte";
   import SettingsRow from "../SettingsRow.svelte";
@@ -30,22 +32,13 @@
   const canManage = $derived(
     isTauriDesktop() && session?.snapshot.connection.backend?.methods.includes("/dokime.host.v1.access.Listener/Get"),
   );
-  const queryKey = $derived(["settings", "remote-listener", session?.identity.generation]);
+  const queryKey = $derived(preferencesKey("backend", session?.identity.generation));
   const query = createQuery(
-    () => {
-      const identity = session?.identity;
-      return {
-        queryKey,
-        enabled: Boolean(canManage),
-        queryFn: () => {
-          if (!identity) {
-            throw new Error("Connect to the host before reloading remote settings.");
-          }
-          return readNativeListener(identity);
-        },
-        retry: false,
-      };
-    },
+    () => ({
+      ...preferencesQuery("backend", session),
+      enabled: Boolean(canManage),
+      select: (snapshot: ScopedPreferencesSnapshot) => snapshot.listener,
+    }),
     () => queryClient,
   );
   let busy = $state(false);
@@ -54,7 +47,7 @@
 
   function publish(updated: ListenerStatus, owner: ConnectedSession, key: readonly unknown[]) {
     assertCurrent(owner);
-    owner.queryClient.setQueryData(key, updated);
+    owner.queryClient.setQueryData<ScopedPreferencesSnapshot>(key, (snapshot) => snapshot && { ...snapshot, listener: updated });
     return updated;
   }
 

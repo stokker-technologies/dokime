@@ -7,10 +7,11 @@
   import { testSuitesQueryOptions } from "../../components/suite-picker/server-state";
   import Button from "../../components/ui/Button.svelte";
   import { failureOf } from "../../lib/notification-details";
+  import { admittedPluginRecords } from "../../lib/api/native-plugins";
   import { publishPageChrome } from "../../shell/page-chrome.svelte";
   import { pageContentClass } from "../../shell/page-layout";
   import NewCycleDialog from "../cycles-home/NewCycleDialog.svelte";
-  import { installedPluginsListOptions } from "../settings/installed-plugins/installed-plugin-queries";
+  import { pluginsListQueryOptions } from "../settings/plugins/plugin-queries";
   import TemplateCatalog, { type OpenTemplate } from "./TemplateCatalog.svelte";
   import TemplateDialog from "./TemplateDialog.svelte";
   import type { ActiveCycleState } from "./active-cycle-model";
@@ -35,7 +36,7 @@
     () => session.queryClient,
   );
   const plugins = createQuery(
-    () => installedPluginsListOptions(session),
+    () => ({ ...pluginsListQueryOptions(session), select: admittedPluginRecords }),
     () => session.queryClient,
   );
   let openTemplate = $state.raw<OpenTemplate | null>(null);
@@ -59,7 +60,9 @@
       class="h-[var(--control-height)]"
       variant="outline"
       onclick={() => {
-        if (active.cycle) openCycle(active.cycle.cycleId);
+        if (active.cycle) {
+          openCycle(active.cycle.cycleId);
+        }
       }}
       >Open Cycle</Button
     >
@@ -88,7 +91,9 @@
         hasOpenCycles={active.cycles.length > 0}
         open
         onOpenChange={(open) => {
-          if (!open) openTemplate = null;
+          if (!open) {
+            openTemplate = null;
+          }
         }}
         onChangeCycle={active.openPicker}
         onNewCycle={() => (creating = true)}

@@ -12,6 +12,7 @@
 /* === Local Imports === */
 
 import { fetchNativeSettingsFrame } from "@/lib/api/native-settings";
+import { fetchStorageSources } from "@/lib/api/native-storage-settings";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Query Keys === */
@@ -23,6 +24,13 @@ export const settingsQueryKeys = {
 };
 
 /* === Hooks === */
+
+export function storageSourcesQueryOptions(identity: SessionIdentity) {
+  return {
+    queryKey: ["settings", "storage-sources", identity.generation],
+    queryFn: () => fetchStorageSources(identity),
+  };
+}
 
 export function settingsFrameQueryOptions(identity: SessionIdentity | undefined, ownerKey?: string, enabled = true) {
   return {

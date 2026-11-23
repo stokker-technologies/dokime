@@ -4,6 +4,8 @@
   import { formatDuration } from "../../lib/format";
   import { exploreEntryKey, type ExploreEntry } from "./explore-contracts";
 
+  import { formatHistoryDate } from "./history-format";
+
   let { cycles }: { cycles: ExploreEntry[] } = $props();
   const metrics: { label: string; value: (cycle: ExploreEntry) => string }[] = [
     { label: "Owner", value: (cycle) => cycle.owner ?? "—" },
@@ -12,13 +14,8 @@
     { label: "Passed", value: (cycle) => String(cycle.passed_count) },
     { label: "Failed", value: (cycle) => String(cycle.failed_count) },
     { label: "Duration", value: (cycle) => formatDuration(cycle.duration_s) ?? "—" },
-    { label: "Updated", value: (cycle) => formatDate(cycle.updated_at) },
+    { label: "Updated", value: (cycle) => formatHistoryDate(cycle.updated_at) },
   ];
-
-  function formatDate(iso: string): string {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
-  }
 </script>
 
 {#if cycles.length < 2}

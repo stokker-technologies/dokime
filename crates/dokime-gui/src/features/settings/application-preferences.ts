@@ -66,7 +66,6 @@ export function preferencesMutation(scope: SettingsScope, session: ConnectedSess
         uiStore.getState().setUiState({ density: appearance.density, themeFamily: appearance.theme_family });
       }
       void client.invalidateQueries({ queryKey: ["settings", "application"] });
-      void client.invalidateQueries({ queryKey: ["settings", "remote-listener"] });
       void client.invalidateQueries({ queryKey: ["settings", "firewall"] });
       // A Local Backend Resolves Both Scopes To The Same Revision.
       void client.invalidateQueries({ queryKey: ["settings", "preferences"] });

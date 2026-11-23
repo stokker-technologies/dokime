@@ -8,18 +8,19 @@
   import Switch from "../../components/ui/Switch.svelte";
   import TablePanel from "../../components/ui/TablePanel.svelte";
   import TableRowActions from "../../components/ui/TableRowActions.svelte";
-  import { fetchStorageSources, reorderStorageSources, setStorageSourceEnabled } from "../../lib/api/native-storage-settings";
+  import { reorderStorageSources, setStorageSourceEnabled } from "../../lib/api/native-storage-settings";
+  import { storageSourcesQueryOptions } from "./settings-queries";
   import { failureOf } from "../../lib/notification-details";
 
   type Change = { kind: "enabled"; identifier: string; enabled: boolean } | { kind: "order"; identifiers: string[] };
 
   let { session }: { session: ConnectedSession } = $props();
-  const queryKey = $derived(["settings", "storage-sources", session.identity.generation]);
+  const options = $derived(storageSourcesQueryOptions(session.identity));
   const client = () => session.queryClient;
-  const query = createQuery(() => ({ queryKey, queryFn: () => fetchStorageSources(session.identity) }), client);
+  const query = createQuery(() => options, client);
   const mutation = createMutation(() => {
     const { identity, queryClient } = session;
-    const key = queryKey;
+    const key = options.queryKey;
     return {
       mutationFn: async (change: Change) => {
         await queryClient.cancelQueries({ queryKey: key });
