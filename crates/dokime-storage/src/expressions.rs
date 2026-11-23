@@ -438,7 +438,11 @@ impl Store {
 }
 impl Evaluation<'_> {
     pub(crate) fn value(&self, expression: &DataExpression, batch: &RecordBatch, row: usize, depth: usize) -> Result<ScalarValue> {
-        self.bound_value(expression, batch, row, depth, None)
+        // A Nonfinite Value Is a Missing Measurement.
+        Ok(match self.bound_value(expression, batch, row, depth, None)? {
+            ScalarValue::Float(value) if !value.is_finite() => ScalarValue::Null,
+            value => value,
+        })
     }
     fn bound_value(
         &self, expression: &DataExpression, batch: &RecordBatch, row: usize, depth: usize, binding: Option<&str>,
