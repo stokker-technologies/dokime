@@ -6,14 +6,14 @@
 #
 # ***
 
-"""A Script Finds a Sealed Execution, Reads Its Telemetry as Dataframes and Exports Its Evidence."""
+"""A Script Follows a Running Execution, Finds It Sealed, Reads Its Evidence and Exports It."""
 
 # === Imports === #
 
 # Standard Library Imports
 import asyncio
 import unittest
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
 from io import BytesIO
 from pathlib import Path
@@ -93,11 +93,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
             settings = (OutsideSettings,)
 
         # Admit Defaults Through the Library Host Without Native Collectors or Controls.
-        specification = spec_from_file_location("settings_host", REPOSITORY / "sdk/python/tests/support/host.py")
-        assert specification is not None and specification.loader is not None
-        module = module_from_spec(specification)
-        specification.loader.exec_module(module)
-        host = await cast(HostFactory, module.Host).start(self)
+        host = await _start(self)
         client = host.client
         with self.assertRaises(OperationError):
             await client.plugins.register(OutsideBoundsPlugin())
@@ -176,11 +172,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
             observers = (ObserverTestTemplateReading,)
 
         # Start the Product Host and Bind the Observer's Execution Scope.
-        specification = spec_from_file_location("observer_host", REPOSITORY / "sdk/python/tests/support/host.py")
-        assert specification is not None and specification.loader is not None
-        module = module_from_spec(specification)
-        specification.loader.exec_module(module)
-        host = await cast(HostFactory, module.Host).start(self)
+        host = await _start(self)
         client = host.client
         await client.plugins.register(ObserverPlugin())
         cycle = await client.cycle(label="Observer Children")
@@ -196,11 +188,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         await cycle.seal()
 
     async def test_bound_lookup_frozen_records_and_retained_archives(self) -> None:
-        specification = spec_from_file_location("evidence_starter_host", REPOSITORY / "sdk/python/tests/support/host.py")
-        assert specification is not None and specification.loader is not None
-        module = module_from_spec(specification)
-        specification.loader.exec_module(module)
-        host = await cast(HostFactory, module.Host).start(self)
+        host = await _start(self)
         client = host.client
         await client.plugins.register(CapturePlugin())
         cycle = await client.cycle(label="Evidence Queries")
@@ -226,9 +214,101 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
             archive.close()
         self.assertEqual(await reopened.evidence(), await reopened.evidence())
 
+    async def test_client_follows_rows_while_the_execution_runs(self) -> None:
+        following = asyncio.Event()
+        delivered = asyncio.Event()
+
+        class FollowLevel(Observer[float]):
+            identifier = "level"
+            label = "Level"
+            row = float
+            interval_ms = 10
+
+            def __init__(self) -> None:
+                self.level = 0.0
+
+            def sample(self, ctx: operations.Context) -> float:
+                # Count Only Samples Taken After the Client Started Following.
+                if following.is_set():
+                    self.level += 1.0
+                return self.level
+
+        class FollowTestTemplate(TestTemplate):
+            uses_streams = (FollowLevel,)
+            event = record(int, label="Event", identifier="event")
+
+            @step("Follow")
+            async def follow(self, ctx: Context) -> None:
+                await ctx.record(self.event, 1)
+                await following.wait()
+                await ctx.sleep(1.0)
+                await ctx.record(self.event, 2)
+                await delivered.wait()
+
+            @criterion("Received")
+            async def received(self, ctx: Context) -> bool:
+                return await ctx.records(self.event).last() == 2
+
+        class FollowSuite(Suite):
+            templates = (FollowTestTemplate,)
+
+        class FollowPlugin(Plugin):
+            identifier = "follow"
+            version = "1.0.0"
+            suites = (FollowSuite,)
+            records = (FollowTestTemplate.event,)
+            observers = (FollowLevel,)
+
+        # Start Following Once the Step Has Captured Its First Record.
+        host = await _start(self)
+        client = host.client
+        await client.plugins.register(FollowPlugin())
+        cycle = await client.cycle(label="Live Follow")
+        cases = await client.cases.materialize(FollowTestTemplate)
+        execution = await cycle.execution(cases[0])
+        await execution.start()
+        records = execution.records(FollowTestTemplate.event).follow()
+        levels = execution.samples("follow.level", row_type=float).follow()
+        first = await anext(records)
+        self.assertEqual(first.value, 1)
+        following.set()
+
+        # The Step Waits Until the Client Received Its Mid-Run Record and Later Samples.
+        second = await anext(records)
+        self.assertEqual(second.value, 2)
+        self.assertGreater(second.sequence, first.sequence)
+        followed = [await anext(levels)]
+        while followed[-1].value < 1.0:
+            followed.append(await anext(levels))
+        self.assertGreaterEqual(await execution.samples("follow.level", row_type=float).last(), followed[-1].value)
+        delivered.set()
+
+        # Both Followers End When the Execution Closes, Matching Its Frozen Rows.
+        self.assertEqual([row async for row in records], [])
+        followed.extend([row async for row in levels])
+        self.assertEqual((await execution.seal()).status, ResultStatus.PASSED)
+        frozen = await execution.samples("follow.level", row_type=float).collect()
+        self.assertEqual([row.sequence for row in followed], [row.sequence for row in frozen])
+        self.assertEqual(await execution.samples("follow.level", row_type=float).last(), frozen[-1].value)
+        sealed = [row.sequence async for row in execution.records(FollowTestTemplate.event).follow()]
+        self.assertEqual(sealed, [first.sequence, second.sequence])
+        with self.assertRaises(OperationError):
+            await execution.samples("follow.level", between=(datetime(2100, 1, 1, tzinfo=UTC), None), row_type=float).last()
+        await cycle.seal()
+
 
 # === Public Functions === #
 
 # === Private Functions === #
+
+
+async def _start(story: unittest.IsolatedAsyncioTestCase) -> Host:
+    # The Shared Host Fixture Lives Outside a Package, So Load It by Path.
+    specification = spec_from_file_location("evidence_host", REPOSITORY / "sdk/python/tests/support/host.py")
+    assert specification is not None and specification.loader is not None
+    module = module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return await cast(HostFactory, module.Host).start(story)
+
 
 # === Entry Point === #

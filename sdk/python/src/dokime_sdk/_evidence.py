@@ -6,12 +6,12 @@
 #
 # ***
 
-"""Finite Frozen Evidence Queries"""
+"""Evidence Queries Read at a Frozen Cut or Followed Live"""
 
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Sequence
 from datetime import datetime
 from types import MappingProxyType
 from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar, cast
@@ -20,13 +20,15 @@ from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar, cast
 from google.protobuf.descriptor_pb2 import DescriptorProto
 from google.protobuf.message import DecodeError, Message
 from google.protobuf.timestamp_pb2 import Timestamp
+from grpc import StatusCode
+from grpc.aio import AioRpcError
 from harmos import PageRequest, ReadCut
 
 # Local Imports
 from ._authoring import Record, Stream
 from ._generated import client_types
 from ._payloads import Payload, message_type, unpack
-from ._transport import call, invalid
+from ._transport import call, invalid, transport_error
 from ._values import RecordRow, SampleRow, Scalar, decode
 from ._wire.host.v1.evidence.records_pb2 import CapturedRecord, CapturedRecordSelection, RecordScope, RecordsListResponse
 from ._wire.model.v1.evidence_pb2 import EvidenceScope, Window
@@ -74,14 +76,15 @@ class RecordsQuery[T: Payload]:
         decoder: Callable[[bytes], Awaitable[T]],
         *,
         step: str = "",
-        prepare: Callable[[], Awaitable[None]] | None = None,
+        live: "Execution | None" = None,
     ) -> None:
         self._name = name
         self._execution = execution
         self._reader = reader
         self._decoder = decoder
-        self._prepare = prepare
         self._step = step
+        # A Client Execution Binds Frozen Schemas and Follows Live Rows; a Plugin's Context Query Reads Frozen Cuts Only.
+        self._live = live
         self._at: ReadCut | None = None
 
     @classmethod
@@ -95,13 +98,10 @@ class RecordsQuery[T: Payload]:
     ) -> "RecordsQuery[T]":
         name, row_type = _selector(execution, declaration, row_type)
 
-        async def prepare() -> None:
-            await _prepare(execution, name)
-
         async def decode(payload: bytes) -> T:
             return await _decode(execution, name, payload, row_type)
 
-        return cls(name, execution.identifier, execution._client._transport.evidence.records, decode, step=step, prepare=prepare)
+        return cls(name, execution.identifier, execution._client._transport.evidence.records, decode, step=step, live=execution)
 
     @classmethod
     def _for_context(cls, context: "Context", declaration: Record[T], *, step: str = "") -> "RecordsQuery[T]":
@@ -113,8 +113,8 @@ class RecordsQuery[T: Payload]:
         return cls(name, context.execution, context._host.evidence.records, decode, step=step)
 
     async def _page(self, cursor: PageRequest) -> RecordsListResponse:
-        if self._prepare is not None:
-            await self._prepare()
+        if self._live is not None:
+            await _prepare(self._live, self._name)
         reply = await call(
             "evidence.records.list",
             self._reader.list(
@@ -134,9 +134,9 @@ class RecordsQuery[T: Payload]:
             raise invalid("evidence.records.list", "The Evidence Read Cut Changed")
         return reply
 
-    async def _decode(self, row: CapturedRecord) -> RecordRow[T]:
+    async def _decode(self, row: CapturedRecord, operation: str = "evidence.records.list") -> RecordRow[T]:
         if row.record_type != self._name or row.scope.execution_id != self._execution:
-            raise invalid("evidence.records.list", "The Host Returned a Record Outside the Selected Execution or Type")
+            raise invalid(operation, "The Host Returned a Record Outside the Selected Execution or Type")
         value = await self._decoder(row.payload)
         return RecordRow(
             row.record_id,
@@ -181,6 +181,28 @@ class RecordsQuery[T: Payload]:
             raise invalid("evidence.records.list", "The Selected Records Are Empty")
         return (await self._decode(reply.last)).value
 
+    async def follow(self) -> AsyncGenerator[RecordRow[T]]:
+        """Yield the Captured Rows, Then Each New Row as It Is Captured, Until the Execution Closes."""
+        execution = self._live
+        if execution is None:
+            raise ValueError("Follow Records: Select Them Through a Client Execution")
+        await _prepare(execution, self._name)
+        records = execution._client._transport.evidence.records
+        frames = _frames(
+            execution,
+            "evidence.records.watch",
+            lambda: records.watch(RecordScope(execution=self._execution), self._name, [], Window(), self._step, CapturedRecordSelection()),
+        )
+        after = -1
+        try:
+            async for frame in frames:
+                for row in frame.records:
+                    if row.sequence > after:
+                        after = row.sequence
+                        yield await self._decode(row, "evidence.records.watch")
+        finally:
+            await frames.aclose()
+
 
 class SamplesQuery[T: Payload]:
     __type_params__: ClassVar[tuple[TypeVar, ...]]
@@ -207,63 +229,97 @@ class SamplesQuery[T: Payload]:
         self._at: ReadCut | None = None
         self._kinds: dict[str, set[str]] = {}
 
+    async def _page(self, cursor: PageRequest, *, latest: bool = False) -> client_types.SamplesListResponse:
+        reply = await call(
+            "evidence.samples.list",
+            self._execution._client._transport.evidence.samples.list(
+                EvidenceScope(execution_id=self._execution.identifier),
+                [self._name],
+                [],
+                self._fields,
+                [],
+                [],
+                self._between,
+                client_types.BucketRequest(),
+                latest,
+                at=self._at,
+                page=cursor,
+            ),
+        )
+        if self._at is None:
+            self._at = reply.resolved_at
+        elif self._at != reply.resolved_at:
+            raise invalid("evidence.samples.list", "The Evidence Read Cut Changed")
+        return reply
+
+    async def _decode(self, sample: client_types.SampleRow, operation: str = "evidence.samples.list") -> SampleRow[T]:
+        raw = sample.raw
+        if sample.WhichOneof("kind") != "raw" or raw.stream != self._name or raw.scope.execution_id != self._execution.identifier:
+            raise invalid(operation, "The Host Returned a Sample Outside the Selected Execution or Stream")
+        values: dict[str, Scalar] = {}
+        for name, value in raw.values.values.items():
+            self._kinds.setdefault(name, set()).add(value.WhichOneof("kind") or "null")
+            values[name] = decode(value)
+        return SampleRow(
+            raw.sample_id,
+            raw.sequence,
+            _nanoseconds(raw.timestamp),
+            _nanoseconds(raw.received_at),
+            raw.stream,
+            raw.schema_version,
+            raw.source,
+            await _decode(self._execution, self._name, raw.payload, self._row_type),
+            MappingProxyType(values),
+        )
+
     async def pages(self, *, page_size: int = 0) -> AsyncIterator[list[SampleRow[T]]]:
         _page_size(page_size)
         await _prepare(self._execution, self._name)
         cursor = PageRequest(page_size=page_size)
         tokens: set[str] = set()
         while True:
-            reply = await call(
-                "evidence.samples.list",
-                self._execution._client._transport.evidence.samples.list(
-                    EvidenceScope(execution_id=self._execution.identifier),
-                    [self._name],
-                    [],
-                    self._fields,
-                    [],
-                    [],
-                    self._between,
-                    client_types.BucketRequest(),
-                    False,
-                    at=self._at,
-                    page=cursor,
-                ),
-            )
-            if self._at is None:
-                self._at = reply.resolved_at
-            elif self._at != reply.resolved_at:
-                raise invalid("evidence.samples.list", "The Evidence Read Cut Changed")
-            rows: list[SampleRow[T]] = []
-            for sample in reply.samples:
-                if (
-                    sample.WhichOneof("kind") != "raw"
-                    or sample.raw.stream != self._name
-                    or sample.raw.scope.execution_id != self._execution.identifier
-                ):
-                    raise invalid("evidence.samples.list", "The Host Returned a Sample Outside the Selected Execution or Stream")
-                raw = sample.raw
-                values: dict[str, Scalar] = {}
-                for name, value in raw.values.values.items():
-                    self._kinds.setdefault(name, set()).add(value.WhichOneof("kind") or "null")
-                    values[name] = decode(value)
-                decoded = await _decode(self._execution, self._name, raw.payload, self._row_type)
-                rows.append(
-                    SampleRow(
-                        raw.sample_id,
-                        raw.sequence,
-                        _nanoseconds(raw.timestamp),
-                        _nanoseconds(raw.received_at),
-                        raw.stream,
-                        raw.schema_version,
-                        raw.source,
-                        decoded,
-                        MappingProxyType(values),
-                    )
-                )
-            yield rows
+            reply = await self._page(cursor)
+            yield [await self._decode(sample) for sample in reply.samples]
             if not reply.next_page_token:
                 return
             _advance(cursor, reply.next_page_token, tokens)
+
+    async def last(self) -> T:
+        """The Newest Selected Sample's Row at the Query's Read Cut; a New Query Reads the Newest Durable Sample."""
+        await _prepare(self._execution, self._name)
+        reply = await self._page(PageRequest(page_size=1), latest=True)
+        if not reply.samples:
+            raise invalid("evidence.samples.list", "The Selected Samples Are Empty")
+        return (await self._decode(reply.samples[-1])).value
+
+    async def follow(self) -> AsyncGenerator[SampleRow[T]]:
+        """Yield the Captured Samples, Then Each New Sample as It Is Captured, Until the Execution Closes."""
+        await _prepare(self._execution, self._name)
+        samples = self._execution._client._transport.evidence.samples
+        frames = _frames(
+            self._execution,
+            "evidence.samples.watch",
+            lambda: samples.watch(
+                EvidenceScope(execution_id=self._execution.identifier),
+                [self._name],
+                [],
+                self._fields,
+                [],
+                [],
+                self._between,
+                client_types.BucketRequest(),
+                False,
+            ),
+        )
+        after = -1
+        try:
+            async for frame in frames:
+                for sample in frame.samples:
+                    if sample.raw.sequence > after:
+                        after = sample.raw.sequence
+                        yield await self._decode(sample, "evidence.samples.watch")
+        finally:
+            await frames.aclose()
 
     async def collect(self, *, max_rows: int = 100_000) -> list[SampleRow[T]]:
         if max_rows <= 0:
@@ -345,6 +401,30 @@ def _selector[T: Payload](
             raise TypeError("Read Evidence: Use the Declaration's Row Type")
         return name, declared
     raise ValueError("Read Evidence: Select a Declaration Bound to This Execution's Registered Template")
+
+
+async def _frames[F: (client_types.RecordsWatchResponse, client_types.SamplesWatchResponse)](
+    execution: "Execution", operation: str, watch: Callable[[], AsyncGenerator[F]]
+) -> AsyncGenerator[F]:
+    # Every Pass Replays Its Selection; a Clean End Is Final Only for a Pass Opened After the Execution Closed.
+    while True:
+        await execution.refresh()
+        closed = execution._detail.summary.state != client_types.EXECUTION_STATE_OPEN
+        frames = watch()
+        try:
+            async for frame in frames:
+                if frame.HasField("resync_required"):
+                    break
+                yield frame
+            else:
+                if closed:
+                    return
+        except AioRpcError as error:
+            # The Host Bounds Each Watch; Reopen After Its Deadline.
+            if error.code() != StatusCode.DEADLINE_EXCEEDED:
+                raise transport_error(operation, error) from error
+        finally:
+            await frames.aclose()
 
 
 async def _prepare(execution: "Execution", name: str) -> None:
