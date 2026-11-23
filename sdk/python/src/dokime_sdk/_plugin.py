@@ -92,7 +92,7 @@ class Plugin:
     resources: ClassVar[Sequence[type[dokime_sdk.operations.Resource]]] = ()
 
     def __init__(self) -> None:
-        _logs.install()
+        _logs.install(type(self).__module__)
         self.identifier = build_identifier(type(self).__name__, getattr(type(self), "identifier", None), class_name=True)
         self._label = self.label if self.label is not None else build_label(type(self).__name__)
         self._version = self.version if self.version is not None else _distribution_version(type(self))
