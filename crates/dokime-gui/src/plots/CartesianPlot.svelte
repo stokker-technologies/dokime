@@ -70,7 +70,7 @@
   /* Axis text is canvas-drawn; the touch rules in styles.css cannot reach it. */
   const TOUCH_PLOT_FONT_SCALE = 1.3;
   const POINT_MARK_RENDER_LIMIT = 600;
-  /* uPlot's line path decimates from four samples per device pixel column. */
+  /* Dense marks thin from the density at which uPlot's line path decimates: four per device pixel column. */
   const DECIMATION_DENSITY = 4;
   /* Point mark diameters in CSS pixels: a lone sample must read at 1x DPR on
      either theme, and dense captures keep smaller marks. */
@@ -402,22 +402,6 @@
       return null;
     }
     return m4Indices(plot.data[0] as number[], plot.data[seriesIdx] as Array<number | null>, from, to + 1, columns);
-  }
-
-  /**
-   * Steps take uPlot's decimating line path once they reach its density: each
-   * device pixel column then draws the same envelope either way.
-   */
-  export function steppedSeriesPaths(paths: uPlot.Series.PathBuilderFactories): uPlot.Series.PathBuilder | undefined {
-    const stepped = paths.stepped?.({ align: 1 });
-    const linear = paths.linear?.();
-    if (!stepped || !linear) {
-      return stepped;
-    }
-    return (plot, seriesIdx, idx0, idx1) => {
-      const dense = idx1 - idx0 >= DECIMATION_DENSITY * plot.bbox.width;
-      return (dense ? linear : stepped)(plot, seriesIdx, idx0, idx1);
-    };
   }
 
   /** The hover mark is the series' point mark, a little larger. */
@@ -1127,7 +1111,7 @@
             paths: faceted
               ? facetedSeriesPaths(style, marks[index], seriesColor(index), currentPosition)
               : style === "step"
-                ? steppedSeriesPaths(CartesianChart.paths)
+                ? CartesianChart.paths.stepped?.({ align: 1 })
                 : undefined,
           })),
         ] as uPlot.Series[],

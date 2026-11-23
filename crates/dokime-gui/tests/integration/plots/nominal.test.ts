@@ -64,7 +64,7 @@ import type {
   TelemetryColumnSpec,
   TelemetryStream,
 } from "@/lib/types";
-import CartesianPlot, { cursorPointOptions, facetedSeriesPaths, seriesPointMarks, steppedSeriesPaths } from "@/plots/CartesianPlot.svelte";
+import CartesianPlot, { cursorPointOptions, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot.svelte";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import BarPlot from "@/plots/catalog/BarPlot.svelte";
 import ContourPlot from "@/plots/catalog/ContourPlot.svelte";
@@ -790,7 +790,7 @@ test("Empty Snapshot", () => {
   assert.equal(applyPlotMessages(state, [streamMessage("replace", 0, empty)]).droppedBatches, 1);
 });
 
-test("Dense Marks and Steps Thin per Device Pixel Column at the Width They Draw", () => {
+test("Dense Marks Thin per Device Pixel Column at the Width They Draw", () => {
   /* A 50 Hz sine sampled at 1 kHz for 60 s; a 15 s window of it is visible. */
   const rate = 1_000;
   const x = Array.from({ length: 60 * rate }, (_, index) => index / rate);
@@ -825,17 +825,6 @@ test("Dense Marks and Steps Thin per Device Pixel Column at the Width They Draw"
   assert.equal(filter(plotAt(1, false, [0, x.length - 1]), 1, true), null);
   assert.equal(filter(plotAt(800, true, [10 * rate, 11 * rate]), 1, true), null);
   assert.equal(filter(plotAt(800, true, visible), 1, false), null);
-
-  // Steps Take uPlot's Decimating Line Path From Its Density at the Drawn Width
-  const linear = vi.fn(() => null);
-  const stepped = vi.fn(() => null);
-  const paths = steppedSeriesPaths({ linear: () => linear, stepped: () => stepped });
-  assert.ok(paths);
-  paths(plotAt(800, false, visible), 1, 0, 3_199);
-  paths(plotAt(800, false, visible), 1, 0, 3_200);
-  paths(plotAt(1_600, false, visible), 1, 0, 3_200);
-  assert.equal(stepped.mock.calls.length, 2);
-  assert.equal(linear.mock.calls.length, 1);
 
   // M4 Keeps First, Lowest, Highest and Last per Bucket and Skips Gaps
   assert.deepEqual(m4Indices([0, 1, 2, 3, 4, 5], [3, 9, null, 1, 4, 5], 0, 6, 1), [0, 1, 3, 5]);

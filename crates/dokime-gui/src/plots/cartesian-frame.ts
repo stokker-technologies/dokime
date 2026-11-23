@@ -13,9 +13,9 @@ import type uPlot from "uplot";
 
 /* === Local Imports === */
 
-import { xValue } from "./axis";
 import type { DocumentAxisScale, DocumentReferenceBand, DocumentReferenceLine, PlotCartesianFrame, PlotSeries } from "../lib/types";
 import { isNumber } from "../lib/utils";
+import { xValue } from "./axis";
 import type { HeldViewport } from "./viewport";
 
 /* === Constants === */
