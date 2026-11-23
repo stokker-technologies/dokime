@@ -40,6 +40,7 @@ pub(crate) const SCHEMA: &str = "CREATE TABLE telemetry_previews(file TEXT NOT N
 /* === Structs === */
 
 struct SavedPreview {
+    through: u64,
     start_ns: i64,
     end_ns: i64,
     payload: Option<Vec<u8>>,
@@ -225,7 +226,7 @@ impl Store {
             return Ok(None);
         }
         let connection = self.lock()?;
-        let selected:Option<(u64,SavedPreview)>=connection.query_row("SELECT p.through,p.start_ns,p.end_ns,CASE WHEN ?4 THEN p.payload END FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 AND f.stream=?2 AND p.field=?3",params![window.execution,window.stream,window.field,with_payload],|row|Ok((row.get::<_,i64>(0)? as u64,SavedPreview {start_ns:row.get(1)?,end_ns:row.get(2)?,payload:row.get(3)?}))).optional()?;
+        let selected:Option<(u64,SavedPreview)>=connection.query_row("SELECT p.through,p.start_ns,p.end_ns,CASE WHEN ?4 THEN p.payload END FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 AND f.stream=?2 AND p.field=?3",params![window.execution,window.stream,window.field,with_payload],|row|Ok((row.get::<_,i64>(0)? as u64,SavedPreview {through:row.get::<_,i64>(0)? as u64,start_ns:row.get(1)?,end_ns:row.get(2)?,payload:row.get(3)?}))).optional()?;
         let Some((through, preview)) = selected else {
             return Ok(None);
         };
@@ -241,6 +242,10 @@ impl Store {
     }
     pub(crate) fn preview_bounds(&self, window: NumericWindow<'_>) -> Result<Option<(i64, i64)>, Error> {
         Ok(self.saved_preview(window, false)?.map(|preview| (preview.start_ns, preview.end_ns)))
+    }
+    /// The Saved Position Through Which a Window Selects Every Value of Its Field, If It Does.
+    pub(crate) fn preview_through(&self, window: NumericWindow<'_>) -> Result<Option<u64>, Error> {
+        Ok(self.saved_preview(window, false)?.map(|preview| preview.through))
     }
     pub(crate) fn preview_bins(&self, window: NumericWindow<'_>) -> Result<Option<Vec<NumericBin>>, Error> {
         let Some(preview) = self.saved_preview(window, true)? else {

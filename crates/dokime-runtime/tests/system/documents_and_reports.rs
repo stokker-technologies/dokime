@@ -21,6 +21,7 @@ use std::error::Error;
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
 use prost::Message;
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use dokime_operations::host::plots::snapshots::list;
@@ -32,7 +33,7 @@ use dokime_protocol::host::plots::{PlotRequest, PlotSettingsValue, SettingsGetRe
 use dokime_protocol::host::reports_client::ReportsClient;
 use dokime_protocol::host::{
     DocumentFrame, DocumentScope, DocumentsGetRequest, FilesReadRequest, ReportCapture, ReportSubject, ReportsCreateRequest,
-    ReportsPublishRequest, document_binding_result, document_frame_frame, report_subject,
+    document_binding_result, document_frame_frame, report_subject,
 };
 use dokime_protocol::model::{Downsample, PlotHistogramOptions, PlotKind, card};
 use dokime_runtime::{Host, services};
@@ -84,10 +85,14 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             super::support::answer(&host, &execution, prompt)?;
             let result = cycle.wait().await?;
             let before = host.execution(&execution)?;
+            // Sealing Froze the Default Document's Report Before the Cycle Completed.
+            let frozen = host.reports(&execution)?;
+            assert_eq!(frozen.len(), 1);
+            assert_eq!(frozen[0].document.as_ref(), Some(&document));
             host.shutdown().await?;
             drop(host);
 
-            // Create Through the Active Host Operation Without Publication.
+            // Preview the Named Document Through the Active Host Without Publication.
             let server =
                 services::serve(([127, 0, 0, 1], 0).into(), root.path(), super::support::settings(), super::support::service_settings())
                     .await?;
@@ -185,14 +190,14 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             let prepared = reports
                 .create(ReportsCreateRequest {
                     subject: Some(subject.clone()),
-                    document_id: String::new(),
+                    document_id: document_id.clone(),
                     request_id: "document-report".into(),
                 })
                 .await?
                 .into_inner();
             let file = prepared.file.unwrap();
             let store = Store::open(root.path())?;
-            assert!(store.reports(&execution)?.is_empty());
+            assert_eq!(store.reports(&execution)?, frozen);
             assert_eq!(store.read(&execution)?, before);
             let mut html = Vec::new();
             let mut at = None;
@@ -280,23 +285,23 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
                 expected.iter().map(Message::encode_to_vec).collect::<Vec<_>>()
             );
 
-            // Publication Retains the Same Inputs and File Across Restart.
-            reports
-                .publish(ReportsPublishRequest {
-                    name: file.metadata.unwrap().id,
+            // Download Delivers the Report Frozen at Seal, Unchanged Across Restart.
+            let downloaded = reports
+                .create(ReportsCreateRequest {
                     subject: Some(subject),
-                    expected_revision: file.sha256,
-                    request_id: "publish-document-report".into(),
+                    document_id: String::new(),
+                    request_id: "download-report".into(),
                 })
-                .await?;
-            let published = store.reports(&execution)?.remove(0);
-            assert_eq!(published.document, Some(document));
-            assert_eq!(published.html, html);
+                .await?
+                .into_inner();
+            assert_eq!(downloaded.report.unwrap().identifier, frozen[0].identifier);
+            assert_eq!(downloaded.file.unwrap().sha256, Sha256::digest(&frozen[0].html).as_slice());
+            assert_eq!(store.reports(&execution)?, frozen);
             assert_eq!(store.read(&execution)?, before);
             server.close().await?;
             drop(store);
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            assert_eq!(host.reports(&execution)?, vec![published]);
+            assert_eq!(host.reports(&execution)?, frozen);
             assert_eq!(host.execution(&execution)?, before);
             host.shutdown().await?;
             Ok::<(), Box<dyn Error>>(())

@@ -18,9 +18,13 @@
 // Standard Library Imports
 use std::collections::HashMap;
 use std::error::Error;
+use std::io::{Cursor, Read};
 use std::sync::Arc;
 
 // Third Party Imports
+use harmos_protocol::model::FileReference;
+use tonic::transport::Channel;
+use zip::ZipArchive;
 
 // Local Imports
 use dokime::Termination;
@@ -29,8 +33,13 @@ use dokime_protocol::host::PromptsCreateResponse;
 use dokime_protocol::model::value;
 use dokime_runtime::ControlledClock;
 
+use dokime_protocol::host::evidence_client::EvidenceClient;
+use dokime_protocol::host::files_client::FilesClient;
 use dokime_protocol::host::reports_client::ReportsClient;
-use dokime_protocol::host::{ReportSubject, ReportsCreateRequest, ReportsPublishRequest, report_subject};
+use dokime_protocol::host::{
+    EvidenceArchiveRequest, EvidenceSubject, FilesReadRequest, ReportSubject, ReportsCreateRequest, ReportsPublishRequest,
+    evidence_subject, report_subject,
+};
 use dokime_runtime::{Host, services};
 use dokime_storage::ExecutionState;
 use dokime_storage::Store;
@@ -52,6 +61,22 @@ use dokime_storage::Store;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn read(files: &mut FilesClient<Channel>, file: FileReference) -> Result<Vec<u8>, Box<dyn Error>> {
+    let mut bytes = Vec::new();
+    while (bytes.len() as u64) < file.length {
+        let request = FilesReadRequest {
+            file: Some(file.clone()),
+            offset: bytes.len() as u64,
+            max_bytes: 0,
+            at: None,
+        };
+        let reply = files.read(request).await?.into_inner();
+        assert!(!reply.data.is_empty());
+        bytes.extend(reply.data);
+    }
+    Ok(bytes)
+}
 
 /* === Tests === */
 
@@ -163,66 +188,88 @@ fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>> {
+fn sealing_freezes_the_report_download_and_export_deliver() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-            // Run and Seal the Evidence Before Rendering
+            // Every Termination Freezes Its Report Before the Cycle Completes
             let root = super::support::tempdir()?;
             let settings = super::support::settings();
             let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
-            let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
-            let origin = host
-                .materialize(
-                    &entry,
-                    "thermal.thermal.cycle",
-                    HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]),
-                )
-                .await?;
-            let cycle = host.start_cycle(vec![origin]).await?;
-            let execution = cycle.executions[0].clone();
-            let question = host.next_prompt(&execution).await?;
-            super::support::answer(&host, &execution, question)?;
-            cycle.wait().await?;
-            let before = host.execution(&execution)?;
+            let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
+            let mut frozen = Vec::new();
+            for (failures, stop, termination) in
+                [(0, false, Termination::Completed), (2, false, Termination::Failed), (0, true, Termination::Stopped)]
+            {
+                let origin =
+                    host.materialize(&entry, "execution.execution.capture", super::support::parameters(17.0, failures, true)).await?;
+                let cycle = host.start_cycle(vec![origin]).await?;
+                let execution = cycle.executions[0].clone();
+                let prompt = host.next_prompt(&execution).await?;
+                if stop {
+                    host.stop_execution(&execution)?;
+                }
+                super::support::answer(&host, &execution, prompt)?;
+                cycle.wait().await?;
+                assert_eq!(host.execution(&execution)?.execution.termination, termination as i32);
+                let mut reports = host.reports(&execution)?;
+                assert_eq!(reports.len(), 1, "Freeze One Report for {termination:?}");
+                frozen.push((execution, reports.remove(0)));
+            }
             host.shutdown().await?;
             drop(host);
+
+            // Download and Export Deliver the Frozen Report Without Publishing Another
             let server =
                 services::serve(([127, 0, 0, 1], 0).into(), root.path(), settings.clone(), super::support::service_settings()).await?;
-            let mut reports = ReportsClient::connect(format!("http://{}", server.endpoint())).await?;
-            let subject = ReportSubject {
-                kind: Some(report_subject::Kind::Execution(execution.clone())),
-            };
-            let prepared = reports
-                .create(ReportsCreateRequest {
-                    subject: Some(subject.clone()),
-                    request_id: "lifecycle-report".into(),
-                    ..Default::default()
-                })
-                .await?
-                .into_inner();
-            let file = prepared.file.unwrap();
+            let endpoint = format!("http://{}", server.endpoint());
+            let mut reports = ReportsClient::connect(endpoint.clone()).await?;
+            let mut evidence = EvidenceClient::connect(endpoint.clone()).await?;
+            let mut files = FilesClient::connect(endpoint).await?;
             let store = Store::open(root.path())?;
-            assert!(store.reports(&execution)?.is_empty());
-            assert_eq!(store.read(&execution)?, before);
-            let request = ReportsPublishRequest {
-                name: file.metadata.unwrap().id,
-                subject: Some(subject),
-                expected_revision: file.sha256,
-                request_id: "lifecycle-publish".into(),
-            };
-            reports.publish(request.clone()).await?;
-            let report = store.reports(&execution)?.remove(0);
-            assert_eq!(store.read(&execution)?, before);
+            for (execution, report) in &frozen {
+                let download = ReportsCreateRequest {
+                    subject: Some(ReportSubject {
+                        kind: Some(report_subject::Kind::Execution(execution.clone())),
+                    }),
+                    request_id: format!("download-{execution}"),
+                    ..Default::default()
+                };
+                let downloaded = reports.create(download.clone()).await?.into_inner();
+                assert_eq!(downloaded.report.unwrap().identifier, report.identifier);
+                let file = downloaded.file.unwrap();
+                assert_eq!(read(&mut files, file.clone()).await?, report.html);
+                let publish = ReportsPublishRequest {
+                    subject: download.subject.clone(),
+                    name: file.metadata.as_ref().unwrap().id.clone(),
+                    expected_revision: file.sha256,
+                    request_id: format!("publish-{execution}"),
+                };
+                assert_eq!(reports.publish(publish).await?.into_inner().report.unwrap().identifier, report.identifier);
+                let request = EvidenceArchiveRequest {
+                    subject: Some(EvidenceSubject {
+                        kind: Some(evidence_subject::Kind::Execution(execution.clone())),
+                    }),
+                    at: None,
+                };
+                let archive = evidence.archive(request.clone()).await?.into_inner().file.unwrap();
+                assert_eq!(evidence.archive(request).await?.into_inner().file.unwrap(), archive);
+                let mut html = Vec::new();
+                ZipArchive::new(Cursor::new(read(&mut files, archive).await?))?.by_name("report.html")?.read_to_end(&mut html)?;
+                assert_eq!(html, report.html);
+                assert_eq!(store.reports(execution)?, vec![report.clone()]);
 
-            // Shutdown Closes Publication and Preserves Published Reports.
-            server.close().await?;
-            assert!(reports.publish(request).await.is_err());
-            assert_eq!(store.reports(&execution)?, vec![report.clone()]);
-            assert_eq!(store.read(&execution)?, before);
+                // Shutdown Closes Admission and Preserves the Frozen Report
+                if execution == &frozen[2].0 {
+                    server.close().await?;
+                    assert!(reports.create(download).await.is_err());
+                    break;
+                }
+            }
             drop(store);
             let host = Host::open(root.path(), settings, super::support::service_settings()).await?;
-            assert_eq!(host.reports(&execution)?, vec![report]);
-            assert_eq!(host.execution(&execution)?, before);
+            for (execution, report) in &frozen {
+                assert_eq!(host.reports(execution)?, vec![report.clone()]);
+            }
             host.shutdown().await?;
             Ok::<_, Box<dyn Error>>(())
         })

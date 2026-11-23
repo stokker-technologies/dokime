@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, future::Future, io::Write, num::NonZeroUsize, pin::Pin};
+use std::{collections::HashMap, future::Future, io::Write, num::NonZeroUsize, pin::Pin, time::Instant};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray, UInt64Array};
@@ -34,15 +34,14 @@ use harmos_runtime::{
 };
 use prost::Message;
 use tempfile::NamedTempFile;
+use tokio::sync::oneshot;
 
 // Local Imports
+use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::evidence::{AnnotationOwner, AnnotationOwnerOwner, AnnotationSelection, annotation_owner_owner};
 use dokime_protocol::host::evidence_subject;
-use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
-use dokime_protocol::host::{
-    EvidenceArchiveRequest, EvidenceArchiveResponse, EvidenceSubject, ReportSubject, ReportsCreateRequest, report_subject,
-};
+use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceArchiveResponse, EvidenceSubject};
 use dokime_storage::persisted::Scope;
 use dokime_storage::{ArchivedContent, ArchivedNativeFile, ExecutionState};
 
@@ -87,31 +86,38 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
             let Some(evidence_subject::Kind::Execution(execution)) = subject.kind.as_ref() else {
                 return Err(Error::Invalid("Download Evidence: Select an Execution".into()));
             };
-            let cut = context.host.store().cut(execution)?;
-            if cut.state != ExecutionState::Sealed {
-                return Err(Error::Precondition(format!("Download Evidence: Wait until Execution {execution} Is Sealed")));
-            }
-            let key = format!("execution-evidence/{execution}/{}", crate::host::views::hex(&cut.seal));
-            let (saved, revision) = crate::host::storage::administration::message::<FileReference>(context, &key).await?;
-            let file = if revision.is_empty() {
-                let file = materialize(context, subject, None, None).await?;
-                crate::host::storage::administration::retain(
-                    context,
-                    &key,
-                    Scope::Execution(&cut.execution.identifier).identifier()?,
-                    &file,
-                )
-                .await?
-            } else {
-                saved
-            };
-            Ok(EvidenceArchiveResponse { file: Some(file), resolved_at: None })
+            Ok(EvidenceArchiveResponse {
+                file: Some(freeze(context, execution).await?),
+                resolved_at: None,
+            })
         })
         .await?;
         reply.resolved_at = Some(cut);
         Ok(reply)
     })
     .await
+}
+
+/// The Sealed Execution's Evidence Archive, Built Once After Its Frozen Report by Its Seal or First Export.
+pub async fn freeze(context: &Context, execution: &str) -> Result<FileReference> {
+    let cut = context.host.store().cut(execution)?;
+    if cut.state != ExecutionState::Sealed {
+        return Err(Error::Precondition(format!("Download Evidence: Wait until Execution {execution} Is Sealed")));
+    }
+    // The Report Is Published First, So Building the Archive Only Reads It.
+    crate::host::reports::create::freeze(context, execution).await?;
+    let key = format!("execution-evidence/{execution}/{}", crate::host::views::hex(&cut.seal));
+    let (saved, revision) = administration::message::<FileReference>(context, &key).await?;
+    if !revision.is_empty() {
+        return Ok(saved);
+    }
+    // The Host Settles an Admitted Build After a Caller's Deadline Drops Its Receiver.
+    let (sender, receiver) = oneshot::channel();
+    let (owned, execution) = (context.clone(), execution.to_owned());
+    context.host.spawn_work(Box::pin(async move {
+        let _ = sender.send(build(&owned, &execution, &key).await);
+    }))?;
+    receiver.await.map_err(|_| Error::Cancelled("Freeze Evidence: Reconnect After the Host Stops".into()))?
 }
 
 pub(crate) fn materialize(
@@ -122,32 +128,18 @@ pub(crate) fn materialize(
             Some(scope) => scope,
             None => subject_scope(&subject)?,
         };
+        let phase = Instant::now();
         let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Create Temporary Evidence Export: {error}")))?;
-        let (store, _read_cancellation) = context.host.store().read_session()?;
+        // Each Frozen Report Is Published Before the Archive's Read Snapshot Opens.
         match subject.kind.as_ref() {
             Some(evidence_subject::Kind::Execution(execution)) => {
-                let cycle = store.metadata(execution)?.execution.cycle;
+                let (_, report) = crate::host::reports::create::freeze(context, execution).await?;
+                let cycle = context.host.store().metadata(execution)?.execution.cycle;
                 let mut contents = HashMap::from([(execution.clone(), content(context, execution).await?)]);
                 inventory(context, &cycle, &mut contents, &mut ArchivedContent::default()).await?;
                 let mut files = contents.remove(execution).unwrap();
-                let report = match report {
-                    Some(report) => report,
-                    None => crate::host::reports::create::prepare(
-                        context,
-                        ReportsCreateRequest {
-                            subject: Some(ReportSubject {
-                                kind: Some(report_subject::Kind::Execution(execution.clone())),
-                            }),
-                            request_id: format!("evidence-report/{execution}/{}", crate::host::views::hex(&store.cut(execution)?.seal)),
-                            ..Default::default()
-                        },
-                        None,
-                    )
-                    .await?
-                    .file
-                    .ok_or_else(|| Error::Precondition("Export Execution: Restore Its Report".into()))?,
-                };
                 files.report = Some(native_file(context, report, None).await?);
+                let (store, _read_cancellation) = context.host.store().read_session()?;
                 store.write_execution_archive(execution, &mut file, files)?;
             }
             Some(evidence_subject::Kind::Cycle(cycle)) => {
@@ -155,25 +147,15 @@ pub(crate) fn materialize(
                 let mut files = HashMap::new();
                 let mut after = String::new();
                 loop {
-                    let executions = store.cycle_execution_page(cycle, &after, page)?;
+                    let executions = context.host.store().cycle_execution_page(cycle, &after, page)?;
                     if executions.is_empty() {
                         break;
                     }
                     for execution in executions {
                         after = execution.clone();
                         let mut content = content(context, &execution).await?;
-                        let (_, report) = crate::host::reports::create::render(
-                            context,
-                            &ReportsCreateRequest {
-                                subject: Some(ReportSubject {
-                                    kind: Some(report_subject::Kind::Execution(execution.clone())),
-                                }),
-                                request_id: format!("archive-execution/{execution}"),
-                                ..Default::default()
-                            },
-                        )
-                        .await?;
-                        content.report = Some(report);
+                        let (_, report) = crate::host::reports::create::freeze(context, &execution).await?;
+                        content.report = Some(native_file(context, report, None).await?);
                         files.insert(execution.clone(), content);
                     }
                 }
@@ -184,81 +166,54 @@ pub(crate) fn materialize(
                 inventory(context, cycle, &mut files, &mut owned).await?;
                 let report = report.ok_or_else(|| Error::Precondition("Seal Cycle: Materialize Its Report Before Its Archive".into()))?;
                 owned.report = Some(native_file(context, report, None).await?);
+                let (store, _read_cancellation) = context.host.store().read_session()?;
                 store.write_cycle_archive(cycle, page, &mut file, &mut files, owned)?;
             }
             None => return Err(Error::Invalid("Download Evidence: Select an Execution or Cycle".into())),
         }
+        tracing::debug!(phase = "archive_assembly", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
+        let phase = Instant::now();
         let (file, length, sha256) = crate::host::content::transfer::temporary(file)?;
         let digest =
             (0..sha256.len()).step_by(2).map(|index| u8::from_str_radix(&sha256[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
-        let created = crate::host::files::uploads::create::derived(
+        let request_id = uuid::Uuid::now_v7().to_string();
+        let reference = crate::host::files::transfer::publication(
             context,
-            UploadsCreateRequest {
-                metadata: Some(FileMetadata {
-                    id: format!("temporary-evidence/{}", uuid::Uuid::now_v7()),
-                    scope: Some(scope.to_string()),
-                    media_type: "application/zip".into(),
-                    expected_length: Some(length),
-                    expected_sha256: Some(digest.clone()),
-                }),
-                request_id: uuid::Uuid::now_v7().to_string(),
+            "Publish Evidence Archive",
+            &request_id,
+            FileMetadata {
+                id: format!("temporary-evidence/{request_id}"),
+                scope: Some(scope.to_string()),
+                media_type: "application/zip".into(),
+                expected_length: Some(length),
+                expected_sha256: Some(digest),
             },
+            |offset, data| crate::host::content::transfer::read_temporary(&file, offset, data),
+            || false,
         )
         .await?;
-        let upload = created.upload.ok_or_else(|| Error::Precondition("Publish Evidence Archive: Return Its Native Upload".into()))?;
-        let result = async {
-            let mut offset = 0;
-            while offset < length {
-                let count = (length - offset).min(created.chunk_bytes) as usize;
-                let mut data = vec![0; count];
-                crate::host::content::transfer::read_temporary(&file, offset, &mut data)?;
-                crate::host::files::uploads::append::handle(
-                    context,
-                    UploadsAppendRequest {
-                        upload: Some(upload.clone()),
-                        offset,
-                        data,
-                        request_id: uuid::Uuid::now_v7().to_string(),
-                    },
-                )
-                .await?;
-                offset += count as u64;
-            }
-            let published = crate::host::files::uploads::publish::handle(
-                context,
-                UploadsPublishRequest {
-                    upload: Some(upload.clone()),
-                    length,
-                    sha256: digest,
-                    request_id: uuid::Uuid::now_v7().to_string(),
-                },
-            )
-            .await?;
-            published.upload.ok_or_else(|| Error::Precondition("Publish Evidence Archive: Return Its Native Reference".into()))
-        }
-        .await;
-        let reference = match result {
-            Ok(reference) => reference,
-            Err(source) => {
-                let removed = crate::host::files::uploads::delete::handle(
-                    context,
-                    UploadsDeleteRequest {
-                        upload: Some(upload),
-                        request_id: uuid::Uuid::now_v7().to_string(),
-                    },
-                )
-                .await;
-                if let Err(cleanup) = removed {
-                    return Err(Error::Invalid(format!("Publish Evidence Archive: {source}; Remove Its Failed Upload: {cleanup}")));
-                }
-                return Err(source);
-            }
-        };
+        tracing::debug!(phase = "archive_upload", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
         Ok(reference)
     })
 }
 
 /* === Private Functions === */
+
+async fn build(context: &Context, execution: &str, key: &str) -> Result<FileReference> {
+    let _admitted = context.archives.lock().await;
+    let (saved, revision) = administration::message::<FileReference>(context, key).await?;
+    if !revision.is_empty() {
+        return Ok(saved);
+    }
+    let started = Instant::now();
+    let subject = EvidenceSubject {
+        kind: Some(evidence_subject::Kind::Execution(execution.into())),
+    };
+    let file = materialize(context, subject, None, None).await?;
+    let file = administration::retain(context, key, Scope::Execution(execution).identifier()?, &file).await?;
+    tracing::info!(%execution, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Evidence Frozen");
+    Ok(file)
+}
 
 fn subject_scope(subject: &EvidenceSubject) -> Result<Identifier> {
     Ok(match subject.kind.as_ref() {

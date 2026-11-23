@@ -28,7 +28,9 @@ use harmos_query::transform::{
     histogram,
 };
 use harmos_query::{Aggregate, TableWriter};
+use prost::Message;
 use prost_types::Timestamp;
+use rusqlite::{OptionalExtension, params};
 
 // Local Imports
 use crate::scalar::{self, ScalarValue};
@@ -80,7 +82,7 @@ impl Store {
             return Err(Error::Data("narrow the raw plot window or select downsampling"));
         }
         if count > limit as u64 && (boolean || !matches!(technique, Downsample::Raw | Downsample::Lttb)) {
-            return self.time_series_window(window);
+            return self.binned_series(window, summary);
         }
         let schema = Arc::new(Schema::new(vec![
             Field::new("time", DataType::Int64, false),
@@ -159,18 +161,28 @@ impl Store {
         Ok(self.numeric_summary(*window)?.rms)
     }
     pub fn series_summary(&self, window: &NumericWindow<'_>) -> Result<PlotSeriesSummary> {
-        let stats = self.numeric_statistics(window)?;
-        let std = stats.mean.as_ref().map(|_| stats.stddev);
-        let rms = stats.mean.as_ref().map(|_| self.numeric_rms(window)).transpose()?;
-        Ok(PlotSeriesSummary {
-            count: stats.count,
-            min: stats.min,
-            max: stats.max,
-            mean: stats.mean,
-            median: stats.median,
-            std,
-            rms,
-            ..Default::default()
+        self.extent(*window, "series", || {
+            if self.boolean_window(*window)? {
+                return Ok(PlotSeriesSummary {
+                    count: self.numeric_bins(*window)?.iter().map(|bin| bin.count).sum(),
+                    ..Default::default()
+                });
+            }
+            let moments = self.numeric_summary(*window)?;
+            if moments.count == 0 {
+                return Ok(Default::default());
+            }
+            let (median, _) = self.numeric_order_statistics(*window, &[], |_| Ok(()))?;
+            Ok(PlotSeriesSummary {
+                count: moments.count,
+                min: Some(scalar::wire(&moments.min)?),
+                max: Some(scalar::wire(&moments.max)?),
+                mean: Some(scalar::wire(&moments.average)?),
+                median: Some(scalar::wire(&median)?),
+                std: Some(moments.standard_deviation),
+                rms: Some(moments.rms),
+                ..Default::default()
+            })
         })
     }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
@@ -201,11 +213,13 @@ impl Store {
             last: Some(scalar::wire(&moments.last)?),
         })
     }
-    #[tracing::instrument(name = "plot.preview", skip_all)]
     pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
+        self.binned_series(window, self.series_summary(&window)?)
+    }
+    #[tracing::instrument(name = "plot.preview", skip_all)]
+    fn binned_series(&self, window: NumericWindow<'_>, summary: PlotSeriesSummary) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         let bins = self.numeric_bins(window)?;
         let boolean = self.boolean_window(window)?;
-        let summary = self.series_summary(&window)?;
         let count = summary.count;
         let mut points = Vec::with_capacity(bins.len() * if boolean { 2 } else { 4 });
         for bin in &bins {
@@ -230,6 +244,9 @@ impl Store {
         Ok((column, summary, count))
     }
     pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
+        self.extent(window, &format!("histogram/{bins}"), || self.histogram(window, bins))
+    }
+    fn histogram(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
         let summary = self.numeric_summary(window)?;
         if summary.count == 0 {
             return Ok(Default::default());
@@ -310,6 +327,57 @@ impl Store {
             ..Default::default()
         })
     }
+    /// Retain an Execution's Full-Extent Plot Results So Reads After a Restart Need Not Recompute Them.
+    pub fn retain_extents(&self, execution: &str) -> Result<()> {
+        let prefix = extent_prefix(execution);
+        let extents = self.extents.lock().map_err(|_| Error::Data("restart after the plot extent cache failed"))?;
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        for (key, (through, payload)) in extents.iter().filter(|(key, _)| key.starts_with(&prefix)) {
+            transaction.execute(
+                "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                params![key, [through.to_le_bytes().as_slice(), payload].concat()],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+    /// Full-Extent Results Depend Only on Saved Values Through the Field's Preview, So Every Read Shares Them;
+    /// A Sealed Execution's Report Computes and Retains Them Once at Seal for Every Plot That Follows.
+    fn extent<T: Message + Default>(&self, window: NumericWindow<'_>, kind: &str, compute: impl FnOnce() -> Result<T>) -> Result<T> {
+        let Some(through) = self.preview_through(window)? else {
+            return compute();
+        };
+        let key = format!(
+            "{}{}:{}/{}:{}/{kind}",
+            extent_prefix(window.execution),
+            window.stream.len(),
+            window.stream,
+            window.field.len(),
+            window.field
+        );
+        let extents = || self.extents.lock().map_err(|_| Error::Data("restart after the plot extent cache failed"));
+        let saved = extents()?.get(&key).cloned();
+        let saved = match saved {
+            Some(saved) => Some(saved),
+            None => self
+                .lock()?
+                .query_row("SELECT payload FROM administration WHERE id=?1", [&key], |row| row.get::<_, Vec<u8>>(0))
+                .optional()?
+                .filter(|bytes| bytes.len() >= 8)
+                .map(|bytes| (u64::from_le_bytes(bytes[..8].try_into().unwrap()), bytes[8..].to_vec())),
+        };
+        if let Some((saved, payload)) = saved
+            && saved == through
+        {
+            let value = T::decode(payload.as_slice())?;
+            extents()?.insert(key, (through, payload));
+            return Ok(value);
+        }
+        let value = compute()?;
+        extents()?.insert(key, (through, value.encode_to_vec()));
+        Ok(value)
+    }
     fn numeric_order_statistics(
         &self, window: NumericWindow<'_>, percentiles: &[u8], mut read: impl FnMut(&RecordBatch) -> Result<()>,
     ) -> Result<(ScalarValue, BTreeMap<u8, ScalarValue>)> {
@@ -351,6 +419,10 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+pub(crate) fn extent_prefix(execution: &str) -> String {
+    format!("plot-extent/{}:{execution}/", execution.len())
+}
 
 fn number(value: f64) -> Value {
     Value { kind: Some(value::Kind::Number(value)) }

@@ -325,7 +325,7 @@ pub(crate) fn detail(context: &Context, name: &str) -> Result<ExecutionDetail> {
     let summary = summary(context, &snapshot)?;
     let outcomes = context.host.store().cycle_outcomes(&snapshot.execution.cycle)?;
     let cycle_counts = projection::counts(&outcomes);
-    let reports = context.host.store().reports(name)?;
+    let reports = context.host.store().report_identifiers(name)?;
     let schemas = projection::schemas(&snapshot)?;
     let (started_at, finished_at) = context.host.store().execution_times(name)?;
     let (admitted_suite, admitted_template) =
