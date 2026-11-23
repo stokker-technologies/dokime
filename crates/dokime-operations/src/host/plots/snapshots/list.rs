@@ -155,11 +155,11 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
     .await
 }
 
-/// Serve Plot Responses at the Saved Cut, or at the Accepted Frontier for Live Windows.
+/// Serve Plot Responses at Their Cut, or at the Accepted Frontier While Their Execution Takes Data.
 pub async fn snapshots(
     store: &Store, requests: Vec<PlotRequest>, maximum: usize, now_ns: i64, epoch: &str, message_bytes: Option<usize>,
 ) -> Result<Vec<PlotEnvelope>> {
-    let live = requests.iter().any(|request| request.window_s.is_some() && request.at.is_none());
+    let live = requests.iter().any(|request| request.at.is_none());
     let (store, _cancellation) = if live { store.live_read_session()? } else { store.read_session()? };
     batch(&store, requests, None, maximum, now_ns, epoch, message_bytes).await
 }
@@ -247,7 +247,7 @@ async fn batch(
                 let mut cut = source.cut.clone();
                 if let Some(at) = &request.at {
                     cut.frontier = at.positions[0].sequence;
-                } else if !capturing && request.window_s.is_some() {
+                } else if !capturing {
                     cut.frontier = reader.accepted_frontier(&cut.execution.identifier)?;
                 }
                 loop {
