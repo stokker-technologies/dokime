@@ -150,6 +150,8 @@ class MeasurementsPlugin(Plugin):
     observers = (Temperature,)
 ```
 
+The thermal example publishes a fixed 84 °C reading independently of each execution's limit.
+
 For window sampling, declare `columns` on the observer and implement
 `sample(self, ctx, window)`. Plugin publishers use `@stream` on plugin methods.
 Typed subscriptions use `await ctx.subscribe(declaration, max_item_bytes=...)`.

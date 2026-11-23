@@ -26,7 +26,7 @@ from harmos import OperationPolicy, plugin
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
-from dokime_sdk import Plugin, Suite
+from dokime_sdk import Plugin, Suite, operations
 from dokime_sdk._client import Case, Cycle, Execution
 from dokime_sdk._connection import connect
 from dokime_sdk._generated import client_types
@@ -234,7 +234,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
             label = "Voltage"
             row = float
 
-            async def sample(self, ctx: Context) -> float:
+            async def sample(self, ctx: operations.Context) -> float:
                 return 0.0
 
         class CaptureTestTemplate(TestTemplate):

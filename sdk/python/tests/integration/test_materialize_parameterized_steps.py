@@ -22,9 +22,10 @@ from typing import Any, ClassVar, cast
 from harmos import plugin
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
-# Local Imports
 import dokime_sdk.operations
 import dokime_sdk.templates
+
+# Local Imports
 from dokime_sdk import Client, Plugin, ResultStatus, Scalar, Suite
 from dokime_sdk.operations import OperationError, OperationPolicy, RetryPolicy
 from dokime_sdk.templates import (

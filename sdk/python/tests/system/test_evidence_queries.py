@@ -25,7 +25,7 @@ import harmos
 from grpc.aio import AioRpcError
 
 # Local Imports
-from dokime_sdk import Client, Plugin, ResultStatus, Suite
+from dokime_sdk import Client, Plugin, ResultStatus, Suite, operations
 from dokime_sdk._generated.shared import SettingValues
 from dokime_sdk.operations import OperationError, Setting, Settings
 from dokime_sdk.templates import Context, Observer, TestTemplate, criterion, record, step
@@ -141,7 +141,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
             row = float
             interval_ms = 10
 
-            async def sample(self, ctx: Context) -> float:
+            async def sample(self, ctx: operations.Context) -> float:
                 try:
                     saved = ctx.settings(ObserverSettings)
                     await ctx.record(ObserverTestTemplate.flag, saved.sample_count == 0)

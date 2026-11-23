@@ -14,6 +14,7 @@
 import logging
 
 # Third Party Imports
+from dokime_sdk import operations
 from dokime_sdk.templates import Context, Observer, TestTemplate, criterion, record, step
 
 # Local Imports
@@ -32,18 +33,18 @@ CONFIRMATION = record(bool, identifier="confirmation", label="Confirmation")
 # === Classes === #
 
 
-class ConfirmationTestTemplateTemperature(Observer[float]):
+class Temperature(Observer[float]):
     identifier = "temperature"
     label = "Temperature [°C]"
     row = float
     interval_ms = 100
 
-    def sample(self, ctx: Context) -> float:
+    def sample(self, ctx: operations.Context) -> float:
         return 21.5
 
 
 class ConfirmationTestTemplate(TestTemplate):
-    uses_streams = (ConfirmationTestTemplateTemperature,)
+    uses_streams = (Temperature,)
 
     @step("Confirm")
     async def confirm(self, ctx: Context) -> None:

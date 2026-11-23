@@ -17,7 +17,7 @@ from collections.abc import Mapping
 # isort: split
 
 # Third Party Imports
-from dokime_sdk import Scalar
+from dokime_sdk import Scalar, operations
 from dokime_sdk.operations import OperationPolicy
 from dokime_sdk.templates import Context, Materialization, Observer, Parameter, TestTemplate, Window, materialize, step
 from google.protobuf.message import Message
@@ -50,7 +50,7 @@ class Burst(Observer[Message]):
     interval_setting = "load_interval"
     label = "Single-Stream Ceiling"
 
-    def sample(self, ctx: Context, window: Window) -> Message:
+    def sample(self, ctx: operations.Context, window: Window) -> Message:
         return sampling.counter(window)
 
 

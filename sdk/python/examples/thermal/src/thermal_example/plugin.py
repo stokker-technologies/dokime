@@ -44,29 +44,29 @@ log = logging.getLogger(__name__)
 # === Classes === #
 
 
-class ThermalCycleTestTemplateCounter(Observer[Message]):
+class CounterObserver(Observer[Message]):
     identifier = "counter"
     label = "Exact Counter"
     row = Counter
     columns = CounterColumns
     interval_ms = 1
 
-    def sample(self, ctx: Context, window: Window) -> Message:
+    def sample(self, ctx: operations.Context, window: Window) -> Message:
         return sampling.counter(window)
 
 
-class ThermalCycleTestTemplateTemperature(Observer[Message]):
+class TemperatureObserver(Observer[Message]):
     identifier = "temperature"
     label = "Temperature [°C]"
     row = Temperature
     interval_ms = 1000
 
-    def sample(self, ctx: Context) -> Message:
+    def sample(self, ctx: operations.Context) -> Message:
         return Temperature(celsius=84.0)
 
 
 class ThermalCycleTestTemplate(TestTemplate):
-    uses_streams = (ThermalCycleTestTemplateTemperature, ThermalCycleTestTemplateCounter)
+    uses_streams = (TemperatureObserver, CounterObserver)
     identifier = "cycle"
     label = "Thermal Cycle"
     limit = Parameter.number("Limit", default=85.0)
@@ -95,7 +95,7 @@ class ThermalCycleTestTemplate(TestTemplate):
 
     @criterion("Temperature Within Limit", identifier="within_limit")
     async def within_limit(self, ctx: Context) -> bool:
-        stats = await ctx.statistics(ThermalCycleTestTemplateTemperature, "celsius", step=self.hold)
+        stats = await ctx.statistics(TemperatureObserver, "celsius", step=self.hold)
         door = await ctx.records(self.door, step=self.hold).last()
         maximum = stats.max
         return (
@@ -129,7 +129,7 @@ class ThermalPlugin(Plugin):
     records = (ThermalCycleTestTemplate.door,)
     operations = [echo]
     settings = (ThermalSettings,)
-    observers = (ThermalCycleTestTemplateTemperature, ThermalCycleTestTemplateCounter, *CHANNELS, Burst)
+    observers = (TemperatureObserver, CounterObserver, *CHANNELS, Burst)
 
 
 # === Public Functions === #

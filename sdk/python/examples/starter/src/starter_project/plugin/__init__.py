@@ -20,7 +20,7 @@ from dokime_sdk.operations import Setting, Settings
 # Local Imports
 from starter_project.plugin.operations.echo import echo
 from starter_project.plugin.suites.capture import CaptureSuite
-from starter_project.plugin.suites.capture.confirmation import CONFIRMATION, ConfirmationTestTemplateTemperature
+from starter_project.plugin.suites.capture.confirmation import CONFIRMATION, Temperature
 
 # Type Checking Imports
 
@@ -43,7 +43,7 @@ class ExamplePlugin(Plugin):
     operations = [echo]
     settings = (ConnectionSettings,)
     records = (CONFIRMATION,)
-    observers = (ConfirmationTestTemplateTemperature,)
+    observers = (Temperature,)
 
 
 # === Public Functions === #

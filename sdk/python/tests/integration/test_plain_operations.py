@@ -36,8 +36,9 @@ from harmos._wire.plugin.v1.instance_pb2 import (
 )
 from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 
-# Local Imports
 import dokime_sdk.operations
+
+# Local Imports
 from dokime_sdk import Plugin, Suite
 from dokime_sdk.operations import OperationError, Visibility, operation
 from dokime_sdk.templates import Context, Observer, TestTemplate, Window, criterion, prompt, record, step
@@ -281,7 +282,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             label = "Accepted"
             row = bool
 
-            def sample(self, ctx: Context) -> bool:
+            def sample(self, ctx: dokime_sdk.operations.Context) -> bool:
                 return True
 
         class ReadingsTestTemplateVoltage(Observer[float]):
@@ -289,7 +290,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             label = "Voltage"
             row = float
 
-            def sample(self, ctx: Context) -> float:
+            def sample(self, ctx: dokime_sdk.operations.Context) -> float:
                 return 2.5
 
         class ReadingsTestTemplate(TestTemplate):

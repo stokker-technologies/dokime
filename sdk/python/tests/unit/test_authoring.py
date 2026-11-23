@@ -23,9 +23,10 @@ from unittest.mock import Mock, patch
 # Third Party Imports
 from harmos import plugin
 
-# Local Imports
 import dokime_sdk.operations
 import dokime_sdk.templates
+
+# Local Imports
 from dokime_sdk import Lane, Plugin, Scalar, Suite
 from dokime_sdk._generated import shared
 from dokime_sdk.operations import OperationPolicy, RetryPolicy, Visibility, operation
@@ -119,7 +120,7 @@ class AuthoringStory(unittest.TestCase):
             label = "Status"
             row = int
 
-            async def sample(self, ctx: dokime_sdk.templates.Context) -> int:
+            async def sample(self, ctx: dokime_sdk.operations.Context) -> int:
                 return 1
 
         class TrackingTestTemplate(TestTemplate):
