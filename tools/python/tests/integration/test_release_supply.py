@@ -534,6 +534,21 @@ class SupplyTests(unittest.TestCase):
         finally:
             temporary_directory.cleanup()
 
+    def test_shell_declared_mit_without_upstream_text_ships_the_mit_text(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
+            with mock.patch.dict(notices.SHELL_DECLARED_MIT, {("dependency", "1"): "Example Author"}):
+                text, count = notices.shell_notices({"MIT": [{"name": "dependency", "versions": ["1"], "paths": [temporary]}]})
+                self.assertEqual(count, 1)
+                self.assertIn("Declared MIT by the Published Manifest", text)
+                self.assertIn("Copyright (c) Example Author", text)
+                # A Different Declared License Never Borrows the MIT Text.
+                with self.assertRaises(policy.ToolError):
+                    notices.shell_notices({"ISC": [{"name": "dependency", "versions": ["1"], "paths": [temporary]}]})
+        finally:
+            temporary_directory.cleanup()
+
     def test_staged_notice_hashes_match_bytes(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
         temporary = temporary_directory.name
