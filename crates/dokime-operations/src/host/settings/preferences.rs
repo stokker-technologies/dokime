@@ -65,7 +65,7 @@ pub(crate) fn initial() -> SettingsGetResponse {
                 source_bytes: 64 * 1024 * 1024,
                 value_depth: 128,
                 table_rows: 32,
-                plot_points: 2000,
+                plot_points: 15_360,
                 plot_downsample: Downsample::Auto as i32,
             }),
             client: Some(ClientPreferences {
