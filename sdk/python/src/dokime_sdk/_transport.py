@@ -109,12 +109,18 @@ def transport_error(operation: str, error: AioRpcError, request_id: str | None =
         StatusCode.ABORTED: failure_pb2.CLASSIFICATION_REFUSED,
         StatusCode.FAILED_PRECONDITION: failure_pb2.CLASSIFICATION_REFUSED,
         StatusCode.PERMISSION_DENIED: failure_pb2.CLASSIFICATION_REFUSED,
+        StatusCode.UNAUTHENTICATED: failure_pb2.CLASSIFICATION_REFUSED,
     }.get(error.code(), failure_pb2.CLASSIFICATION_PERMANENT)
+    message = error.details() or operation
+    action = "Check the Host Failure and Retry the Unchanged Request When Appropriate"
+    if error.code() == StatusCode.UNAUTHENTICATED:
+        # Remote Access Refuses Revoked or Altered Keys; Only a New Pairing Restores Access.
+        message, action = "The Host Refused the Access Key; Its Pairing Was Revoked or Altered", "Export a New Pairing From the Host"
     failure = Failure(
         classification=classification,
         code=error.code().name,
-        message=error.details() or operation,
-        action="Check the Host Failure and Retry the Unchanged Request When Appropriate",
+        message=message,
+        action=action,
         operation=operation,
         diagnostics=error.debug_error_string() or "",
     )

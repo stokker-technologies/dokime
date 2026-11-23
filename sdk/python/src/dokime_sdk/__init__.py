@@ -17,6 +17,7 @@ connect = _connection.connect
 StreamRow = _context.StreamRow
 Gap = _context.Gap
 Artifact = _values.Artifact
+CatalogTemplate = _values.CatalogTemplate
 Note = _values.Note
 Outcome = _values.Outcome
 Progress = _values.Progress

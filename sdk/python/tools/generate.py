@@ -37,7 +37,7 @@ ROOT_EXPORTS = {
     "_client": ["Case", "Cases", "Client", "Cycle", "Cycles", "Execution", "Executions", "Plugins", "RegisteredPlugin"],
     "_connection": ["connect"],
     "_context": ["StreamRow", "Gap"],
-    "_values": ["Artifact", "Note", "Outcome", "Progress", "PromptAnswer", "PromptQuestion", "ResultStatus", "Scalar"],
+    "_values": ["Artifact", "CatalogTemplate", "Note", "Outcome", "Progress", "PromptAnswer", "PromptQuestion", "ResultStatus", "Scalar"],
 }
 
 PUBLIC_HOMES = {
