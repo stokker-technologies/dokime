@@ -11,11 +11,19 @@ public sealed class ThermalPlugin : Dokime.Plugin
   public override string Version => "1.0.0";
   public override IReadOnlyList<Type> Suites => [typeof(ThermalSuite)];
   public override IReadOnlyList<Delegate> Operations => [(Func<Dokime.Operations.Context, byte[], Task<byte[]>>)Echo];
-  public override IReadOnlyList<Dokime.Operations.SettingDeclaration> Settings =>
-      [new("thermal.load.interval", new Dokime.Operations.SettingValue { Duration = TimeSpan.FromMilliseconds(1) }, "Load Interval")];
+  public override IReadOnlyList<Type> Settings => [typeof(ThermalSettings)];
 
   [Dokime.Operations.Operation("thermal.echo", Visibility = Dokime.Operations.Visibility.Public)]
   public static Task<byte[]> Echo(Dokime.Operations.Context context, byte[] request) => Task.FromResult(request);
+}
+
+public sealed class ThermalSettings : Dokime.Operations.Settings
+{
+  public override IReadOnlyList<Harmos.SettingDeclaration> Declarations => [new()
+  {
+    Name = "thermal.load.interval", Title = "Load Interval",
+    Default = new() { Duration = Google.Protobuf.WellKnownTypes.Duration.FromTimeSpan(TimeSpan.FromMilliseconds(1)) }
+  }];
 }
 
 public sealed class ThermalSuite : Suite
