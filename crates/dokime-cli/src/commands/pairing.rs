@@ -33,11 +33,11 @@ use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use crate::Result;
 use crate::error::Error;
 use crate::settings::Settings;
-use dokime_client_internal::Client;
 use dokime_client_internal::{
     AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions, AccessPairingsDeleteOptions,
 };
 use dokime_client_internal::{CallOptions, StatusGetOptions};
+use dokime_client_internal::{Client, pairing_endpoints};
 
 /* === Constants === */
 
@@ -56,7 +56,7 @@ pub(crate) struct File {
     endpoints: Vec<String>,
     backend_identifier: String,
     label: String,
-    ca_certificate_pem: String,
+    certificate_pem: String,
     access_key: String,
 }
 
@@ -142,7 +142,7 @@ impl File {
         let mut failures = Vec::new();
         for endpoint in &self.endpoints {
             let result: Result<_> = async {
-                let tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(&self.ca_certificate_pem));
+                let tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(&self.certificate_pem));
                 let channel = Endpoint::from_shared(endpoint.clone())?
                     .tls_config(tls)?
                     .connect_timeout(Duration::from_secs(settings.connect_timeout_s))
@@ -182,13 +182,20 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Se
     let mut output = NamedTempFile::new_in(parent)?;
     let client = settings.sdk(endpoint).await?;
 
-    // Enable the Saved Listener Before Requesting Remote Access
+    // Enable the Saved Listener and Resolve Its Advertised Endpoints Before Requesting Remote Access
     let current = client.access.listener.get_with(AccessListenerGetOptions { context: settings.context()? }).await?;
     let mut value = current.value.ok_or("Host Did Not Report Listener Settings")?;
+    let mut bound = current.bound_endpoint;
     if !value.enabled {
         value.enabled = true;
-        client.access.listener.set_with(value, current.revision, AccessListenerSetOptions { context: settings.context()? }).await?;
+        bound = client
+            .access
+            .listener
+            .set_with(value.clone(), current.revision, AccessListenerSetOptions { context: settings.context()? })
+            .await?
+            .bound_endpoint;
     }
+    let endpoints = pairing_endpoints(&bound, &value.certificate_names).map_err(Error::Invalid)?;
     let identity = client
         .status
         .get_with(StatusGetOptions { context: settings.context()? })
@@ -200,10 +207,10 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Se
     let pairing = created.pairing.as_ref().ok_or("Host Did Not Report the Created Pairing")?;
     let file = File {
         version: 1,
-        endpoints: vec![created.endpoint],
+        endpoints,
         backend_identifier: identity.host_id,
         label: pairing.label.clone(),
-        ca_certificate_pem: created.pinned_certificate_pem,
+        certificate_pem: created.pinned_certificate_pem,
         access_key: created.credential,
     };
 
@@ -253,7 +260,7 @@ mod tests {
             endpoints: endpoints.clone(),
             backend_identifier: "intended-host".into(),
             label: "Operator".into(),
-            ca_certificate_pem: String::new(),
+            certificate_pem: String::new(),
             access_key: "test-key".into(),
         };
 

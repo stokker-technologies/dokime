@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+mod pairing;
+
 mod wire {
     pub(crate) use dokime_protocol::host;
 }
@@ -33,6 +35,7 @@ mod types {
 
 pub use ::harmos::{ClientSettings, client::CallOptions};
 pub use harmos_protocol::model::PageRequest;
+pub use pairing::pairing_endpoints;
 pub use resources::*;
 pub use schemas::FrozenSchemaCache;
 pub use types::*;

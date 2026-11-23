@@ -331,30 +331,31 @@ pub async fn desktop_pairing_create(
 pub async fn create_remote_access(
     client: &crate::connection::host::Session, label: String, enable: bool,
 ) -> Result<crate::connection::host::Pairing, crate::Error> {
-    use dokime_client_internal::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions};
+    use dokime_client_internal::{AccessListenerSetOptions, AccessPairingsCreateOptions, pairing_endpoints};
+    let refused = |message: String| crate::connection::ConnectionError::Registry { message, cause: None };
+    let current = client
+        .execute(
+            "Access.Listener.Get",
+            client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? }),
+        )
+        .await?;
+    let mut value = current.value.ok_or_else(|| refused("Listener settings unavailable".into()))?;
+    let mut bound = current.bound_endpoint;
     if enable {
-        let current = client
-            .execute(
-                "Access.Listener.Get",
-                client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? }),
-            )
-            .await?;
-        let mut value = current.value.ok_or_else(|| crate::connection::ConnectionError::Registry {
-            message: "Listener settings unavailable".into(),
-            cause: None,
-        })?;
         value.enabled = true;
-        client
+        bound = client
             .execute(
                 "Access.Listener.Set",
                 client.client().access.listener.set_with(
-                    value,
+                    value.clone(),
                     current.revision,
                     AccessListenerSetOptions { context: client.call_options()? },
                 ),
             )
-            .await?;
+            .await?
+            .bound_endpoint;
     }
+    let endpoints = pairing_endpoints(&bound, &value.certificate_names).map_err(refused)?;
     let created = client
         .execute(
             "Access.Pairings.Create",
@@ -372,7 +373,7 @@ pub async fn create_remote_access(
             .host_id
             .clone(),
         label,
-        endpoints: vec![created.endpoint],
+        endpoints,
         certificate_pem: created.pinned_certificate_pem,
         access_key: created.credential,
     })
