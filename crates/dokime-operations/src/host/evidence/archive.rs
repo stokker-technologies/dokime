@@ -34,7 +34,6 @@ use harmos_runtime::{
 };
 use prost::Message;
 use tempfile::NamedTempFile;
-use tokio::sync::oneshot;
 
 // Local Imports
 use crate::host::storage::administration;
@@ -111,12 +110,9 @@ pub async fn freeze(context: &Context, execution: &str) -> Result<FileReference>
     if !revision.is_empty() {
         return Ok(saved);
     }
-    // The Host Settles an Admitted Build After a Caller's Deadline Drops Its Receiver.
-    let (sender, receiver) = oneshot::channel();
+    // The Host Settles an Admitted Build After a Caller's Deadline Drops Its Receiver, Unless It Stops.
     let (owned, execution) = (context.clone(), execution.to_owned());
-    context.host.spawn_work(Box::pin(async move {
-        let _ = sender.send(build(&owned, &execution, &key).await);
-    }))?;
+    let receiver = crate::host::stoppable_work(context, "Freeze Evidence", async move { build(&owned, &execution, &key).await })?;
     receiver.await.map_err(|_| Error::Cancelled("Freeze Evidence: Reconnect After the Host Stops".into()))?
 }
 
@@ -189,7 +185,7 @@ pub(crate) fn materialize(
                 expected_sha256: Some(digest),
             },
             |offset, data| crate::host::content::transfer::read_temporary(&file, offset, data),
-            || false,
+            || context.host.shutting_down(),
         )
         .await?;
         tracing::debug!(phase = "archive_upload", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");
