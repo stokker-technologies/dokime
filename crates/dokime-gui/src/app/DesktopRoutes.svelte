@@ -17,11 +17,11 @@
   import LibrarySurface from "../features/library/LibrarySurface.svelte";
   import type { ActiveCycleState } from "../features/library/active-cycle-model";
   import NotificationsSurface from "../features/notifications/NotificationsSurface.svelte";
-  import { installedPluginsListOptions } from "../features/settings/installed-plugins/installed-plugin-queries";
   import { pluginsListQueryOptions, pluginStartFailure, startNotification } from "../features/settings/plugins/plugin-queries";
   import PluginSettingsSurface from "../features/settings/PluginSettingsSurface.svelte";
   import SettingsSurface from "../features/settings/SettingsSurface.svelte";
   import { saveNativeDocument } from "../lib/api/native-document-delivery";
+  import { admittedPluginRecords } from "../lib/api/native-plugins";
   import { statusGet } from "../lib/host/client";
   import { failureOf } from "../lib/notification-details";
   import { clearPluginNotifications, toast } from "../lib/notifications";
@@ -99,8 +99,8 @@
   const client = () => session.queryClient;
   const cycles = createQuery(() => cyclesQueryOptions(session.identity, {}), client);
   const prompts = createQuery(() => pendingPromptsQueryOptions(session.identity), client);
-  const artifacts = createQuery(() => installedPluginsListOptions(session), client);
   const installed = createQuery(() => pluginsListQueryOptions(session), client);
+  const artifacts = $derived(admittedPluginRecords(installed.data ?? []));
   const backend = createQuery(
     () => ({
       queryFn: () => statusGet(session.identity, {}),
@@ -131,7 +131,7 @@
       label: prompt.title,
       open: () => navigate(prompt.scope?.cycleId ? cyclePath(prompt.scope.cycleId) : "/cycles"),
     })),
-    ...(artifacts.data ?? [])
+    ...artifacts
       .filter((item) => item.status === "failed" || item.error)
       .map((item) => ({
         detail: "Open Plugin Settings",
@@ -229,7 +229,9 @@
     operations: hub().operations,
     back: parent
       ? () => {
-          if (parent) navigate(parent);
+          if (parent) {
+            navigate(parent);
+          }
         }
       : undefined,
     onDisconnect: () => void owner.disconnect(),
@@ -239,8 +241,11 @@
     addCases,
     openSettings,
     openRun: (destination) => {
-      if ("hash" in destination) navigate("/cycles#active");
-      else navigate(cyclePath(destination.params.cycleId), destination.search);
+      if ("hash" in destination) {
+        navigate("/cycles#active");
+        return;
+      }
+      navigate(cyclePath(destination.params.cycleId), destination.search);
     },
   });
 

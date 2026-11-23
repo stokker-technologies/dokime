@@ -357,6 +357,8 @@
       />
     {/if}
     <ExecutionSections
+      observedExecutionId={activeId}
+      {progress}
       {context}
       {commands}
       {cycleId}

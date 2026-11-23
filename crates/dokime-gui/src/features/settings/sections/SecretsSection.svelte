@@ -1,29 +1,29 @@
 <!-- Dokime — SPDX-License-Identifier: Apache-2.0 -->
 <script lang="ts">
-  import { createQuery } from "@tanstack/svelte-query";
   import { untrack } from "svelte";
   import type { ConnectedSession } from "../../../app/native-session/session";
   import Button from "../../../components/ui/Button.svelte";
-  import { putSecret, readSecrets, removeSecret, type SecretEntry, type SecretSnapshot } from "../../../lib/api/native-secrets";
+  import type { SecretEntry } from "../../../lib/api/native-secrets";
   import { failureOf } from "../../../lib/notification-details";
   import SettingsCard from "../SettingsCard.svelte";
   import SettingsRow from "../SettingsRow.svelte";
+  import { createSecretStorage } from "./secret-storage.svelte";
   import SecretEditor, { type Editor } from "./SecretEditor.svelte";
   import SecretsTable from "./SecretsTable.svelte";
   import SecretTransfer from "./SecretTransfer.svelte";
 
   let { session, hash = "", clearHash }: { session: ConnectedSession; hash?: string; clearHash: () => void } = $props();
   const client = $derived(session.queryClient);
-  const queryKey = $derived(["settings", "secrets", session.identity.generation]);
-  const query = createQuery(
-    () => ({ queryKey, queryFn: () => readSecrets(session.identity) }),
+  const storage = createSecretStorage(
+    () => session,
     () => client,
   );
+  const query = storage.query;
   const snapshot = $derived(query.data);
   let editor = $state.raw<(Editor & { generation: bigint }) | null>(null);
   let deleting = $state.raw<{ identifier: string; generation: bigint } | null>(null);
-  let busy = $state(false);
-  let error = $state.raw<unknown>();
+  const busy = $derived(storage.busy);
+  const error = $derived(storage.error);
 
   $effect(() => {
     if (hash.startsWith("add-secret=") && snapshot) {
@@ -32,45 +32,23 @@
     }
   });
 
-  async function change(work: () => Promise<SecretSnapshot>) {
-    busy = true;
-    error = undefined;
-    const identity = session.identity;
-    const key = queryKey;
-    const active = client;
-    try {
-      await active.cancelQueries({ queryKey: key });
-      const next = await work();
-      if (identity.isCurrent()) {
-        active.setQueryData(key, next);
-        void active.invalidateQueries({ queryKey: ["settings", "installed-plugins"] });
-        editor = null;
-        deleting = null;
-      }
-    } catch (failure) {
-      if (identity.isCurrent()) {
-        error = failure;
-      }
-    } finally {
-      if (identity.isCurrent()) {
-        busy = false;
-      }
-    }
-  }
-
   function remove() {
     const current = deleting;
-    const identity = session.identity;
     if (current) {
-      void change(() => removeSecret(identity, current.identifier, current.generation));
+      void storage.remove(current.identifier, current.generation, () => {
+        editor = null;
+        deleting = null;
+      });
     }
   }
 
   async function save(metadata: SecretEntry["metadata"], value: string | undefined) {
     const current = editor;
-    const identity = session.identity;
     if (current) {
-      await change(() => putSecret(identity, metadata, value, current.generation));
+      await storage.save(metadata, value, current.generation, () => {
+        editor = null;
+        deleting = null;
+      });
     }
   }
 </script>
@@ -91,10 +69,14 @@
       loading={query.isPending}
       failure={error ? failureOf(error, "Operation Failed") : query.error ? failureOf(query.error, "Secrets Unavailable") : undefined}
       onDelete={(entry) => {
-        if (snapshot) deleting = { identifier: entry.metadata.identifier, generation: snapshot.generation };
+        if (snapshot) {
+          deleting = { identifier: entry.metadata.identifier, generation: snapshot.generation };
+        }
       }}
       onEdit={(entry) => {
-        if (snapshot) editor = { kind: "edit", entry, generation: snapshot.generation };
+        if (snapshot) {
+          editor = { kind: "edit", entry, generation: snapshot.generation };
+        }
       }}
       onRetry={!error && query.error ? () => void query.refetch() : undefined}
     >
@@ -102,7 +84,9 @@
         <Button
           disabled={!snapshot || busy}
           onclick={() => {
-            if (snapshot) editor = { kind: "new", generation: snapshot.generation };
+            if (snapshot) {
+              editor = { kind: "new", generation: snapshot.generation };
+            }
           }}
         >
           Add Secret
@@ -113,7 +97,9 @@
             session={session.identity}
             catalog={snapshot}
             onImported={(next) => {
-              if (session.identity.isCurrent()) client.setQueryData(queryKey, next);
+              if (session.identity.isCurrent()) {
+                client.setQueryData(["settings", "secrets", session.identity.generation], next);
+              }
             }}
           />
         {/if}

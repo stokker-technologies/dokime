@@ -32,7 +32,7 @@
   import Button from "../components/ui/Button.svelte";
   import Progress from "../components/ui/Progress.svelte";
   import ActiveCycleSummary from "../features/library/ActiveCycleSummary.svelte";
-  import { fetchStorageSources } from "../lib/api/native-storage-settings";
+  import { storageSourcesQueryOptions } from "../features/settings/settings-queries";
   import { failureOf } from "../lib/notification-details";
   import RunIndicator from "./RunIndicator.svelte";
   import { operationPercent, operationPhaseLabel, operationsCountLabel, summarizeOperations } from "./status-bar-operations";
@@ -44,10 +44,7 @@
   const connectionClasses = { connected: "text-success", disconnected: "text-destructive", reconnecting: "text-warning", unknown: "" };
   const backend = $derived(props.status.label ?? "Backend");
   const sources = createQuery(
-    () => ({
-      queryFn: () => fetchStorageSources(props.session.identity),
-      queryKey: ["shell", "storage-sources", props.session.identity.generation],
-    }),
+    () => storageSourcesQueryOptions(props.session.identity),
     () => props.session.queryClient,
   );
   const enabled = $derived(sources.data?.filter((source) => source.enabled).length);

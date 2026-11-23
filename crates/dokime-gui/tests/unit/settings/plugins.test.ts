@@ -28,7 +28,6 @@ import InstalledPluginDetailView from "@/features/settings/installed-plugins/Ins
 import type { InstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 
 // Local Imports
-import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import PluginSettingsSurface from "@/features/settings/PluginSettingsSurface.svelte";
 import { statusPresentation } from "@/features/settings/plugins/plugin-rows";
 import PluginTable from "@/features/settings/plugins/PluginTable.svelte";
@@ -45,8 +44,6 @@ import { formatPluginSetting, parsePluginSetting, readPluginSetting } from "@/li
 /* === Constants === */
 
 const fixture = vi.hoisted(() => ({
-  admitted: vi.fn(),
-  installed: vi.fn(),
   settings: vi.fn(),
   save: vi.fn(),
   detail: vi.fn(),
@@ -66,7 +63,6 @@ const entry: ManagedPlugin = create(PluginEntrySchema, {
   failure: create(FailureSchema, { message: "activation-refused" }),
 });
 
-vi.mock("@/lib/api/native-plugins", () => ({ listNativeAdmittedPlugins: fixture.admitted, listNativePlugins: fixture.installed }));
 vi.mock("@/lib/api/native-settings", async (original) => ({
   ...(await original<typeof import("@/lib/api/native-settings")>()),
   getNativePluginSettings: fixture.settings,
@@ -114,8 +110,6 @@ beforeEach(() => {
   queryClient.clear();
   fixture.readSecrets.mockResolvedValue({ entries: [], generation: 1n, hostLabel: "Fixture", hostId: "fixture" });
   fixture.save.mockResolvedValue(undefined);
-  fixture.admitted.mockResolvedValue([]);
-  fixture.installed.mockResolvedValue([entry]);
   fixture.installations.mockReturnValue({ data: [] });
   fixture.detail.mockImplementation((pluginId: string) => ({
     data: {
@@ -160,14 +154,16 @@ test("Inactive Entry Keeps Its Settings Navigation", () => {
 });
 
 test("Entry Settings Remain Available After Activation Failure", async () => {
-  const plugin = { plugin_id: entry.name, label: entry.name, status: "failed", error: entry.failure?.message };
-  fixture.admitted.mockResolvedValue([plugin]);
-  const detail = await getInstalledPluginDetail(session, entry.name);
+  fixture.installations.mockReturnValue({ data: [entry] });
+  const queries = await vi.importActual<typeof import("@/features/settings/installed-plugins/installed-plugin-queries")>(
+    "@/features/settings/installed-plugins/installed-plugin-queries",
+  );
+  const detail = await queries.installedPluginDetailsOptions(connected, entry.name, "fixture").queryFn();
   assert.equal(detail?.plugin_id, entry.name);
   assert.equal(detail?.error, entry.failure?.message);
   assert.deepEqual(detail?.values, { address: "corrected" });
   assert.deepEqual(fixture.settings.mock.calls, [[session, entry.name]]);
-  assert.equal(await getInstalledPluginDetail(session, "unknown"), null);
+  assert.equal(await queries.installedPluginDetailsOptions(connected, "unknown", "fixture").queryFn(), null);
 });
 
 test("Failed Forms Keep Their Controls Editable", async () => {

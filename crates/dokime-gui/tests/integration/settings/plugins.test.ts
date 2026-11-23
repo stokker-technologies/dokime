@@ -23,7 +23,9 @@ import { beforeEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import { type InstallPluginProgress, installNativePlugin, getNativePlugin } from "@/lib/api/native-plugins";
-import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
+import { installedPluginDetailsOptions } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { QueryClient } from "@tanstack/svelte-query";
+import type { ConnectedSession } from "@/app/native-session/session";
 import { failureOf } from "@/lib/notification-details";
 import InstalledPluginSettingsForm from "@/features/settings/installed-plugins/InstalledPluginSettingsForm.svelte";
 import { mapNativeRuntimePluginSettings, updateNativePluginSettings } from "@/lib/api/native-settings";
@@ -216,7 +218,10 @@ test("Failed Entry Retains Its Identity and Secret Availability", async () => {
   });
   fixture.getPlugin.mockResolvedValueOnce({ entry: failed });
   assert.equal(await getNativePlugin(session, "example"), failed);
-  const detail = await getInstalledPluginDetail(session, "example");
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  onTestFinished(() => queryClient.clear());
+  const connected = { identity: session, queryClient } as unknown as ConnectedSession;
+  const detail = await installedPluginDetailsOptions(connected, "example", "fixture").queryFn();
   assert.equal(detail?.status, "failed");
   assert.equal(detail?.plugin_id, failed.name);
   assert.equal(detail?.error, failed.failure.message);

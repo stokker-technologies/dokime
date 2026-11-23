@@ -29,6 +29,7 @@ import {
   deleteNativeTestCycleCases,
   fetchNativeCycleLabel,
   fetchNativeTestCycleDetail,
+  fetchNativeTestExecutionDetail,
   pauseNativeTestExecution,
   renameNativeTestCycle,
   renameNativeTestExecution,
@@ -55,6 +56,15 @@ export function cycleDetailQueryOptions(identity: SessionIdentity, cycleId: stri
   return {
     queryFn: () => fetchNativeTestCycleDetail(identity, cycleId),
     queryKey: [...workflowQueryKeys.cycleDetail(cycleId), identity.generation],
+    staleTime: Number.POSITIVE_INFINITY,
+  };
+}
+
+export function executionDetailQueryOptions(identity: SessionIdentity, executionId: string | null) {
+  return {
+    enabled: executionId !== null,
+    queryFn: () => fetchNativeTestExecutionDetail(identity, executionId ?? ""),
+    queryKey: [...workflowQueryKeys.executionDetail(executionId), identity.generation],
     staleTime: Number.POSITIVE_INFINITY,
   };
 }

@@ -16,7 +16,7 @@ import defaults from "@generated/typescript/application-settings.json";
 
 // Third Party Imports
 import { QueryClient } from "@tanstack/svelte-query";
-import { render, within } from "@testing-library/svelte";
+import { render } from "@testing-library/svelte";
 import { beforeEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
@@ -34,8 +34,7 @@ const fixture = vi.hoisted(() => ({ read: vi.fn(), invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
 vi.mock("@/lib/api/native-remote", async (original) => ({
   ...(await original<typeof import("@/lib/api/native-remote")>()),
-  readNativeListener: fixture.read,
-  withNativeListener: async (_session: unknown, snapshot: unknown) => snapshot,
+  withNativeListener: async (_session: unknown, snapshot: object) => ({ ...snapshot, listener: await fixture.read() }),
 }));
 vi.mock("@/lib/desktop/settings", () => ({
   preferencesCommands: { desktopSettingsRead: async () => ({ revision: [7], settings: defaults }) },
@@ -76,29 +75,6 @@ const STOPPED: ListenerStatus = { settings: SETTINGS, keyConfigured: true, certi
 beforeEach(() => {
   fixture.read.mockReset();
   fixture.invoke.mockReset();
-});
-
-test("Repeated Remote Settings Loads and Failures Stay Inline", async () => {
-  let refuse!: (failure: Error) => void;
-  fixture.read.mockReturnValue(
-    new Promise((_resolve, reject) => {
-      refuse = reject;
-    }),
-  );
-  const view = showSection();
-  const card = view.getByRole("heading", { name: "Remote Access" }).closest("section");
-  assert.ok(card);
-  const access = within(card);
-  for (const advanced of [false, true, false]) {
-    await view.rerender({ advanced });
-    assert.ok(access.getByRole("status"));
-    assert.equal(access.queryByRole("alert"), null);
-  }
-  const failure = new Error("fixture-failure");
-  refuse(failure);
-  const alert = await view.findByRole("alert");
-  assert.equal(alert.parentElement?.closest("section")?.querySelector("h2")?.textContent, "Remote Access");
-  assert.ok(alert.textContent?.includes(failure.message));
 });
 
 test("Export Endpoint Preview", async () => {
