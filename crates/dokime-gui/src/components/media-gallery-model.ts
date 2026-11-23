@@ -18,11 +18,12 @@
 // Third Party Imports
 
 import type { EvidenceScope } from "@generated/host/model";
-import type { Wire } from "@/lib/rpc/canonical";
-import type { ArtifactSource } from "../lib/contracts/delivery";
+
 // Local Imports
-import type { MediaArtifactKind } from "../lib/media";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { ExecutionFileLifecycle } from "@/lib/types";
+import type { ArtifactSource } from "../lib/contracts/delivery";
+import type { MediaArtifactKind } from "../lib/media";
 
 /* === Re-Exports === */
 
@@ -58,18 +59,6 @@ export type ResolvedMediaGalleryArtifact = MediaGalleryArtifact & {
   kind: MediaArtifactKind;
   href: string | null;
   nativeTransfer: boolean;
-};
-
-export type MediaArtifactCandidate = MediaGalleryArtifact & {
-  displayPath: string;
-  kind: MediaArtifactKind;
-};
-
-export type MediaPreviewState = {
-  errors: Record<string, string>;
-  failures?: Record<string, unknown>;
-  retry(artifactId: string): void;
-  urls: Record<string, string>;
 };
 
 /* === Classes === */

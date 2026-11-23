@@ -61,3 +61,7 @@ export function isUnrunExecution(entry: ExecutionBrowseEntry): boolean {
 export function unrunCaption(count: number): string {
   return `${count} planned ${count === 1 ? "case" : "cases"} not run`;
 }
+
+export function isDeletableExecution(execution: ExecutionBrowseEntry): boolean {
+  return Boolean(execution.checkpoint) && execution.availability === "stored";
+}

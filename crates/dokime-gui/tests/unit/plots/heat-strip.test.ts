@@ -19,18 +19,18 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { onTestFinished, test, vi } from "vitest";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
+import { cleanup, render } from "@testing-library/svelte";
+import { afterEach, test } from "vitest";
 
 // Local Imports
 import { mapNativePlotPayload, plotType } from "@/lib/api/native-plot-projection";
 import { PlotKind, PlotPayloadSchema, PlotCartesianMode } from "@generated/host/model";
-import { HeatStripPlot, heatStripSample } from "../../../src/plots/catalog/HeatStripPlot";
+import HeatStripPlot from "@/plots/catalog/HeatStripPlot.svelte";
+import { heatStripSample } from "@/plots/catalog/heat-strip";
 import { documentPlotSpec } from "@/plots/grouping";
 import type { DocumentViewPlot, PlotPayload, PlotSeries } from "@/lib/types";
-import { usePlotPlayback } from "@/plots/playback";
+import type { plotPlayback } from "@/plots/playback.svelte";
+import PlaybackProbe from "./PlaybackProbe.svelte";
 
 /* === Re-Exports === */
 
@@ -45,6 +45,8 @@ import { usePlotPlayback } from "@/plots/playback";
 /* === Private Functions === */
 
 /* === Entry Point === */
+
+afterEach(cleanup);
 
 test("Dense Heat Strip Layout Wraps Readable Cells and Preserves Sparse Rows and Hover Values", () => {
   const instant = "1970-01-01T00:00:01Z";
@@ -67,8 +69,7 @@ test("Dense Heat Strip Layout Wraps Readable Cells and Preserves Sparse Rows and
   };
   const descriptor = { plot_id: "heat", title: "Channel Occupancy", plot_type: "heat_strip", y: ["occupancy"] } as DocumentViewPlot;
   const plot = documentPlotSpec({ plot: descriptor, payload });
-  const container = document.createElement("div");
-  container.innerHTML = renderToStaticMarkup(createElement(HeatStripPlot, { plot }));
+  const { container } = render(HeatStripPlot, { plot });
   const facets = container.querySelectorAll("[data-facet]");
   assert.equal(facets.length, 3);
   const sparse = facets[0].querySelector<HTMLElement>("[data-cell]");
@@ -126,31 +127,22 @@ test("Sample Selection Uses Only the Selected Instant and Keeps Each Facet's Cat
 });
 
 test("Live Samples Follow New Rows Until Seeking and Latest Resumes Follow", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  const host = document.createElement("div");
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    vi.unstubAllGlobals();
+  let playback!: ReturnType<typeof plotPlayback<number[]>>;
+  const { rerender } = render(PlaybackProbe, {
+    samples: [1, 2],
+    capture(value) {
+      playback = value;
+    },
   });
-  let playback!: ReturnType<typeof usePlotPlayback<number[]>>;
-  function Probe({ samples }: { samples: number[] }) {
-    playback = usePlotPlayback(
-      samples,
-      samples.map((sample) => `1970-01-01T00:00:0${sample}Z`),
-    );
-    return null;
-  }
-  await act(async () => root.render(createElement(Probe, { samples: [1, 2] })));
   assert.equal(playback.index, 1);
-  await act(async () => root.render(createElement(Probe, { samples: [1, 2, 3] })));
+  await rerender({ samples: [1, 2, 3] });
   assert.equal(playback.index, 2);
-  await act(async () => playback.seek(0));
-  await act(async () => root.render(createElement(Probe, { samples: [2, 3, 4] })));
+  playback.seek(0);
+  await rerender({ samples: [2, 3, 4] });
   assert.equal(playback.following, false);
   assert.equal(playback.instant, "1970-01-01T00:00:01Z");
   assert.deepEqual(playback.data, [1, 2, 3]);
-  await act(async () => playback.latest());
+  playback.latest();
   assert.equal(playback.following, true);
   assert.equal(playback.instant, "1970-01-01T00:00:04Z");
   assert.deepEqual(playback.data, [2, 3, 4]);

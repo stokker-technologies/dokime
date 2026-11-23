@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import type uPlot from "uplot";
 import { test } from "vitest";
 import { seriesLegendRows } from "@/lib/statistics";
-import { cursorPointOptions, seriesPaletteColor, seriesPointMarks } from "@/plots/CartesianPlot";
+import { cursorPointOptions, seriesPaletteColor, seriesPointMarks } from "@/plots/CartesianPlot.svelte";
 
 /* === Fixtures === */
 

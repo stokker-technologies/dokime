@@ -9,7 +9,7 @@
 
 /* === Local Imports === */
 
-import type { RuntimeThemeFamily } from "./appearance";
+import type { RuntimeThemeFamily } from "./types/appearance";
 import { type ResolvedTheme, type ThemeVariableMap, themeCornerRadiusVariables } from "./theme";
 
 /* === Types === */

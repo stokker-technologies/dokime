@@ -14,20 +14,19 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
+import { fireEvent, render } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { Metric } from "@/components/Metric";
-import { EditableOperatorNotes } from "@/components/document/OperatorNotesView";
-import { ArtifactTreeView } from "@/components/ArtifactTreeView";
-import { MediaGalleryView } from "@/components/MediaGalleryView";
+import Metric from "@/components/Metric.svelte";
+import OperatorNotes from "@/components/document/OperatorNotes.svelte";
+import ArtifactTreeView from "@/components/ArtifactTreeView.svelte";
+import MediaGalleryView from "@/components/MediaGalleryView.svelte";
 import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
-import { PromptPanel } from "@/components/PromptPanel";
+import PromptPanel from "@/components/PromptPanel.svelte";
 import { formatPreview } from "@/components/start-cycle-form-model";
-import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
+import ExecutionParameters from "@/features/cycle/ExecutionParameters.svelte";
 import {
   executionDocumentSections,
   executionPagePrompts,
@@ -58,7 +57,7 @@ import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
 import { formatValue } from "@/lib/dashboard";
 import { documentSummaryTile, documentTableRows } from "@/lib/document-presentation";
 import { formatRecordValue } from "@/lib/record-display";
-import { durationText } from "@/features/cycle/use-elapsed";
+import { durationText } from "@/features/cycle/elapsed";
 import { buildArtifactTree, type ArtifactTreeInput } from "@/lib/artifact-tree";
 import { shouldFollowArtifact } from "@/lib/execution-file-text";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";
@@ -191,14 +190,15 @@ test("Parameter Rows", () => {
   assert.deepEqual(executionParameterColumns([]), { value: 1, unit: 0 });
 
   // The Grid Prints Label, Right-Aligned Figure and Dimmed Unit on One Column Template
-  const html = renderToStaticMarkup(createElement(ExecutionParameters, { rows: durations }));
-  assert.match(html, /--parameter-value:12ch/);
-  assert.match(html, /--parameter-unit:3ch/);
-  assert.match(
-    html,
-    /<dt[^>]*title="soak"[^>]*>Soak Time<\/dt><dd class="[^"]*text-right[^"]*">10<\/dd><dd class="text-muted-foreground">min<\/dd>/,
-  );
-  assert.doesNotMatch(html, /truncate/, "a label wraps, it is never clipped");
+  const { container } = render(ExecutionParameters, { rows: durations });
+  const grid = container.querySelector("dl");
+  assert.equal(grid?.style.getPropertyValue("--parameter-value"), "12ch");
+  assert.equal(grid?.style.getPropertyValue("--parameter-unit"), "3ch");
+  const soak = grid?.querySelector('[data-parameter="soak"]');
+  assert.equal(soak?.querySelector('dt[title="soak"]')?.textContent?.trim(), "Soak Time");
+  assert.equal(soak?.querySelector("dd.text-right")?.textContent?.trim(), "10");
+  assert.equal(soak?.querySelector("dd.text-muted-foreground")?.textContent?.trim(), "min");
+  assert.equal(grid?.querySelector(".truncate"), null, "a label wraps");
 });
 
 test("Numbers Use Ungrouped Decimal Points and Preserve Declared Precision", () => {
@@ -492,26 +492,27 @@ test("Prompt Decisions", () => {
   assert.equal(promptDecision(ask([field("a", "boolean")], [action("retry"), action("submit")])), null);
 
   // A Decision Answers with No and Yes, Not a Checkbox, Cancel at the Far Left
-  const html = renderToStaticMarkup(
-    createElement(PromptPanel, { onAction: () => undefined, onValueChange: () => undefined, prompt: inspection, values: {} }),
+  const panel = render(PromptPanel, { onAction: () => undefined, onValueChange: () => undefined, prompt: inspection, values: {} });
+  assert.equal(panel.queryByRole("checkbox"), null);
+  assert.deepEqual(
+    panel.getAllByRole("button").map((button) => button.textContent?.trim()),
+    ["cancel", "No", "Yes"],
   );
-  assert.doesNotMatch(html, /role="checkbox"/);
-  assert.ok(html.indexOf(">cancel<") < html.indexOf(">No<") && html.indexOf(">No<") < html.indexOf(">Yes<"));
 
   // An Untouched Field States No Error Before a Submit Attempt
-  assert.doesNotMatch(html, /Enter a value/);
+  assert.equal(panel.queryByRole("status"), null);
+  panel.unmount();
 
   // Several Booleans Keep Their Controls and Submit
-  const several = renderToStaticMarkup(
-    createElement(PromptPanel, {
-      onAction: () => undefined,
-      onValueChange: () => undefined,
-      prompt: ask([field("a", "boolean"), field("b", "boolean")]),
-      values: {},
-    }),
-  );
-  assert.match(several, /role="checkbox"/);
-  assert.match(several, />submit</);
+  const several = render(PromptPanel, {
+    onAction: () => undefined,
+    onValueChange: () => undefined,
+    prompt: ask([field("a", "boolean"), field("b", "boolean")]),
+    values: {},
+  });
+  assert.equal(several.getAllByRole("checkbox").length, 2);
+  assert.ok(several.getByRole("button", { name: "submit" }));
+  several.unmount();
 
   // The Answered Row States a Decision as Yes or No
   assert.equal(
@@ -562,7 +563,7 @@ test("Prompt Answering", () => {
   );
 });
 
-test("Live Artifact Tree", () => {
+test("Live Artifact Tree", async () => {
   const file: ArtifactTreeInput = {
     artifact_id: "f1399950-a652-422c-8e3b-59405391b2e4",
     label: "device.log",
@@ -571,14 +572,11 @@ test("Live Artifact Tree", () => {
     stream_state: "streaming",
     size_bytes: 3,
   };
-  const render = (artifact: ArtifactTreeInput) =>
-    renderToStaticMarkup(
-      createElement(ArtifactTreeView, {
-        artifacts: [{ ...artifact, path: "device.log" }],
-        emptyMessage: "Empty",
-      }),
-    );
-  assert.match(render(file), />Live · 3 B</);
+  const rendered = render(ArtifactTreeView, {
+    artifacts: [{ ...file, path: "device.log" }],
+    emptyMessage: "Empty",
+  });
+  assert.match(rendered.container.innerHTML, />Live · 3 B</);
   const tree = buildArtifactTree([file]);
   const nested = tree.folders[0].folders[0].folders[0];
   assert.equal(nested.path, "artifacts/logs/sub");
@@ -589,7 +587,8 @@ test("Live Artifact Tree", () => {
   assert.equal(finished.artifact_id, file.artifact_id);
   assert.equal(finished.size_bytes, 9);
   assert.equal(shouldFollowArtifact(finished), false);
-  assert.match(render(finished), />Finished · 9 B</);
+  await rendered.rerender({ artifacts: [{ ...finished, path: "device.log" }], emptyMessage: "Empty" });
+  assert.match(rendered.container.innerHTML, />Finished · 9 B</);
   const collision = buildArtifactTree([file, { ...file, artifact_id: "other", path: "artifacts/logs/sub/device.2.log" }]);
   assert.deepEqual(
     collision.folders[0].folders[0].folders[0].files.map((entry) => entry.fileName),
@@ -610,7 +609,9 @@ test("Media Cards and Tree Share Live Uploads", () => {
   };
   const audio = { ...image, artifact_id: "audio", path: "media/recording.wav", media_type: "audio/wav", href: "blob:audio" };
   const video = { ...image, artifact_id: "video", path: "media/clip.webm", media_type: "video/webm", href: "blob:video" };
-  const markup = renderToStaticMarkup(createElement(MediaGalleryView, { artifacts: [image, audio, video], emptyMessage: "" }));
+  const { container, unmount } = render(MediaGalleryView, { artifacts: [image, audio, video], emptyMessage: "" });
+  onTestFinished(unmount);
+  const markup = container.innerHTML;
   assert.match(markup, /<img[^>]+src="data:image\/png;base64,/);
   assert.match(markup, /<audio[^>]+controls=""[^>]+src="blob:audio"/);
   assert.match(markup, /<video[^>]+controls=""[^>]+src="blob:video"/);
@@ -630,44 +631,63 @@ test("Media Cards and Tree Share Live Uploads", () => {
   assert.equal(tree.folders[0].files.find((file) => file.artifact_id === "image")?.fileName, name);
 });
 
-test("Note Preview Preserves the Draft and Submits It", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  const submit = vi.fn();
-  onTestFinished(() => {
-    act(() => root.unmount());
-    host.remove();
-    vi.unstubAllGlobals();
+test("Native Media Loads Only the Current Preview", async () => {
+  const artifact = { artifact_id: "image", label: "Image", path: "media/image.png", media_type: "image/png" };
+  let completePending!: (url: string) => void;
+  const pending = new Promise<string>((resolve) => {
+    completePending = resolve;
   });
-  await act(async () =>
-    root.render(
-      createElement(EditableOperatorNotes, {
-        notes: [],
-        pending: false,
-        failure: null,
-        onReset: vi.fn(),
-        onSubmit: submit,
-      }),
-    ),
-  );
-  await act(async () => host.querySelector<HTMLButtonElement>("button")?.click());
+  const prepare = vi.fn(() => pending);
+  let completeCurrent!: (url: string) => void;
+  const current = new Promise<string>((resolve) => {
+    completeCurrent = resolve;
+  });
+  const prepareCurrent = vi.fn(() => current);
+  const transfers = { generation: "1", isCurrent: () => true, open: vi.fn(), download: vi.fn(), prepare };
+  const { getByRole, rerender, unmount } = render(MediaGalleryView, { artifacts: [artifact], emptyMessage: "", transfers });
+  onTestFinished(unmount);
+
+  await fireEvent.click(getByRole("button", { name: "Inspect" }));
+  assert.equal(prepare.mock.calls.length, 1);
+  await rerender({ artifacts: [artifact], emptyMessage: "", transfers: { ...transfers, generation: "2", prepare: prepareCurrent } });
+  assert.equal(prepareCurrent.mock.calls.length, 0);
+
+  completePending("data:image/png;base64,stale");
+  await pending;
+  await tick();
+  assert.equal(prepareCurrent.mock.calls.length, 1);
+  assert.equal(getByRole("dialog").querySelector("img"), null);
+
+  completeCurrent("data:image/png;base64,current");
+  await current;
+  await tick();
+  assert.equal(getByRole("dialog").querySelector("img")?.getAttribute("src"), "data:image/png;base64,current");
+  assert.equal(prepareCurrent.mock.calls.length, 1);
+});
+
+test("Note Preview Preserves the Draft and Submits It", async () => {
+  const submit = vi.fn();
+  const { container: host, unmount } = render(OperatorNotes, {
+    notes: [],
+    pending: false,
+    failure: null,
+    onReset: vi.fn(),
+    onSubmit: submit,
+  });
+  onTestFinished(unmount);
+  await fireEvent.click(host.querySelector<HTMLButtonElement>("button")!);
   const editor = host.querySelector("textarea");
   assert.ok(editor);
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(editor, "**fixture**");
-    editor.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  await fireEvent.input(editor, { target: { value: "**fixture**" } });
   const tabs = host.querySelectorAll<HTMLButtonElement>('[role="tab"]');
-  await act(async () => tabs[1].dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  await fireEvent.keyDown(tabs[1], { key: "Enter" });
   assert.equal(tabs[1].getAttribute("aria-selected"), "true");
   const preview = document.getElementById(tabs[1].getAttribute("aria-controls") ?? "");
   assert.equal(preview?.querySelector("strong")?.textContent, "fixture");
-  await act(async () => tabs[0].dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  await fireEvent.keyDown(tabs[0], { key: "Enter" });
   assert.equal(host.querySelector("textarea")?.value, "**fixture**");
   const buttons = host.querySelectorAll<HTMLButtonElement>("button");
-  await act(async () => buttons[buttons.length - 1].click());
+  await fireEvent.click(buttons[buttons.length - 1]);
   assert.deepEqual(submit.mock.calls[0][0], { kind: "create", markdown: "**fixture**" });
 });
 
@@ -675,10 +695,15 @@ test("Integer Cards, Records, Parameters and Criteria Keep Decimal Digits", () =
   for (const integer of [1152921504606847975n, 18446744073709551615n, -1152921504606847975n, 42n]) {
     const value = new NativeIntegerValue(integer, integer >= 0n);
     const expected = integer.toString();
-    const markup = renderToStaticMarkup(
-      createElement(Metric, { label: "Integer", value: expected, exactValue: expected, rawValue: value, presentation: "progress" }),
-    );
-    assert.ok(markup.includes(`>${expected}</span>`));
+    const { container, unmount } = render(Metric, {
+      label: "Integer",
+      value: expected,
+      exactValue: expected,
+      rawValue: value,
+      presentation: "progress",
+    });
+    assert.equal(container.querySelector("[data-exact-value]")?.textContent, expected);
+    unmount();
     assert.equal(formatRecordValue(value), expected);
     assert.equal(formatRecordValue(JSON.parse(JSON.stringify(value))), expected);
     assert.equal(formatValue(value, "V"), `${expected} V`);

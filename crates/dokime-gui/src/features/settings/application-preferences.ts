@@ -14,11 +14,11 @@
 /* === Imports === */
 
 import type { ApplicationSettings, SettingsScope } from "@generated/typescript/application-settings";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNativeSessionOptional } from "@/app/native-session/context";
+import type { QueryClient } from "@tanstack/svelte-query";
+import type { ConnectedSession } from "@/app/native-session/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { withNativeListener, saveNativeListenerPreferences, type ScopedPreferencesSnapshot } from "@/lib/api/native-remote";
-import { useUiStore } from "@/stores/ui-store";
+import { uiStore } from "@/stores/ui-store";
 
 // Standard Library Imports
 
@@ -40,32 +40,30 @@ export function preferencesKey(scope: SettingsScope, generation?: string) {
   return ["settings", "preferences", scope, scope === "local" ? "local" : (generation ?? "offline")] as const;
 }
 
-export function usePreferences(scope: SettingsScope) {
-  const session = useNativeSessionOptional();
-  return useQuery({
+export function preferencesQuery(scope: SettingsScope, session: ConnectedSession | null) {
+  return {
     queryKey: preferencesKey(scope, session?.identity.generation),
     queryFn: async () => {
       const snapshot = await preferencesCommands.desktopSettingsRead(scope);
       return scope === "backend" && session ? withNativeListener(session.identity, snapshot) : snapshot;
     },
     retry: false,
-  });
+  };
 }
 
-export function useSavePreferences(scope: SettingsScope) {
-  const session = useNativeSessionOptional();
-  const client = useQueryClient();
-  return useMutation({
+export function preferencesMutation(scope: SettingsScope, session: ConnectedSession | null, client: QueryClient) {
+  return {
     mutationFn: ({ previous, settings }: { previous: ScopedPreferencesSnapshot; settings: ApplicationSettings }) => {
-      if (scope === "backend" && session && JSON.stringify(previous.settings.listener) !== JSON.stringify(settings.listener))
+      if (scope === "backend" && session && JSON.stringify(previous.settings.listener) !== JSON.stringify(settings.listener)) {
         return saveNativeListenerPreferences(session.identity, previous, settings);
+      }
       return preferencesCommands.desktopSettingsUpdate(scope, { expected_revision: previous.revision, settings });
     },
-    onSuccess: (snapshot) => {
+    onSuccess: (snapshot: ScopedPreferencesSnapshot) => {
       client.setQueryData(preferencesKey(scope, session?.identity.generation), snapshot);
       if (scope === "local") {
         const appearance = snapshot.settings.appearance;
-        useUiStore.getState().setUiState({ density: appearance.density, themeFamily: appearance.theme_family });
+        uiStore.getState().setUiState({ density: appearance.density, themeFamily: appearance.theme_family });
       }
       void client.invalidateQueries({ queryKey: ["settings", "application"] });
       void client.invalidateQueries({ queryKey: ["settings", "remote-listener"] });
@@ -73,7 +71,7 @@ export function useSavePreferences(scope: SettingsScope) {
       // A Local Backend Resolves Both Scopes To The Same Revision.
       void client.invalidateQueries({ queryKey: ["settings", "preferences"] });
     },
-  });
+  };
 }
 
 /* === Private Functions === */

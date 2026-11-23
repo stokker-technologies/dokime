@@ -1,83 +1,14 @@
-/* ***
- *
- * Dokime
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
-
-/* === External Imports === */
-
-import { Activity, CircleUser, Info, type LucideIcon, Network, PackagePlus, Palette, Timer } from "lucide-react";
-
-/* === Constants === */
-
-export const SETTINGS_SECTIONS: SettingsSection[] = [
-  { id: "backends", label: "Backends", description: "Saved backend connections", icon: Network, group: "primary" },
-  {
-    id: "remote",
-    label: "Remote Access",
-    description: "Listener and pairing files",
-    icon: Network,
-    group: "primary",
-  },
-  {
-    id: "appearance",
-    label: "Appearance",
-    description: "Theme and density",
-    icon: Palette,
-    group: "primary",
-  },
-  {
-    id: "plugins",
-    label: "Plugins",
-    description: "Install plugins and configure their programs",
-    icon: PackagePlus,
-    group: "primary",
-  },
-  {
-    id: "secrets",
-    label: "Secret Storage",
-    description: "Shared named secrets on the connected host",
-    icon: CircleUser,
-    group: "primary",
-  },
-  {
-    id: "engine",
-    label: "Engine",
-    description: "Stream settings of the built-in host",
-    icon: Timer,
-    group: "primary",
-  },
-  {
-    id: "diagnostics",
-    label: "Diagnostics",
-    description: "Server health, lanes, and run folder",
-    icon: Activity,
-    group: "utility",
-  },
-  {
-    id: "about",
-    label: "About",
-    description: "Version and licenses",
-    icon: Info,
-    group: "utility",
-  },
-];
-
+// Dokime — SPDX-License-Identifier: Apache-2.0
+export type SettingsSectionId = string;
 export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = "backends";
 
-/* === Types === */
-
-export type SettingsSectionId = string;
-
-export type SettingsSectionGroup = "primary" | "utility";
-
-export type SettingsSection = {
-  id: SettingsSectionId;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  group: SettingsSectionGroup;
-};
+export const SETTINGS_SECTIONS = [
+  { id: "backends", label: "Backends" },
+  { id: "remote", label: "Remote Access" },
+  { id: "appearance", label: "Appearance" },
+  { id: "plugins", label: "Plugins" },
+  { id: "secrets", label: "Secret Storage" },
+  { id: "engine", label: "Engine" },
+  { id: "diagnostics", label: "Diagnostics" },
+  { id: "about", label: "About" },
+] as const;

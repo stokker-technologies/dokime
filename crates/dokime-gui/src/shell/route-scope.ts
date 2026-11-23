@@ -15,10 +15,6 @@
  * disagree about what the operator is looking at.
  */
 
-/* === External Imports === */
-
-import { useRouterState } from "@tanstack/react-router";
-
 /* === Constants === */
 
 const CYCLE_ROUTE = /^\/cycles\/([^/]+)/;
@@ -26,22 +22,10 @@ const CYCLE_ROUTE = /^\/cycles\/([^/]+)/;
 /* === Public Functions === */
 
 export function cycleIdOfPathname(pathname: string): string | null {
-  return CYCLE_ROUTE.exec(pathname)?.[1] ?? null;
-}
-
-/* === Hooks === */
-
-/** The cycle the route names, or null everywhere else. */
-export function useRouteCycleId(): string | null {
-  return useRouterState({ select: (state) => cycleIdOfPathname(state.location.pathname) });
-}
-
-/** The cycle and the attempt the route names, as one read. */
-export function useRouteCycleScope(): { cycleId: string | null; executionId: string | null } {
-  return useRouterState({
-    select: (state) => ({
-      cycleId: cycleIdOfPathname(state.location.pathname),
-      executionId: (state.location.search as { executionId?: string }).executionId ?? null,
-    }),
-  });
+  const segment = CYCLE_ROUTE.exec(pathname)?.[1];
+  try {
+    return segment ? decodeURIComponent(segment) : null;
+  } catch {
+    return null;
+  }
 }

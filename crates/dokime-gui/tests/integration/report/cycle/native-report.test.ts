@@ -18,19 +18,18 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { fireEvent, render } from "@testing-library/svelte";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { onTestFinished, test, vi } from "vitest";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
+import { createRawSnippet } from "svelte";
 
 // Local Imports
-import type { DocumentSurface } from "@/features/cycle/document-view-model";
-import { ReportShell } from "@/report/ReportShell";
-import { ReportCycleWorkspace } from "@/report/ReportCycleWorkspace";
+import ReportShell from "@/report/ReportShell.svelte";
+import ReportCycleWorkspace from "@/report/ReportCycleWorkspace.svelte";
 import { NativeIntegerValue } from "@/lib/api/native-values";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import { defaultBrand } from "@/lib/brand";
+import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { emptyLivePlotState } from "@/plots/live-frames";
 import { materializeReport, readReportCapture, reportOutcome } from "@/report/native-report";
 import {
@@ -56,11 +55,6 @@ import {
 /* === Re-Exports === */
 
 /* === Constants === */
-
-vi.mock("@/features/cycle/ExecutionSectionsView", () => ({
-  ExecutionSectionsView: ({ surface }: { surface: DocumentSurface }) =>
-    createElement("output", { "data-record-count": surface.view.records.length }),
-}));
 
 /* === Types === */
 
@@ -212,8 +206,10 @@ test("Execution Reports Keep Records Without a Case Tag", async () => {
   );
   const { source } = await materializeReport(capture);
   assert.equal(source.records.length, 1);
-  const html = renderToStaticMarkup(createElement(ReportCycleWorkspace, { source, selection: { executionId: "execution" } }));
-  assert.match(html, /data-record-count="1"/);
+  const { container, unmount } = render(ReportCycleWorkspace, { source, selection: { executionId: "execution" } });
+  onTestFinished(unmount);
+  const records = container.querySelectorAll('[data-testid="record-rows"] [data-window-row]');
+  assert.equal(records.length, 1);
 });
 
 test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async () => {
@@ -339,32 +335,20 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
     assert.equal(payload.series[0].points[0].y, 3);
     assert.equal(payload.series[0].points[0].instant, timed ? "1970-01-01T00:00:01Z" : null);
     if (plotType === PlotKind.HEAT_STRIP) {
-      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-      const host = document.createElement("div");
-      document.body.append(host);
-      const root = createRoot(host);
-      onTestFinished(async () => {
-        await act(async () => root.unmount());
-        host.remove();
-        vi.unstubAllGlobals();
-      });
       const descriptor = source.document("execution")?.cards[0].plots[0];
       assert.ok(descriptor);
-      await act(async () =>
-        root.render(
-          createElement(LivePlotGroupGrid, {
-            title: "Values",
-            documentPlots: [descriptor],
-            viewportMode: "fit",
-            liveStates: { [metadata.identifier]: { ...emptyLivePlotState(), payload } },
-          }),
-        ),
-      );
+      const { container: host, unmount } = render(PlotGroupGrid, {
+        title: "Values",
+        documentPlots: [descriptor],
+        viewportMode: "fit",
+        liveStates: { [metadata.identifier]: { ...emptyLivePlotState(), payload } },
+      });
+      onTestFinished(unmount);
       assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 9 · "));
       const slider = host.querySelector<HTMLElement>('[role="slider"]');
       assert.ok(slider);
       assert.equal(slider.getAttribute("aria-valuenow"), "1");
-      await act(async () => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+      await fireEvent.keyDown(slider, { key: "ArrowLeft" });
       assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 3 · "));
       assert.equal(source.plotPayloads("execution").plots[metadata.identifier].series[0].points[1].y, 9);
     }
@@ -439,16 +423,17 @@ test("Report Shell Navigation Follows the Subject Even with One Execution", asyn
     const { source, executionId } = await materializeReport(capture);
     assert.equal(source.executions.length, 1);
     assert.equal(executionId, executionSubject ? "execution" : null);
-    const html = renderToStaticMarkup(
-      createElement(ReportShell, {
-        source,
-        selection: { executionId: "execution" },
-        onSelect: executionId === null ? () => undefined : undefined,
-        children: createElement("output", { "data-execution": "execution" }),
-      }),
-    );
-    assert.equal(/<nav\b/.test(html), !executionSubject);
-    assert.match(html, /data-execution="execution"/);
-    assert.equal(/data-slot="sidebar-brand"/.test(html), !executionSubject);
+    const children = createRawSnippet(() => ({ render: () => '<output data-execution="execution"></output>' }));
+    const { container, unmount } = render(ReportShell, {
+      brand: defaultBrand,
+      source,
+      selection: { executionId: "execution" },
+      onSelect: executionId === null ? () => undefined : undefined,
+      children,
+    });
+    onTestFinished(unmount);
+    assert.equal(Boolean(container.querySelector("nav")), !executionSubject);
+    assert.ok(container.querySelector('[data-execution="execution"]'));
+    assert.equal(Boolean(container.querySelector('[data-slot="sidebar-brand"]')), !executionSubject);
   }
 });

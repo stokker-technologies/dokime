@@ -12,20 +12,16 @@
  * These hooks reuse the query keys and invalidation of `server-state.ts` so the
  * runtime stream keeps both the routed workspace and this one fresh. They add
  * no projection: the `lib/api` adapters still own the protobuf boundary.
- *
- * Each read consults `useCycleSnapshotSource` first. A frozen report mounts
- * the same workspace with `live={false}` and a snapshot in that context, so
- * these hooks answer from the snapshot and never reach for a backend that is
- * not there. The return shape is identical either way.
  */
 
 /* === External Imports === */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createMutation, type QueryClient } from "@tanstack/svelte-query";
 
 /* === Local Imports === */
 
-import { useNativeSessionOptional } from "@/app/native-session/context";
+import type { ConnectedSession } from "@/app/native-session/session";
+import type { SessionIdentity } from "@/lib/rpc/transport";
 import { deliverNativeArtifact } from "@/lib/api/native-delivery";
 import {
   appendNativeCaseAttempt,
@@ -47,189 +43,167 @@ import {
 } from "@/lib/api/native-execution";
 import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import { downloadNativeReport, type NativeReportSource } from "@/lib/api/native-reports";
+import { downloadNativeReport } from "@/lib/api/native-reports";
 import { reportFilename } from "@/features/cycle/cycle-workspace-model";
-import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
-import { frozenQuery, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
-
-/* === Constants === */
-
-/** One identity, so a frozen prompt list never re-renders the banner. */
-const EMPTY_PROMPTS: Awaited<ReturnType<typeof fetchNativePendingPrompts>> = [];
+import { invalidateWorkflowResourceQueries } from "./server-state";
+import { workflowQueryKeys } from "./workflow-query-keys";
 
 /* === Private Functions === */
 
-/** The identity a live read needs. Unreachable while a snapshot stands in. */
-function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
-  if (!session) {
-    throw new Error("A connected native backend is required.");
-  }
-  return session.identity;
-}
-
-/** Keys stay generation-scoped live, and constant while nothing is fetched. */
-function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
-  return session?.identity.generation ?? "frozen";
-}
-
-/* === Query Hooks === */
-
-/** The cycle's cases and every attempt of each, read to completion. */
-export function useCycleDetailQuery(cycleId: string, enabled = true) {
-  const snapshot = useCycleSnapshotSource();
-  const session = useNativeSessionOptional();
-  const query = useQuery({
-    enabled: enabled && session !== null,
-    queryFn: () => fetchNativeTestCycleDetail(identityOf(session), cycleId),
-    queryKey: [...workflowQueryKeys.cycleDetail(cycleId), generationOf(session)],
-  });
-  return snapshot ? frozenQuery({ plan: snapshot.plan, executions: snapshot.executions }) : query;
+/** The Cycle's Cases and Every Attempt, Read to Completion. */
+export function cycleDetailQueryOptions(identity: SessionIdentity, cycleId: string) {
+  return {
+    queryFn: () => fetchNativeTestCycleDetail(identity, cycleId),
+    queryKey: [...workflowQueryKeys.cycleDetail(cycleId), identity.generation],
+    staleTime: Number.POSITIVE_INFINITY,
+  };
 }
 
 /** The live runtime as this cycle sees it, never another cycle's. */
-export function useCycleRuntimeShellQuery(cycleId: string) {
-  const snapshot = useCycleSnapshotSource();
-  const session = useNativeSessionOptional();
-  const query = useQuery({
-    enabled: session !== null,
-    queryFn: () => fetchNativeRuntimeShell(identityOf(session), cycleId),
-    queryKey: [...workflowQueryKeys.runtimeShell(), cycleId, generationOf(session)],
-  });
-  return snapshot ? frozenQuery(snapshot.runtimeShell) : query;
+export function cycleRuntimeQueryOptions(identity: SessionIdentity, cycleId: string) {
+  return {
+    queryFn: () => fetchNativeRuntimeShell(identity, cycleId),
+    queryKey: [...workflowQueryKeys.runtimeShell(), cycleId, identity.generation],
+  };
 }
 
-/** The label of the cycle this one reruns, for its lineage link; none in a frozen report. */
-export function useCycleLabelQuery(cycleId: string | null) {
-  const snapshot = useCycleSnapshotSource();
-  const session = useNativeSessionOptional();
-  const query = useQuery({
-    enabled: cycleId !== null && session !== null,
-    queryFn: () => fetchNativeCycleLabel(identityOf(session), cycleId ?? ""),
-    queryKey: [...workflowQueryKeys.cycleDetail(cycleId ?? ""), "label", generationOf(session)],
-  });
-  return snapshot ? frozenQuery(null) : query;
+/** The label of the cycle this one reruns for its lineage link. */
+export function cycleLabelQueryOptions(identity: SessionIdentity, cycleId: string | null) {
+  return {
+    enabled: cycleId !== null,
+    queryFn: () => fetchNativeCycleLabel(identity, cycleId ?? ""),
+    queryKey: [...workflowQueryKeys.cycleDetail(cycleId ?? ""), "label", identity.generation],
+  };
 }
 
-/* A frozen cycle has no pending prompt by construction: generation waits for
-   the cycle to settle, and nobody can answer a question in a static file. */
-export function useCyclePendingPromptsQuery(cycleId: string) {
-  const snapshot = useCycleSnapshotSource();
-  const session = useNativeSessionOptional();
-  const query = useQuery({
-    enabled: session !== null,
-    queryFn: () => fetchNativePendingPrompts(identityOf(session), { cycleId }),
-    queryKey: [...workflowQueryKeys.prompts(), cycleId, generationOf(session)],
-  });
-  return snapshot ? frozenQuery(EMPTY_PROMPTS) : query;
+export function cyclePromptQueryOptions(identity: SessionIdentity, cycleId: string) {
+  return {
+    queryFn: () => fetchNativePendingPrompts(identity, { cycleId }),
+    queryKey: [...workflowQueryKeys.prompts(), cycleId, identity.generation],
+  };
 }
 
 /* === Mutation Hooks === */
 
-export function useCycleCommands(cycleId: string) {
-  /* A frozen report renders no control that fires one of these, so the set is
-     built without a connection and asks for one only when a command runs. */
-  const connection = useNativeSessionOptional();
-  const session = () => {
-    if (!connection) {
-      throw new Error("A connected native backend is required.");
-    }
-    return connection;
+export function createCycleCommands(session: () => ConnectedSession, cycleId: () => string) {
+  const client = () => session().queryClient;
+  const options = () => {
+    const { identity, queryClient } = session();
+    return cycleCommandOptions(() => identity, queryClient, cycleId());
   };
-  const queryClient = useQueryClient();
+  return {
+    exportEvidence: createMutation(() => options().exportEvidence, client),
+    archiveCycle: createMutation(() => options().archiveCycle, client),
+    archiveExecution: createMutation(() => options().archiveExecution, client),
+    renameCycle: createMutation(() => options().renameCycle, client),
+    renameExecution: createMutation(() => options().renameExecution, client),
+    rerunCycle: createMutation(() => options().rerunCycle, client),
+    deleteCase: createMutation(() => options().deleteCase, client),
+    downloadReport: createMutation(() => options().downloadReport, client),
+    pauseExecution: createMutation(() => options().pauseExecution, client),
+    resumeExecution: createMutation(() => options().resumeExecution, client),
+    stopExecution: createMutation(() => options().stopExecution, client),
+    cancelExecution: createMutation(() => options().cancelExecution, client),
+    startExecution: createMutation(() => options().startExecution, client),
+    appendAttempt: createMutation(() => options().appendAttempt, client),
+    sealCycle: createMutation(() => options().sealCycle, client),
+    updatePolicy: createMutation(() => options().updatePolicy, client),
+  };
+}
+
+function cycleCommandOptions(identity: () => SessionIdentity, queryClient: QueryClient, cycleId: string) {
   /* Every command refreshes on settling rather than on success. A mutation
      that raised can still have committed a control transition — the contract
      says so of run admission in particular — and a workspace that refuses to
      re-read after an error is the one that keeps showing the state before it. */
   const invalidateAll = () => invalidateWorkflowResourceQueries(queryClient);
-  const reportSource = (executionId: string | null): NativeReportSource =>
-    executionId ? { kind: "execution_report", executionId } : { kind: "cycle_report", cycleId };
-
   return {
-    exportEvidence: useMutation({
+    exportEvidence: {
       mutationFn: ({ executionId }: { executionId: string | null }) =>
-        deliverNativeArtifact(session().identity, {
+        deliverNativeArtifact(identity(), {
           source: executionId ? { kind: "execution_evidence", executionId } : { kind: "cycle_evidence", cycleId },
           kind: "artifact",
           action: "save",
           filename: executionId ? `execution-${executionId}.zip` : `cycle-${cycleId}.zip`,
         }),
-    }),
-    archiveCycle: useMutation({
-      mutationFn: (archived: boolean) => setNativeCycleArchived(session().identity, cycleId, archived),
+    },
+    archiveCycle: {
+      mutationFn: (archived: boolean) => setNativeCycleArchived(identity(), cycleId, archived),
       onSettled: invalidateAll,
-    }),
-    archiveExecution: useMutation({
+    },
+    archiveExecution: {
       mutationFn: ({ archived, executionId }: { archived: boolean; executionId: string }) =>
-        setNativeExecutionArchived(session().identity, executionId, archived),
+        setNativeExecutionArchived(identity(), executionId, archived),
       onSettled: invalidateAll,
-    }),
+    },
     /* A rename refreshes on settling like every command: lists, tabs and the
        sidebar read the label the runtime now holds. */
-    renameCycle: useMutation({
-      mutationFn: (label: string) => renameNativeTestCycle(session().identity, cycleId, label),
+    renameCycle: {
+      mutationFn: (label: string) => renameNativeTestCycle(identity(), cycleId, label),
       onSettled: invalidateAll,
-    }),
-    renameExecution: useMutation({
+    },
+    renameExecution: {
       mutationFn: ({ executionId, label }: { executionId: string; label: string }) =>
-        renameNativeTestExecution(session().identity, executionId, label),
+        renameNativeTestExecution(identity(), executionId, label),
       onSettled: invalidateAll,
-    }),
-    rerunCycle: useMutation({
-      mutationFn: () => rerunNativeTestCycle(session().identity, cycleId),
+    },
+    rerunCycle: {
+      mutationFn: () => rerunNativeTestCycle(identity(), cycleId),
       onSettled: invalidateAll,
-    }),
-    deleteCase: useMutation({
-      mutationFn: (caseId: string) => deleteNativeTestCycleCases(session().identity, cycleId, [caseId]),
+    },
+    deleteCase: {
+      mutationFn: (caseId: string) => deleteNativeTestCycleCases(identity(), cycleId, [caseId]),
       onSettled: invalidateAll,
-    }),
-    /* Create One Frozen Report, Then Save Its Retained File. */
-    downloadReport: useMutation({
-      mutationFn: async ({ executionId, label }: { executionId: string | null; label: string }) =>
-        downloadNativeReport(session().identity, reportSource(executionId), reportFilename(label)),
-    }),
-    pauseExecution: useMutation({
-      mutationFn: (executionId: string) => pauseNativeTestExecution(session().identity, executionId),
+    },
+    downloadReport: downloadReportOptions(identity, cycleId),
+    pauseExecution: {
+      mutationFn: (executionId: string) => pauseNativeTestExecution(identity(), executionId),
       onSettled: invalidateAll,
-    }),
-    resumeExecution: useMutation({
-      mutationFn: (executionId: string) => resumeNativeTestExecution(session().identity, executionId),
+    },
+    resumeExecution: {
+      mutationFn: (executionId: string) => resumeNativeTestExecution(identity(), executionId),
       onSettled: invalidateAll,
-    }),
-    stopExecution: useMutation({
-      mutationFn: (executionId: string) => stopNativeTestExecution(session().identity, executionId),
+    },
+    stopExecution: {
+      mutationFn: (executionId: string) => stopNativeTestExecution(identity(), executionId),
       onSettled: invalidateAll,
-    }),
-    cancelExecution: useMutation({
-      mutationFn: (executionId: string) => cancelNativeTestExecution(session().identity, executionId),
+    },
+    cancelExecution: {
+      mutationFn: (executionId: string) => cancelNativeTestExecution(identity(), executionId),
       onSettled: invalidateAll,
-    }),
-    startExecution: useMutation({
-      mutationFn: (executionId: string) => startNativeTestExecution(session().identity, executionId),
+    },
+    startExecution: {
+      mutationFn: (executionId: string) => startNativeTestExecution(identity(), executionId),
       onSettled: invalidateAll,
-    }),
-    appendAttempt: useMutation({
-      mutationFn: (caseId: string) => appendNativeCaseAttempt(session().identity, cycleId, caseId),
+    },
+    appendAttempt: appendCaseAttemptOptions(identity, queryClient, cycleId),
+    sealCycle: {
+      mutationFn: () => sealNativeTestCycle(identity(), cycleId),
       onSettled: invalidateAll,
-    }),
-    sealCycle: useMutation({
-      mutationFn: () => sealNativeTestCycle(session().identity, cycleId),
-      onSettled: invalidateAll,
-    }),
-    updatePolicy: useMutation({
+    },
+    updatePolicy: {
       mutationFn: ({ continueAutomatically }: { continueAutomatically: boolean }) =>
-        updateNativeTestCyclePolicy(session().identity, cycleId, continueAutomatically),
+        updateNativeTestCyclePolicy(identity(), cycleId, continueAutomatically),
       onSettled: invalidateAll,
-    }),
+    },
   };
 }
 
-/** Append A Fresh Attempt And Select It For Explicit Start */
-export function useRerunCase(cycleId: string) {
-  const commands = useCycleCommands(cycleId);
+export function appendCaseAttemptOptions(identity: () => SessionIdentity, client: QueryClient, cycleId: string) {
   return {
-    pending: commands.appendAttempt.isPending,
-    rerun: async (caseId: string): Promise<string | null> => {
-      return commands.appendAttempt.mutateAsync(caseId);
-    },
+    mutationFn: (caseId: string) => appendNativeCaseAttempt(identity(), cycleId, caseId),
+    onSettled: () => invalidateWorkflowResourceQueries(client),
+  };
+}
+
+/** Create One Frozen Report, Then Save Its Retained File. */
+export function downloadReportOptions(identity: () => SessionIdentity, cycleId: string) {
+  return {
+    mutationFn: ({ executionId, label }: { executionId: string | null; label: string }) =>
+      downloadNativeReport(
+        identity(),
+        executionId ? { kind: "execution_report", executionId } : { kind: "cycle_report", cycleId },
+        reportFilename(label),
+      ),
   };
 }

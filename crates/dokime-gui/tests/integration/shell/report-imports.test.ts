@@ -32,12 +32,12 @@ const config = JSON.parse(readFileSync(resolve(root, "tsconfig.json"), "utf8").r
 const DESKTOP_MODULES = [
   /^src\/(?:app|routes|stores|lib\/desktop)\//,
   /^src\/lib\/(?:api\/native-document-session|host\/(?:client|suite-session)|rpc\/(?:transport|ipc|artifact-upload))\./,
-  /^src\/shell\/(?:AppShell\.|ConsoleDrawer\.|MenuBar\.|Sidebar\.|StatusBar\.|console-(?:buffer|records)\.|focus-mode\.|route-scope\.|use-sidebar-state\.)/,
-  /(?:^|\/)(?:server-state|[^/]+-queries|live-data)\.[jt]sx?$/,
+  /^src\/shell\/(?:AppShell\.|DesktopShell\.|ConsoleDrawer\.|MenuBar\.|Sidebar\.|StatusBar\.|console-(?:buffer|records)\.|focus-mode\.|page-chrome\.|route-scope\.|use-sidebar-state\.)/,
+  /(?:^|\/)(?:server-state|[^/]+-queries|live-data|live-document|document-query)\.(?:svelte\.)?[jt]sx?$/,
   /^\.\.\/\.\.\/target\/generated\/host\/client\./,
 ];
 const DESKTOP_DEPENDENCIES =
-  /^(?:@tauri-apps\/|@tanstack\/(?:[^/]+-(?:router|query)|query-core|router-core)(?:\/|$)|@connectrpc\/|@grpc\/|zustand(?:\/|$))/;
+  /^(?:@tauri-apps\/|@tanstack\/(?:[^/]+-(?:router|query)|query-core|router-core)(?:\/|$)|@connectrpc\/|@grpc\/|(?:react(?:-dom)?|radix-ui|next-themes|sonner|zustand)(?:\/|$))/;
 
 /* === Types === */
 

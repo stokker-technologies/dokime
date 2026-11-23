@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -17,17 +18,15 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
+import { fireEvent, render } from "@testing-library/svelte";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { AppRoot } from "@/app/AppRoot";
+import { launchDesktopSession } from "@/app/native-session/launch";
 import { NativeSession } from "@/app/native-session/session";
-import { DataTable } from "@/components/data-table/DataTable";
-import { ErrorCard } from "@/components/ErrorCard";
-import { PathPill } from "@/components/PathPill";
-import { Button } from "@/components/ui/button";
-import { BackendsTable } from "@/features/settings/BackendsTable";
+import ConnectionScreen from "@/app/native-session/ConnectionScreen.svelte";
+import type { SessionOwner } from "@/app/native-session/session-state.svelte";
+import BackendsTable from "@/features/settings/BackendsTable.svelte";
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
@@ -46,9 +45,6 @@ const fixture = vi.hoisted(() => ({
   invalidate: vi.fn(),
   restart: vi.fn(),
   select: vi.fn(),
-  states: [] as unknown[],
-  phase: "disconnected",
-  effects: [] as (() => () => void)[],
 }));
 
 /* === Types === */
@@ -99,28 +95,6 @@ function connected(generation = "8"): DesktopSessionSnapshot {
 
 /* === Entry Point === */
 
-vi.mock("react", async (original) => ({
-  ...(await original<typeof import("react")>()),
-  useCallback: (callback: unknown) => callback,
-  useMemo: (factory: () => unknown) => factory(),
-  useState: (initial: unknown) => [
-    fixture.states.length ? fixture.states.shift() : typeof initial === "function" ? initial() : initial,
-    vi.fn(),
-  ],
-  useRef: (initial: unknown) => ({ current: initial }),
-  useSyncExternalStore: () => ({ phase: fixture.phase }),
-  useEffect: (effect: () => () => void) => {
-    fixture.effects.push(effect);
-  },
-}));
-vi.mock("@/app/native-session/context", () => ({
-  useNativeSessionController: () => ({ select: fixture.select }),
-  useNativeSessionOptional: () => null,
-}));
-vi.mock("@/app/router", () => ({ router: {} }));
-vi.mock("@/app/AppProviders", () => ({ AppProviders: "fixture-providers" }));
-vi.mock("@/app/native-session/ConnectionScreen", () => ({ ConnectionScreen: "fixture-connection" }));
-vi.mock("@/app/native-session/NativeSessionProvider", () => ({ NativeSessionProvider: "fixture-session" }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
 vi.mock("@/lib/host/client", () => ({ statusGet: fixture.identity, backendOverviewGet: fixture.cycles }));
 vi.mock("@/lib/api/native-plugins", () => ({ restartNativePlugin: fixture.restart }));
@@ -130,16 +104,21 @@ vi.mock("@/app/query-client", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fixture.effects.length = 0;
-  fixture.states.length = 0;
-  fixture.phase = "disconnected";
   fixture.cycles.mockResolvedValue({ overview: { sessionId: "epoch" } });
   fixture.identity.mockResolvedValue({ status: { identity: { hostId: "fixture" } }, resolvedAt: { history: { epoch: "epoch" } } });
   fixture.invoke.mockImplementation(async (command: string) => {
-    if (command === "desktop_backend_use") return connected().connection;
-    if (command === "desktop_session_status") return connected();
-    if (command === "desktop_session_disconnect")
+    if (command === "desktop_backend_use") {
+      return connected().connection;
+    }
+    if (command === "desktop_backends_list") {
+      return { profiles: [] };
+    }
+    if (command === "desktop_session_status") {
+      return connected();
+    }
+    if (command === "desktop_session_disconnect") {
       return { ...connected(), connection: { ...connected().connection, phase: "disconnected" } };
+    }
     throw new Error(`Unexpected Command: ${command}`);
   });
 });
@@ -156,7 +135,9 @@ test("Profile Selection Uses the Shared Native Registry Before Negotiating Ident
   );
   const state = owner.snapshot();
   assert.equal(state.phase, "connected");
-  if (state.phase !== "connected") throw new Error("Expected Connected Session");
+  if (state.phase !== "connected") {
+    throw new Error("Expected Connected Session");
+  }
   assert.equal(state.session.identity.generation, "8");
   assert.equal(state.session.identity.isCurrent(), true);
   await owner.disconnect();
@@ -180,7 +161,9 @@ test("Plugin Recovery Uses Its Connected Session and Refreshes Settings After Su
   await owner.select({ kind: "profile", identifier: "lab" });
   const state = owner.snapshot();
   assert.equal(state.phase, "connected");
-  if (state.phase !== "connected") throw new Error("Expected Connected Session");
+  if (state.phase !== "connected") {
+    throw new Error("Expected Connected Session");
+  }
 
   await state.session.restartPlugin("bench");
   assert.deepEqual(fixture.restart.mock.calls, [[state.session.identity, "bench"]]);
@@ -220,7 +203,9 @@ test("Deleting the Active Backend Invalidates Its Generation and Owned Resources
   const owner = new NativeSession();
   await owner.select({ kind: "profile", identifier: "lab" });
   const state = owner.snapshot();
-  if (state.phase !== "connected") throw new Error("Expected Connected Session");
+  if (state.phase !== "connected") {
+    throw new Error("Expected Connected Session");
+  }
   const dispose = vi.fn();
   state.session.own(dispose);
   fixture.invoke.mockResolvedValueOnce({ profiles: [] });
@@ -250,49 +235,44 @@ test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async 
 
 test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
   fixture.invoke.mockImplementation(async (command: string) => {
-    if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
-    if (command === "desktop_session_status")
+    if (command === "desktop_session_launch") {
+      return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
+    }
+    if (command === "desktop_session_status") {
       return { ...connected(), connection: { ...connected().connection, phase: "disconnected", backend: null } };
-    if (command === "desktop_backends_list") return { profiles: [] };
+    }
+    if (command === "desktop_backends_list") {
+      return { profiles: [] };
+    }
     throw new Error(`Unexpected Command: ${command}`);
   });
-  AppRoot();
-  const cleanup = fixture.effects[0]();
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  const owner = new NativeSession();
+  const select = vi.spyOn(owner, "select");
+  const published = vi.fn();
+  await launchDesktopSession(owner, () => true, published);
   assert.deepEqual(
     fixture.invoke.mock.calls.map(([command]) => command),
     ["desktop_session_launch", "desktop_session_status"],
   );
-  assert.equal(fixture.select.mock.calls.length, 0);
-  cleanup();
+  assert.equal(published.mock.calls.length, 1);
+  assert.equal(select.mock.calls.length, 0);
+  assert.equal(owner.snapshot().phase, "disconnected");
 });
 
-type TestElementProps = {
-  children?: ReactNode;
-  actions?: ReactNode;
-  failure?: unknown;
-  loading?: boolean;
-  onRetry?: () => void;
-  notificationContext?: string;
-  retry?: (profile: string | null) => void;
-  tabIndex?: number;
-  role?: string;
-  value?: string;
-  "aria-disabled"?: boolean;
-  onClick?: () => void;
-  onKeyDown?: (event: { key: string; target: object; currentTarget: object; preventDefault: () => void }) => void;
+const launch = { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
+const disconnected: SessionOwner = {
+  snapshot: () => ({ phase: "disconnected" }),
+  subscribe: () => () => {},
+  select: fixture.select,
+  disconnect: async () => {},
 };
 
-function descendants(node: unknown): ReactElement<TestElementProps>[] {
-  if (!isValidElement<TestElementProps>(node)) return [];
-  return [node, ...Children.toArray(node.props.children).flatMap(descendants)];
-}
-
 test("Backend Loading Stays in the Table's Status Slot", () => {
-  const table = descendants(BackendsTable()).find((element) => element.type === DataTable);
-  assert.ok(table);
-  assert.equal(table.props.loading, true);
-  assert.equal(table.props.failure, undefined);
+  const table = render(BackendsTable, { owner: disconnected });
+  const status = table.getByRole("status");
+  assert.equal(status.closest("table"), table.getByRole("table"));
+  assert.equal(table.queryByRole("alert"), null);
+  table.unmount();
 });
 
 test("Occupied Local Remains Usable", async () => {
@@ -303,34 +283,26 @@ test("Occupied Local Remains Usable", async () => {
   assert.deepEqual(owner.snapshot(), { phase: "failed", error: failure });
   assert.equal(fixture.invoke.mock.calls.length, 1);
 
-  const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
-    "@/app/native-session/ConnectionScreen",
-  );
-  const tree = ConnectionScreen({
-    launch: { target: null, expectedBackendId: null, localBackendAvailable: true, error: null },
-    launchError: failure,
-  });
-  const contents = descendants(tree);
-  const registry = contents.find((element) => element.type === BackendsTable);
-  assert.ok(registry);
-  assert.equal(registry.props.failure, failure);
-  assert.ok(registry.props.retry);
-  registry.props.retry(null);
+  const screen = render(ConnectionScreen, { owner: disconnected, launch, launchError: failure, onSettings: () => {} });
+  const alert = screen.getByRole("alert");
+  assert.equal(alert.closest("table"), null);
+  await fireEvent.click(screen.getByRole("button", { name: "Reload" }));
   assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
-  assert.ok(contents.some((element) => element.type === Button && element.props.children === "Settings"));
+  assert.ok(screen.getByRole("button", { name: "Settings" }));
+  screen.unmount();
 
   await owner.select({ kind: "profile", identifier: "lab" });
   assert.equal(owner.snapshot().phase, "connected");
 });
 
 test("Remote Import Starts from the Backend Toolbar", async () => {
-  const table = descendants(BackendsTable()).find((element) => element.props.actions);
-  assert.ok(table);
-  const action = descendants(table.props.actions).find((element) => element.type === Button && element.props.children === "Import Remote");
-  assert.ok(action);
+  const table = render(BackendsTable, { owner: disconnected });
+  const action = table.getByRole("button", { name: "Import Remote" });
+  assert.ok(action.closest("header"));
   fixture.invoke.mockResolvedValueOnce({ profiles: [] });
-  await action.props.onClick?.();
+  await fireEvent.click(action);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
+  table.unmount();
 });
 
 test("Remote Import Refresh Retains the Native Connection Failure", async () => {
@@ -358,53 +330,34 @@ test("Readiness Separates Status History from the Product Execution Epoch", asyn
   assert.equal(owner.snapshot().phase, "failed");
 });
 
-test("Backend Failure Retains Its Record in the Shared Content Slot", () => {
-  const error = new Error("bench_connection");
-  const table = descendants(BackendsTable({ failure: error })).find((element) => element.type === DataTable);
-  assert.ok(table);
-  assert.equal(table.props.loading, false);
-  const contents = descendants(table.props.failure);
-  const cards = contents.filter((element) => element.type === ErrorCard);
-  assert.equal(cards.length, 1);
-  const failure = cards[0].props.failure;
-  assert.ok(failure && typeof failure === "object" && "message" in failure);
-  assert.equal(failure.message, error.message);
-  assert.equal(contents.filter((element) => element.props.role === "status").length, 0);
-});
-
 test("Failed Backend Retains Its Endpoint Beside the Failure", () => {
   const endpoint = "http://127.0.0.1:8765";
-  const table = descendants(BackendsTable({ failure: new Error("fixture-connect"), endpoint })).find(
-    (element) => element.type === DataTable,
-  );
-  assert.ok(table);
-  const contents = descendants(table.props.failure);
-  assert.equal(contents.filter((element) => element.type === ErrorCard).length, 1);
-  assert.ok(contents.some((element) => element.type === "p" && element.props.children === endpoint));
+  const screen = render(ConnectionScreen, {
+    owner: disconnected,
+    launch: { ...launch, target: { kind: "local", endpoint } },
+    launchError: new Error("fixture-connect"),
+    onSettings: () => {},
+  });
+  const alert = screen.getByRole("alert");
+  assert.equal(alert.nextElementSibling?.textContent, endpoint);
+  screen.unmount();
 });
 
 test("Startup Recovery Feedback", async () => {
-  const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
-    "@/app/native-session/ConnectionScreen",
-  );
   const diagnostics = { cause: "fixture-startup-cause", log: "C:/fixture/startup.log" };
   const error = { kind: "startup", message: diagnostics.cause, diagnostics };
-  const contents = descendants(
-    ConnectionScreen({
-      launch: {
-        target: null,
-        expectedBackendId: null,
-        localBackendAvailable: true,
-        error: null,
-      },
-      launchError: error,
-    }),
-  );
-  const failures = contents.filter((element) => element.type === ErrorCard);
-  assert.equal(failures.length, 1);
-  assert.equal((failures[0].props.failure as { message: string }).message, diagnostics.cause);
-  assert.equal(failures[0].props.notificationContext, "background");
-  assert.ok(contents.some((element) => element.type === PathPill && element.props.value === diagnostics.log));
-  failures[0].props.onRetry?.();
-  assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
+  const publish = vi.spyOn(toast, "error").mockReturnValue("fixture");
+  try {
+    const screen = render(ConnectionScreen, { owner: disconnected, launch, launchError: error, onSettings: () => {} });
+    const alerts = screen.getAllByRole("alert");
+    assert.equal(alerts.length, 1);
+    assert.ok(alerts[0].textContent?.includes(diagnostics.cause));
+    assert.equal(publish.mock.calls[0]?.[1]?.context, "background");
+    assert.ok(screen.container.querySelector('[title="C:/fixture/startup.log"]'));
+    await fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+    assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
+    screen.unmount();
+  } finally {
+    publish.mockRestore();
+  }
 });

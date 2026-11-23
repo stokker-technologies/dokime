@@ -11,9 +11,9 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import react from "@vitejs/plugin-react";
+import { svelteTesting } from "@testing-library/svelte/vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { defineConfig } from "vitest/config";
 import workspace from "../../tools/config/vite.base.ts";
@@ -35,9 +35,9 @@ export default defineConfig(({ mode }) => ({
     __DOKIME_UI_MODE__: JSON.stringify(mode === "report" ? "report" : "live"),
   },
   plugins: {
-    test: [],
-    report: [react(), tailwindcss(), viteSingleFile()],
-  }[mode] ?? [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
+    test: [svelte(), svelteTesting({ autoCleanup: false })],
+    report: [svelte(), tailwindcss(), viteSingleFile()],
+  }[mode] ?? [svelte(), tailwindcss()],
   resolve: {
     dedupe: workspace.resolve?.dedupe,
     alias: {
@@ -78,7 +78,6 @@ export default defineConfig(({ mode }) => ({
                 groups: [
                   { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
                   { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
-                  { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
                   {
                     name: "document-surface",
                     test: /\/src\/(?:components\/document|plots)\//,

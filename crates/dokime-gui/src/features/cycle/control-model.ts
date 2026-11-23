@@ -89,6 +89,13 @@ export type CycleControlInput = {
 
 /* === Public Functions === */
 
+/** The Count, Preceded By The Phase When The Runtime Reports One. */
+export function progressCount({ completed, phase, total }: { completed: number; phase: string; total: number }): string {
+  const count = `${completed}/${total}`;
+  const label = phase.trim();
+  return label ? `${label} ${count}` : count;
+}
+
 /**
  * The runtime owns finalization. Completed records cover only completed steps,
  * and progress counts one step's work; neither establishes that the run sealed.

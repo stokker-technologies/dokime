@@ -18,7 +18,7 @@ import type uPlot from "uplot";
 import { test } from "vitest";
 import type { DocumentViewPlot } from "@/lib/types";
 import { paddedYRange, referenceYValues } from "@/plots/cartesian-frame";
-import { drawReferenceBands } from "@/plots/CartesianPlot";
+import { drawReferenceBands } from "@/plots/CartesianPlot.svelte";
 import { plotColor, referenceColor } from "@/plots/colors";
 import { documentPlotSpec } from "@/plots/grouping";
 

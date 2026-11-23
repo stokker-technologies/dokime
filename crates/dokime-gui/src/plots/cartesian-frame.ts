@@ -273,17 +273,22 @@ export function limitRenderedSeries(series: PlotSeries[], cartesian?: PlotCartes
   return [...series].sort((left, right) => (counts.get(right) ?? 0) - (counts.get(left) ?? 0)).slice(0, MAX_RENDERED_SERIES);
 }
 
-/**
- * The width the plot is built at, never below the axis gutters.
- *
- * A width smaller than the left axis leaves uPlot a negative plotting area,
- * and its increment search then answers zero, which the tick loop never
- * advances past. The floor keeps a mismeasured root from taking the plot down;
- * the laid-out gate above keeps it from being measured too early at all.
- */
 export function referenceYValues(lines: DocumentReferenceLine[], bands: DocumentReferenceBand[], yScale: DocumentAxisScale): number[] {
   const values = [...lines.map((line) => line.value), ...bands.flatMap((band) => [band.min, band.max])].filter(isNumber);
   return yScale === "log" ? values.filter((value) => value > 0) : values;
+}
+
+/** uPlot's Linear Faceted X Range Can Collapse To One Coordinate. */
+export function linearXRange(min: number | null, max: number | null): [number | null, number | null] {
+  if (min === null || max === null) {
+    return [null, null];
+  }
+  const precision = Math.max(Math.abs(min), Math.abs(max)) * Number.EPSILON;
+  if (max - min <= 8 * precision) {
+    const padding = Math.max(32 * precision, 1);
+    return finiteRange(min - padding, max + padding);
+  }
+  return finiteRange(min, max);
 }
 
 export function paddedYRange(

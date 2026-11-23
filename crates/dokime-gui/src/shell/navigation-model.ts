@@ -53,3 +53,11 @@ export function settingsParent(pathname: string): string {
 /* === Private Functions === */
 
 /* === Entry Point === */
+
+export type SidebarState = {
+  collapsed: boolean;
+  toggle: () => void;
+  resize: (width: number) => void;
+  width: string;
+  mode: NavigationMode;
+};

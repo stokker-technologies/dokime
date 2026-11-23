@@ -15,10 +15,9 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { act, createElement, type ComponentProps } from "react";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
+import { cleanup, fireEvent, render, type SvelteComponentOptions } from "@testing-library/svelte";
+import { type Component, tick } from "svelte";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
@@ -35,14 +34,14 @@ import {
   ValueFormatSchema,
   XyInterval,
 } from "@generated/host/model";
-import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
-import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
+import PlotWindowControlView from "@/features/cycle/PlotWindowControl.svelte";
+import { createPlotWindow } from "@/features/cycle/plot-window-state";
+import { plotWindowOptions, plotWindows, type PlotWindowState } from "@/features/cycle/plot-window";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
-import type { RuntimeThemeFamily, useAppearance } from "@/lib/appearance";
-import { ApplicationThemeProvider } from "@/lib/application-theme";
+import type { RuntimeAppearanceFrame, RuntimeThemeFamily } from "@/lib/types/appearance";
 import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
 import { jsonToNativeValue } from "@/lib/host/values";
 import {
@@ -65,17 +64,16 @@ import type {
   TelemetryStream,
 } from "@/lib/types";
 import { drawnData } from "@/plots/cartesian-frame";
-import { CartesianPlot, cursorPointOptions, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
-import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
+import CartesianPlot, { cursorPointOptions, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot.svelte";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
-import { BarPlot } from "@/plots/catalog/BarPlot";
-import { ContourPlot } from "@/plots/catalog/ContourPlot";
-import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
-import { PiePlot } from "@/plots/catalog/PiePlot";
-import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
-import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
-import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
-import { XyPlot } from "@/plots/catalog/XyPlot";
+import BarPlot from "@/plots/catalog/BarPlot.svelte";
+import ContourPlot from "@/plots/catalog/ContourPlot.svelte";
+import GridChartPlot from "@/plots/catalog/GridChartPlot.svelte";
+import PiePlot from "@/plots/catalog/PiePlot.svelte";
+import TimeSeriesPlot from "@/plots/catalog/TimeSeriesPlot.svelte";
+import TrajectoryPlot from "@/plots/catalog/TrajectoryPlot.svelte";
+import XyIntervalPlot from "@/plots/catalog/XyIntervalPlot.svelte";
+import XyPlot from "@/plots/catalog/XyPlot.svelte";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
@@ -85,19 +83,22 @@ import {
   type HistogramDeclaration,
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
-import { PlotInteractionProvider } from "@/plots/interaction";
-import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
-import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
+import { plotInteractionContext } from "@/plots/plot-interaction";
+import { plotRequestForDocumentPlot } from "@/plots/live-data";
+import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
 import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
-import { PlotPlayback, instantTime, orderedInstants, usePlotPlayback } from "@/plots/playback";
+import { instantTime, orderedInstants } from "@/plots/instants";
+import type { plotPlayback } from "@/plots/playback.svelte";
+import LivePlotProbe from "./LivePlotProbe.svelte";
+import PlaybackFixture from "./PlaybackFixture.svelte";
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
-import { PlotSettingsEditorContext } from "@/plots/plot-settings";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { m4Indices, windowIndices } from "@/plots/reduce";
-import { usePlotPalette } from "@/plots/desktop-plot-palette";
+import { materializeThemeFamilyVariables } from "@/lib/theme-family";
+import { desktopPlotPalette } from "@/plots/desktop-plot-palette";
 import { heldViewport } from "@/plots/viewport";
 import { applyReportAppearance } from "@/report/report-appearance";
-import { useSummaryWindowStore } from "@/stores/summary-window-store";
+import { summaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Re-Exports === */
 
@@ -245,7 +246,6 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
   const cancelAnimationFrame = vi
     .spyOn(globalThis.window, "cancelAnimationFrame")
     .mockImplementation((handle) => globalThis.clearTimeout(handle));
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   refreshFixture.read.mockReset();
   refreshFixture.watch.mockReset();
   refreshFixture.notify.mockReset();
@@ -271,84 +271,71 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
     }),
   );
   const scope = { cycleId: "cycle" };
-  useSummaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, visibleIds.includes(id)])) });
+  summaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, visibleIds.includes(id)])) });
   const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  let window: ReturnType<typeof usePlotWindow>;
-  let states: ReturnType<typeof useLivePlotPayloads>;
+  const windowStore = createPlotWindow();
   const commits: number[][] = [];
-  let nextPlots = plots;
-  let nextScope = scope;
-  let renderActive = true;
-  function View() {
-    window = usePlotWindow();
-    states = useLivePlotPayloads({
-      enabled: true,
-      renderActive,
-      plots: nextPlots,
-      scope: nextScope,
-      windowS: window.option.value,
-      refresh: window.refresh,
-    });
-    commits.push(Object.values(states).map((plot) => plot.revision));
-    return createElement(PlotWindowControl, { live: true, elapsedUnit: null, window });
+  let states: LivePlotStateMap = {};
+  let options = { enabled: true, renderActive: true, plots, scope };
+  function onRender(next: LivePlotStateMap) {
+    states = next;
+    commits.push(Object.values(next).map((plot) => plot.revision));
   }
-  const render = async () => {
-    await act(async () => {
-      root.render(createElement(Connection.Provider, { value: session }, createElement(View)));
-    });
-  };
-  onTestFinished(async () => {
-    await act(async () => {
-      root.unmount();
-    });
-    host.remove();
-    useSummaryWindowStore.setState({ windows: {}, widths: {}, heights: {}, visible: {} });
+  const view = render(LivePlotProbe, { options, session, onRender, windowStore });
+
+  onTestFinished(() => {
+    view.unmount();
+    summaryWindowStore.setState({ windows: {}, widths: {}, heights: {}, visible: {} });
     animationFrame.mockRestore();
     cancelAnimationFrame.mockRestore();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
-  await render();
+  await tick();
+
   return {
     plots,
     streams,
-    host,
-    setRenderActive: async (active: boolean) => {
-      renderActive = active;
-      await render();
+    async setRenderActive(active: boolean) {
+      options = { ...options, renderActive: active };
+      await view.rerender({ options });
     },
-    window: () => window,
+    window: windowStore.getState,
     states: () => states,
     commits,
-    button: () => host.querySelector("button") as HTMLButtonElement,
-    choose: async (index: number) => {
-      await act(async () => {
-        window.choose(index);
-      });
+    button: () => view.getByRole("button") as HTMLButtonElement,
+    async choose(index: number) {
+      windowStore.getState().choose(index);
+      await tick();
     },
-    click: async () => {
-      await act(async () => {
-        (host.querySelector("button") as HTMLButtonElement).click();
-      });
+    click: () => fireEvent.click(view.getByRole("button")),
+    async advance(ms = 20) {
+      await vi.advanceTimersByTimeAsync(ms);
+      await tick();
     },
-    advance: async (ms = 20) => {
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(ms);
-      });
-    },
-    runtimeUpdate: async (updated = plots.map((plot) => ({ ...plot, display_points: 200 }))) => {
-      nextPlots = updated;
-      nextScope = { ...scope };
-      await render();
+    async runtimeUpdate(updated = plots.map((plot) => ({ ...plot, display_points: 200 }))) {
+      options = { ...options, plots: updated, scope: { ...scope } };
+      await view.rerender({ options });
     },
   };
 }
 
+async function updatePlots(action: () => unknown | Promise<unknown>) {
+  await action();
+  await tick();
+}
+
 function snapshotEnvelopes(plots: DocumentViewPlot[]): PlotPayloadEnvelope[] {
   return plots.map((plot) => ({ ...streamMessage("snapshot", 1, hostFrame([0, 1], [[2, 3]])), plot_id: plot.plot_id }));
+}
+
+function plotMarkup<Props extends Record<string, unknown>>(component: Component<Props>, props: Props, zoom: boolean) {
+  const context = new Map([[plotInteractionContext, { zoom }]]);
+  const options = { props, context } as SvelteComponentOptions<typeof component>;
+  const { container, unmount } = render(component, options);
+  const html = container.innerHTML;
+  unmount();
+  return html;
 }
 
 /* === Entry Point === */
@@ -359,10 +346,6 @@ vi.mock("@/lib/api/native-plots", async (original) => ({
   openNativePlotStream: refreshFixture.watch,
 }));
 vi.mock("@/lib/notifications", () => ({ toast: { error: refreshFixture.notify } }));
-vi.mock("@/lib/application-settings", async (original) => {
-  const settings = await original<typeof import("@/lib/application-settings")>();
-  return { ...settings, useReportDefaults: () => settings.BUILT_IN_REPORT_DEFAULTS };
-});
 
 test("Window Presets", () => {
   const options = plotWindowOptions([17, 42, 3_600]);
@@ -378,37 +361,35 @@ test("Window Presets", () => {
   );
 });
 
-test("Window Selection", () => {
-  const selections: { index: number; value: number | null }[] = [];
-  function View({ live, selected }: { live: boolean; selected?: number }) {
-    const window = usePlotWindow();
-    if (selected !== undefined && window.index !== selected) {
-      window.choose(selected);
-    }
-    selections.push({ index: window.index, value: window.option.value });
-    return createElement(PlotWindowControl, { elapsedUnit: null, live, window });
-  }
-  const live = renderToStaticMarkup(createElement(View, { live: true }));
-  assert.match(live, /role="slider"/);
-  const selected = renderToStaticMarkup(createElement(View, { live: true, selected: 6 }));
-  assert.match(selected, /role="slider"/);
-  assert.equal(selections.at(-1)?.index, 6);
-  assert.equal(selections.at(-1)?.value, null);
-  assert.equal(renderToStaticMarkup(createElement(View, { live: false, selected: 2 })), "");
+test("Window Selection", async () => {
+  const choose = vi.fn();
+  const refresh = { key: 0, refreshing: false, updatedAt: null, request: vi.fn(), onChange: vi.fn() };
+  const initial: PlotWindowState = { index: 2, option: plotWindows[2], choose, refresh };
+  const view = render(PlotWindowControlView, { live: true, elapsedUnit: null, window: initial });
+  const slider = view.getByRole("slider");
+  assert.equal(slider.getAttribute("aria-valuenow"), "2");
+  slider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+  assert.deepEqual(choose.mock.calls, [[6]]);
+  const selected = { ...initial, index: 6, option: plotWindows[6] };
+  await view.rerender({ live: true, elapsedUnit: null, window: selected });
+  assert.equal(view.getByRole("slider").getAttribute("aria-valuenow"), "6");
+  assert.equal(selected.option.value, null);
+  await view.rerender({ live: false, elapsedUnit: null, window: initial });
+  assert.equal(view.container.childElementCount, 0);
 });
 
 test("A Complete Watch Revision Commits Every Chart in One Animation Frame", async () => {
   const ids = Array.from({ length: 8 }, (_, index) => `plot.${index}`);
   const view = await mountPlotView(ids);
   const initial = snapshotEnvelopes(view.plots);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push(...initial.map((frame) => ({ ...frame, kind: "snapshot" as const })));
   });
   assert.ok(Object.values(view.states()).every((plot) => plot.revision === 0));
   await view.advance();
   assert.ok(Object.values(view.states()).every((plot) => plot.revision === 1));
   view.commits.length = 0;
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push(...initial.map((frame) => ({ ...frame, revision: 2, kind: "replace" as const })));
     view.streams[0].push(...ids.map((plot_id) => ({ kind: "pending" as const, plot_id })));
   });
@@ -439,22 +420,22 @@ test("Manual All Refresh", async () => {
   assert.equal(view.button().disabled, true);
   await view.click();
   assert.equal(refreshFixture.read.mock.calls.length, 1);
-  await act(async () => complete(snapshotEnvelopes(view.plots)));
+  await updatePlots(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
   assert.ok(Object.values(view.states()).every((state) => state.status === "live"));
   assert.equal(view.button().disabled, false);
   const firstTime = view.window().refresh.updatedAt;
   const retained = view.states().pulse.payload;
-  await act(async () => useSummaryWindowStore.getState().setSummaryWindow("pulse", { from: 0, to: 1 }));
+  await updatePlots(async () => summaryWindowStore.getState().setSummaryWindow("pulse", { from: 0, to: 1 }));
   assert.equal(refreshFixture.read.mock.calls.length, 2);
   assert.deepEqual(refreshFixture.read.mock.calls[1][1][0].viewport, create(PlotWindowSchema, { from: 0, to: 1 }));
   assert.equal(view.states().pulse.payload, retained);
-  await act(async () => complete(snapshotEnvelopes(view.plots)));
+  await updatePlots(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
-  await act(async () => useSummaryWindowStore.getState().setPanelWidth("pulse", 900));
+  await updatePlots(async () => summaryWindowStore.getState().setPanelWidth("pulse", 900));
   assert.equal(refreshFixture.read.mock.calls.length, 3);
   assert.equal(refreshFixture.read.mock.calls[2][1][0].panelWidth, 900);
-  await act(async () => complete(snapshotEnvelopes(view.plots)));
+  await updatePlots(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
   const resizedTime = view.window().refresh.updatedAt;
   await view.runtimeUpdate([]);
@@ -465,7 +446,7 @@ test("Manual All Refresh", async () => {
   await view.click();
   assert.equal(refreshFixture.read.mock.calls.length, 4);
   assert.ok(refreshFixture.read.mock.calls[3][1].every((request: { maxPoints: bigint }) => request.maxPoints === 200n));
-  await act(async () => complete(snapshotEnvelopes(view.plots)));
+  await updatePlots(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
   assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
 });
@@ -473,24 +454,24 @@ test("Manual All Refresh", async () => {
 test("Timed Refresh", async () => {
   const view = await mountPlotView();
   assert.equal(view.button().disabled, true);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push({ kind: "pending", plot_id: "pulse" });
   });
   assert.equal(view.button().disabled, true);
   assert.equal(view.window().refresh.updatedAt, null);
   const initial = snapshotEnvelopes(view.plots);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push({ ...initial[0], kind: "snapshot" });
   });
   assert.equal(view.button().disabled, true);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push({ ...initial[1], kind: "snapshot" });
   });
   await view.advance();
   assert.equal(view.button().disabled, false);
   const firstTime = view.window().refresh.updatedAt;
   await view.advance(1_000);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push(
       ...initial.map((frame) => ({ ...frame, revision: 2, kind: "replace" as const, payload: hostFrame([2, 3], [[4, 5]]) })),
     );
@@ -504,7 +485,7 @@ test("Timed Refresh", async () => {
   assert.equal(refreshFixture.watch.mock.calls.length, 2);
   assert.equal(refreshFixture.read.mock.calls.length, 0);
   assert.equal(view.streams[0].cancel.mock.calls.length, 1);
-  await act(async () => {
+  await updatePlots(async () => {
     for (const frame of initial) {
       view.streams[1].push({ ...frame, kind: "snapshot" });
     }
@@ -513,24 +494,24 @@ test("Timed Refresh", async () => {
   assert.equal(view.button().disabled, false);
   await view.choose(0);
   assert.ok(refreshFixture.watch.mock.calls[2][1].every((request: { windowS: number }) => request.windowS === 60));
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
   });
   assert.equal(view.button().disabled, false);
   assert.equal(refreshFixture.notify.mock.calls.length, 1);
   // Repeated Ticks Retain The Failure Without Adding Notifications.
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
   });
   await view.advance();
   assert.equal(refreshFixture.notify.mock.calls.length, 1);
   assert.equal(view.states().pulse.status, "error");
   // A Successful Revision Allows A Later Failure To Be Reported Again.
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[2].push({ ...initial[0], kind: "snapshot" });
   });
   await view.advance();
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
   });
   await view.advance();
@@ -542,7 +523,7 @@ test("Live Frames Coalesce and Resume", async () => {
   const view = await mountPlotView();
   const initial = snapshotEnvelopes(view.plots);
   const push = async (revision: number) => {
-    await act(async () => {
+    await updatePlots(async () => {
       view.streams[0].push(...initial.map((frame) => ({ ...frame, revision, kind: "snapshot" as const })));
     });
   };
@@ -569,8 +550,8 @@ test("Live Frames Coalesce and Resume", async () => {
   assert.equal(refreshFixture.watch.mock.calls.length, 1);
 
   // An Off-Screen Card in a Visible Group Retains Its Own Throttle.
-  await act(async () => {
-    useSummaryWindowStore.setState({ visible: { pulse: true, current: false } });
+  await updatePlots(async () => {
+    summaryWindowStore.setState({ visible: { pulse: true, current: false } });
   });
   await push(131);
   await view.advance(16);
@@ -587,7 +568,7 @@ test("A Large Document Uses Independent Bounded Watches", async () => {
     [32, 32, 1],
   );
   const initial = snapshotEnvelopes(view.plots);
-  await act(async () => {
+  await updatePlots(async () => {
     for (let index = 0; index < view.streams.length; index++) {
       view.streams[index].push(...initial.slice(index * 32, (index + 1) * 32).map((frame) => ({ ...frame, kind: "snapshot" as const })));
     }
@@ -596,13 +577,15 @@ test("A Large Document Uses Independent Bounded Watches", async () => {
   assert.equal(Object.values(view.states()).filter((state) => state.status === "live").length, 65);
   assert.equal(view.button().disabled, false);
   const retained = view.states()["plot-64"].payload;
-  await act(async () => useSummaryWindowStore.getState().setSummaryWindow("plot-0", { from: 0, to: 1 }));
+  await updatePlots(async () => summaryWindowStore.getState().setSummaryWindow("plot-0", { from: 0, to: 1 }));
   assert.equal(refreshFixture.watch.mock.calls.length, 4);
   assert.equal(view.streams[0].cancel.mock.calls.length, 1);
   assert.equal(view.streams[1].cancel.mock.calls.length, 0);
   assert.equal(view.streams[2].cancel.mock.calls.length, 0);
   assert.equal(view.states()["plot-64"].payload, retained);
-  await act(async () => view.streams[2].push({ ...initial[64], kind: "replace", revision: 2, payload: hostFrame([2, 3], [[4, 5]]) }));
+  await updatePlots(async () =>
+    view.streams[2].push({ ...initial[64], kind: "replace", revision: 2, payload: hostFrame([2, 3], [[4, 5]]) }),
+  );
   await view.advance();
   assert.equal(view.states()["plot-64"].revision, 2);
 });
@@ -613,28 +596,28 @@ test("Viewport Prefetch Follows Visible Data Without Restarting Drawn Groups", a
   const view = await mountPlotView(ids, [ids[0], ids[32]]);
   assert.equal(view.streams.length, 2);
   const initial = snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }));
-  await act(async () => view.streams[0].push(...initial.slice(0, 32)));
+  await updatePlots(async () => view.streams[0].push(...initial.slice(0, 32)));
   await view.advance();
   assert.deepEqual(
     refreshFixture.watch.mock.calls.map((call) => call[1].length),
     [32, 32],
   );
   const retained = view.states()[ids[0]];
-  await act(async () => view.streams[1].push(initial[32]));
+  await updatePlots(async () => view.streams[1].push(initial[32]));
   await view.advance();
   assert.equal(view.streams.length, 2);
-  await act(async () => view.streams[1].push(...initial.slice(33, 64)));
+  await updatePlots(async () => view.streams[1].push(...initial.slice(33, 64)));
   await view.advance();
   assert.deepEqual(
     refreshFixture.watch.mock.calls.map((call) => call[1].length),
     [32, 32, 1],
   );
-  await act(async () => useSummaryWindowStore.getState().setVisible(ids[64], true));
+  await updatePlots(async () => summaryWindowStore.getState().setVisible(ids[64], true));
   assert.equal(view.streams.length, 3);
   assert.equal(view.states()[ids[0]], retained);
   assert.equal(view.streams[0].cancel.mock.calls.length, 0);
   const sibling = view.states()[ids[32]];
-  await act(async () => useSummaryWindowStore.getState().setSummaryWindow(ids[0], { from: 0, to: 1 }));
+  await updatePlots(async () => summaryWindowStore.getState().setSummaryWindow(ids[0], { from: 0, to: 1 }));
   assert.equal(view.streams[1].cancel.mock.calls.length, 0);
   assert.equal(view.streams[2].cancel.mock.calls.length, 0);
   assert.equal(view.states()[ids[32]], sibling);
@@ -691,7 +674,7 @@ test("Refresh Cancellation", async () => {
   const signal = refreshFixture.read.mock.calls[0][2].signal as AbortSignal;
   await view.choose(2);
   assert.equal(signal.aborted, true);
-  await act(async () => {
+  await updatePlots(async () => {
     for (const complete of pending) {
       complete();
     }
@@ -1071,8 +1054,8 @@ test("Boolean State Plots", () => {
   assert.deepEqual(payload.cartesian?.series[0].y.map(formatBooleanState), ["False", "True", "--", "False"]);
   assert.equal(formatBooleanState(0.5), "--");
   for (const zoom of [false, true]) {
-    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, createElement(TimeSeriesPlot, { plot })));
-    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
+    const html = plotMarkup(TimeSeriesPlot, { plot }, zoom);
+    assert.match(html, /<button\b[^>]*(?=[^>]*data-slot="button")(?=[^>]*aria-pressed="true")/);
     assert.doesNotMatch(html, /<table\b/);
   }
   columns[0].value_type = "number";
@@ -1191,6 +1174,7 @@ test("Marker Canvas Draws Glyphs Without Text", () => {
 });
 
 test("Legend Rows Contain Only Traces on Both Surfaces", () => {
+  onTestFinished(cleanup);
   const payload = hostFrame(
     [0, 5, 10],
     [
@@ -1200,22 +1184,20 @@ test("Legend Rows Contain Only Traces on Both Surfaces", () => {
   );
   const markers = [{ x: 5, label: "fixture", record_type: "fixture-kind", color: "" }];
   for (const zoom of [false, true]) {
-    const html = renderToStaticMarkup(
-      createElement(
-        PlotInteractionProvider,
-        { zoom },
-        createElement(CartesianPlot, {
-          title: "Fixture",
-          cartesian: payload.cartesian,
-          series: payload.series,
-          markers,
-          promptMarkers: [
-            { x: 7, kind: "asked", title: "fixture" },
-            { x: 8, kind: "answered", title: "fixture" },
-          ],
-          legend: { summaries: [], pending: false },
-        }),
-      ),
+    const html = plotMarkup(
+      CartesianPlot,
+      {
+        title: "Fixture",
+        cartesian: payload.cartesian,
+        series: payload.series,
+        markers,
+        promptMarkers: [
+          { x: 7, kind: "asked", title: "fixture" },
+          { x: 8, kind: "answered", title: "fixture" },
+        ],
+        legend: { summaries: [], pending: false },
+      },
+      zoom,
     );
     const document = new DOMParser().parseFromString(html, "text/html");
     const rows = document.querySelectorAll("tbody tr");
@@ -1223,17 +1205,15 @@ test("Legend Rows Contain Only Traces on Both Surfaces", () => {
       [...rows].map((row) => row.getAttribute("data-row-id")),
       payload.series.map((trace) => trace.key),
     );
-    const withoutStatistics = renderToStaticMarkup(
-      createElement(
-        PlotInteractionProvider,
-        { zoom },
-        createElement(CartesianPlot, {
-          title: "Fixture",
-          cartesian: payload.cartesian,
-          series: payload.series,
-          markers,
-        }),
-      ),
+    const withoutStatistics = plotMarkup(
+      CartesianPlot,
+      {
+        title: "Fixture",
+        cartesian: payload.cartesian,
+        series: payload.series,
+        markers,
+      },
+      zoom,
     );
     assert.doesNotMatch(withoutStatistics, /<table\b/);
   }
@@ -1249,7 +1229,7 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     light: { variables: {}, plot_palette: light },
     dark: { variables: {}, plot_palette: dark },
   };
-  const frame: ReturnType<typeof useAppearance> = {
+  const frame: RuntimeAppearanceFrame = {
     app_name: "Plot Test",
     logos: [],
     themes: [family],
@@ -1259,16 +1239,8 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     mode_locked: false,
     source_plugin_id: null,
   };
-  const readAppearance = vi.spyOn(await import("@/lib/appearance"), "useAppearance").mockReturnValue(frame);
-  onTestFinished(() => readAppearance.mockRestore());
-  function Palette() {
-    return createElement("output", null, JSON.stringify(usePlotPalette()));
-  }
   for (const mode of ["light", "dark"] as const) {
-    const html = renderToStaticMarkup(
-      createElement(ApplicationThemeProvider, { value: { resolvedTheme: mode, setTheme() {} } }, createElement(Palette)),
-    );
-    assert.equal(html, renderToStaticMarkup(createElement("output", null, JSON.stringify(family[mode].plot_palette))));
+    assert.deepEqual(desktopPlotPalette(materializeThemeFamilyVariables(family, mode)), family[mode].plot_palette);
   }
 
   // Frozen Reports Read the Palette Already Applied for Their Displayed Mode.
@@ -1282,13 +1254,11 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     document.title = originalTitle;
     vi.unstubAllGlobals();
   });
-  readAppearance.mockReturnValue({ ...frame, themes: [], active_theme: null });
   for (const mode of ["light", "dark"] as const) {
     vi.stubGlobal("matchMedia", () => ({ matches: mode === "dark" }));
     applyReportAppearance(frame);
     assert.equal(document.documentElement.style.colorScheme, mode);
-    const html = renderToStaticMarkup(createElement(Palette));
-    assert.equal(html, renderToStaticMarkup(createElement("output", null, JSON.stringify(family[mode].plot_palette))));
+    assert.deepEqual(desktopPlotPalette(null), family[mode].plot_palette);
   }
 });
 
@@ -1465,8 +1435,8 @@ test("XY Styles Reach the Native Request", () => {
     );
     const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]) });
     assert.equal(spec.style, style);
-    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom: false }, createElement(XyPlot, { plot: spec })));
-    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
+    const html = plotMarkup(XyPlot, { plot: spec }, false);
+    assert.match(html, /<button\b[^>]*(?=[^>]*data-slot="button")(?=[^>]*aria-pressed="true")/);
   }
 });
 
@@ -1491,17 +1461,15 @@ test("Plot Statistics", () => {
     },
   };
   for (const zoom of [false, true]) {
-    const render = (child: ReturnType<typeof createElement>) =>
-      renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, child));
-    const time = render(createElement(TimeSeriesPlot, { plot }));
+    const time = plotMarkup(TimeSeriesPlot, { plot }, zoom);
     assert.match(time, /<thead\b/);
     for (const Component of [XyPlot, TrajectoryPlot]) {
-      const xy = render(createElement(Component, { plot: { ...plot, timeAxis: false } }));
-      assert.match(xy, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
+      const xy = plotMarkup(Component, { plot: { ...plot, timeAxis: false } }, zoom);
+      assert.match(xy, /<button\b[^>]*(?=[^>]*data-slot="button")(?=[^>]*aria-pressed="true")/);
       assert.doesNotMatch(xy, /<table\b/);
     }
-    const xy = render(createElement(XyIntervalPlot, { plot: interval }));
-    assert.match(xy, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
+    const xy = plotMarkup(XyIntervalPlot, { plot: interval }, zoom);
+    assert.match(xy, /<button\b[^>]*(?=[^>]*data-slot="button")(?=[^>]*aria-pressed="true")/);
     assert.doesNotMatch(xy, /<table\b/);
   }
 });
@@ -1704,13 +1672,15 @@ test("Stream Errors Replace Retained Charts", () => {
   const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)]);
   const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["Voltage channel disconnected"] }]);
   assert.equal(failed.payload, ready.payload, "recovery retains the last frame in memory");
-  const html = renderToStaticMarkup(
-    createElement(LivePlotGroupGrid, {
+  const html = plotMarkup(
+    PlotGroupGrid,
+    {
       documentPlots: [descriptor],
       liveStates: { pulse: failed },
       title: "Signals",
       viewportMode: "fit",
-    }),
+    },
+    false,
   );
   assert.match(html, /role="alert"/);
   assert.match(html, /Voltage channel disconnected/);
@@ -1718,7 +1688,6 @@ test("Stream Errors Replace Retained Charts", () => {
 });
 
 test("Plot Edits Survive Presentation Changes", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   let visibility: IntersectionObserverCallback;
   let element: Element;
   vi.stubGlobal(
@@ -1733,17 +1702,15 @@ test("Plot Edits Survive Presentation Changes", async () => {
       unobserve() {}
     },
   );
+  onTestFinished(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
   const show = async (visible: boolean) => {
-    await act(async () =>
-      visibility([{ target: element, isIntersecting: visible } as IntersectionObserverEntry], {} as IntersectionObserver),
-    );
+    visibility([{ target: element, isIntersecting: visible } as IntersectionObserverEntry], {} as IntersectionObserver);
+    await tick();
   };
-  let renders = 0;
   const submit = vi.fn(async () => undefined);
-  function Editor(props: ComponentProps<typeof PlotSettingsButton>) {
-    renders += 1;
-    return createElement(PlotSettingsButton, props);
-  }
   const descriptor: DocumentViewPlot = {
     plot_id: "pulse",
     title: "Pulse",
@@ -1756,36 +1723,18 @@ test("Plot Edits Survive Presentation Changes", async () => {
     y: ["trace-0"],
     fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
   };
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
-    vi.unstubAllGlobals();
+  const { container: host, rerender } = render(PlotGroupGrid, {
+    documentPlots: [descriptor],
+    liveStates: { pulse: emptyLivePlotState() },
+    title: "Signals",
+    onPlotSettingsChange: submit,
   });
-  const render = async (state = emptyLivePlotState()) => {
-    await act(async () =>
-      root.render(
-        createElement(
-          PlotSettingsEditorContext.Provider,
-          { value: Editor },
-          createElement(LivePlotGroupGrid, {
-            documentPlots: [descriptor],
-            liveStates: { pulse: state },
-            title: "Signals",
-            onPlotSettingsChange: submit,
-          }),
-        ),
-      ),
-    );
-  };
-  await render();
-  assert.equal(renders, 0, "off-screen plots mount lazily");
+  const update = (state = emptyLivePlotState()) => rerender({ liveStates: { pulse: state } });
+  assert.equal(host.querySelector("[data-live-mounted]"), null, "off-screen plots mount lazily");
   await show(true);
   const trigger = host.querySelector<HTMLButtonElement>("button[aria-label^='Plot Settings for ']");
   assert.ok(trigger);
-  await act(async () => trigger.click());
+  await fireEvent.click(trigger);
   const input = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
   assert.ok(input);
   const payload = hostFrame([0, 1], [[2, 3]]);
@@ -1793,33 +1742,30 @@ test("Plot Edits Survive Presentation Changes", async () => {
   const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["fixture"] }]);
   input.focus();
   for (const value of ["", "2", "25", "250", "2500"]) {
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await render(ready);
+    await fireEvent.input(input, { target: { value } });
+    await update(ready);
     assert.equal(document.querySelector("[role=dialog] input[type=number]"), input);
     assert.equal(document.activeElement, input);
     assert.equal(input.value, value);
     assert.equal(submit.mock.calls.length, 0, "typing does not submit plot settings");
   }
-  await render();
+  await update();
   await show(false);
-  const pausedRenders = renders;
+  const paused = host.querySelector("[data-live-mounted]")?.textContent;
   for (const state of [ready, failed, ready]) {
-    await render(state);
+    await update(state);
     const current = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
     assert.ok(current);
     assert.equal(current.value, "2500");
+    assert.equal(host.querySelector("[data-live-mounted]")?.textContent, paused, "off-screen payloads do not update the plot subtree");
   }
-  assert.equal(renders, pausedRenders, "off-screen payloads do not render the plot subtree");
   await show(true);
-  assert.ok(renders > pausedRenders, "returning applies the latest retained payload");
+  assert.notEqual(host.querySelector("[data-live-mounted]")?.textContent, paused, "returning applies the latest retained payload");
   const cancel = [...document.querySelectorAll<HTMLButtonElement>("[role=dialog] button")].find(
     (button) => button.textContent === "Cancel",
   );
   assert.ok(cancel);
-  await act(async () => cancel.click());
+  await fireEvent.click(cancel);
   await vi.waitFor(() => assert.ok(document.activeElement === host.querySelector("button[aria-label^='Plot Settings for ']")));
 });
 
@@ -1835,20 +1781,22 @@ test("Bounded Report Envelopes", () => {
     const x = values[0].map((_, index) => 1_798_761_600 + index);
     const payload = hostFrame(x, values);
     const series = payload.series.map((series) => ({ ...series, unit: "dBm", raw_points: 20_000, downsampled: true }));
-    const html = renderToStaticMarkup(
-      createElement(CartesianPlot, {
+    const html = plotMarkup(
+      CartesianPlot,
+      {
         title: "Signal",
         series,
         cartesian: payload.cartesian,
         unit: "dBm",
         contextSummary: "fixture-network / radio-2 / 6",
-      }),
+      },
+      false,
     );
-    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
+    assert.match(html, /<button\b[^>]*(?=[^>]*data-slot="button")(?=[^>]*aria-pressed="true")/);
     assert.ok(html.includes("[dBm]"));
     assert.ok(html.includes("fixture-network / radio-2 / 6"));
-    const missingFrame = renderToStaticMarkup(createElement(CartesianPlot, { title: "Signal", series }));
-    assert.doesNotMatch(missingFrame, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
+    const missingFrame = plotMarkup(CartesianPlot, { title: "Signal", series }, false);
+    assert.doesNotMatch(missingFrame, /<button\b[^>]*(?=[^>]*data-slot="button")(?=[^>]*aria-pressed="true")/);
     assert.deepEqual(windowIndices(x, values, null, 640, true), null);
   }
 });
@@ -2116,7 +2064,8 @@ test("Generated Plot Series Labels Respect Word Positions", () => {
   );
 });
 
-test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", () => {
+test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", async () => {
+  onTestFinished(cleanup);
   const declaration = {
     plot_id: "surface",
     title: "Sensor Values",
@@ -2136,8 +2085,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
     },
   };
   const plot = documentPlotSpec({ plot: declaration, payload });
-  const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot }));
+  const { container: host, rerender } = render(ContourPlot, { plot });
   assert.equal(host.querySelectorAll("rect[data-bin]").length, 2);
   assert.ok(host.querySelector('rect[data-bin="0"]')?.getAttribute("fill"));
   assert.equal(host.querySelector('rect[data-bin="1"]'), null);
@@ -2145,7 +2093,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   const last = host.querySelector('rect[data-bin="3"]') as SVGRectElement;
   assert.ok(Math.abs(Number(first.getAttribute("width")) / Number(last.getAttribute("width")) - 2) < 1e-12);
   assert.ok(Math.abs(Number(last.getAttribute("height")) / Number(first.getAttribute("height")) - 3) < 1e-12);
-  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot: { ...plot, render: "bands" } }));
+  await rerender({ plot: { ...plot, render: "bands" } });
   assert.ok(host.querySelectorAll("[data-contour-mask] path").length > 0);
   assert.equal(host.querySelectorAll("clipPath rect").length, 2);
   assert.equal(host.querySelector('clipPath rect[data-valid-bin="1"]'), null);
@@ -2180,9 +2128,9 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
     },
   };
   const cellPlot = documentPlotSpec({ plot: { ...declaration, plot_type: "grid_chart" }, payload: grid });
-  host.innerHTML = renderToStaticMarkup(createElement(GridChartPlot, { plot: cellPlot }));
-  const populated = host.querySelector('[data-cell="sensor/left"]');
-  const absent = host.querySelector('[data-cell="sensor/right"]');
+  const { container } = render(GridChartPlot, { plot: cellPlot });
+  const populated = container.querySelector('[data-cell="sensor/left"]');
+  const absent = container.querySelector('[data-cell="sensor/right"]');
   assert.equal(populated?.textContent, "0");
   assert.equal(populated?.getAttribute("data-valid"), "true");
   assert.equal(populated?.getAttribute("data-highlight"), "true");
@@ -2214,7 +2162,8 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   assert.equal(request.grid?.rows[0].key, "sensor");
 });
 
-test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
+test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", async () => {
+  onTestFinished(cleanup);
   const declaration = { plot_id: "totals", title: "Totals", stream: "values", plot_type: "bar", y: ["value"] } as DocumentViewPlot;
   const payload: PlotPayload = {
     stream: "values",
@@ -2236,8 +2185,7 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
     ],
   };
   const plot = documentPlotSpec({ plot: declaration, payload });
-  const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...plot, pareto: true } }));
+  const { container: host, rerender } = render(BarPlot, { plot: { ...plot, pareto: true } });
   assert.deepEqual(
     [...host.querySelectorAll("rect[data-category]")].map((node) => node.getAttribute("data-category")),
     ["b", "c", "a"],
@@ -2250,14 +2198,14 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
     ...plot,
     series: plot.series.map((series) => ({ ...series, points: series.points.map((point) => ({ ...point, y: 0 })) })),
   };
-  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...zero, pareto: true } }));
+  await rerender({ plot: { ...zero, pareto: true } });
   assert.equal(host.querySelectorAll("rect[data-category]").length, 3);
   assert.equal(host.querySelector("[data-cumulative]"), null);
-  host.innerHTML = renderToStaticMarkup(createElement(PiePlot, { plot: { ...zero, plotType: "pie" } }));
-  assert.equal(host.querySelectorAll("path").length, 0);
-  assert.ok(host.querySelector('[data-testid="plot-placeholder"]'));
-  host.innerHTML = renderToStaticMarkup(createElement(PiePlot, { plot: { ...plot, plotType: "pie", hole: 0.5 } }));
-  assert.equal(host.querySelectorAll("path[data-category]").length, 3);
+  const pie = render(PiePlot, { plot: { ...zero, plotType: "pie" } });
+  assert.equal(pie.container.querySelectorAll("path").length, 0);
+  assert.ok(pie.container.querySelector('[data-testid="plot-placeholder"]'));
+  await pie.rerender({ plot: { ...plot, plotType: "pie", hole: 0.5 } });
+  assert.equal(pie.container.querySelectorAll("path[data-category]").length, 3);
   const grouped = {
     ...plot,
     series: [
@@ -2273,11 +2221,11 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
       },
     ],
   };
-  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...grouped, arrangement: "grouped" } }));
+  await rerender({ plot: { ...grouped, arrangement: "grouped" } });
   let bars = [...host.querySelectorAll('rect[data-category="a"]')];
   assert.equal(bars.length, 2);
   assert.notEqual(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
-  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...grouped, arrangement: "stacked" } }));
+  await rerender({ plot: { ...grouped, arrangement: "stacked" } });
   bars = [...host.querySelectorAll('rect[data-category="a"]')];
   assert.equal(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
   assert.ok(Number(bars[1].getAttribute("x")) >= Number(bars[0].getAttribute("x")) + Number(bars[0].getAttribute("width")) - 1e-9);
@@ -2288,6 +2236,7 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
 });
 
 test("Native Columns Reach Trajectory and Categorical Renderers", () => {
+  onTestFinished(cleanup);
   const instants = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:04Z"];
   for (const kind of ["trajectory", "bar", "pie"] as const) {
     for (const categories of [
@@ -2344,18 +2293,7 @@ test("Native Columns Reach Trajectory and Categorical Renderers", () => {
         },
         payload: update.payload,
       });
-      const host = document.createElement("div");
-      host.innerHTML = renderToStaticMarkup(
-        createElement(
-          PlotInteractionProvider,
-          { zoom: false },
-          kind === "trajectory"
-            ? createElement(TrajectoryPlot, { plot })
-            : kind === "bar"
-              ? createElement(BarPlot, { plot })
-              : createElement(PiePlot, { plot }),
-        ),
-      );
+      const { container: host } = render(kind === "trajectory" ? TrajectoryPlot : kind === "pie" ? PiePlot : BarPlot, { plot });
       assert.equal(host.querySelector('[data-testid="plot-placeholder"]'), null);
       if (kind === "trajectory") {
         assert.equal(host.querySelector("[data-trajectory-instant]")?.getAttribute("data-trajectory-instant"), instants[1]);
@@ -2377,104 +2315,83 @@ test("Native Columns Reach Trajectory and Categorical Renderers", () => {
 
 test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () => {
   vi.useFakeTimers();
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const fetch = vi.fn(() => {
     throw new Error("Playback attempted a request");
   });
   vi.stubGlobal("fetch", fetch);
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
   let incoming = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000002Z", "2026-01-01T00:00:04Z"];
-  let trajectory!: ReturnType<typeof usePlotPlayback<string[]>>;
-  let grid!: ReturnType<typeof usePlotPlayback<string[]>>;
-  const windows = useSummaryWindowStore.getState().windows;
-  function View() {
-    const available = orderedInstants(incoming);
-    trajectory = usePlotPlayback(incoming, available);
-    grid = usePlotPlayback(incoming, available);
-    return createElement(
-      "div",
-      null,
-      createElement(PlotPlayback, { title: "Trajectory", playback: trajectory }),
-      createElement(PlotPlayback, { title: "Grid", playback: grid }),
-    );
-  }
-  const render = () =>
-    act(async () => {
-      root.render(createElement(View));
-    });
+  let trajectory!: ReturnType<typeof plotPlayback<string[]>>;
+  let grid!: ReturnType<typeof plotPlayback<string[]>>;
+  const windows = summaryWindowStore.getState().windows;
+  const {
+    container: host,
+    rerender,
+    unmount,
+  } = render(PlaybackFixture, {
+    incoming,
+    capture: (left, right) => {
+      trajectory = left;
+      grid = right;
+    },
+  });
   try {
-    await render();
     const first = incoming[0];
     const last = incoming.at(-1);
     assert.notEqual(instantTime(incoming[0]), instantTime(incoming[1]));
     assert.equal(trajectory.instant, last);
     const slider = host.querySelector('[role="slider"]');
     assert.ok(slider);
-    await act(async () => {
-      slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", code: "ArrowLeft", bubbles: true }));
-    });
+    await fireEvent.keyDown(slider, { key: "ArrowLeft", code: "ArrowLeft" });
     assert.equal(trajectory.instant, incoming[1]);
     assert.equal(grid.instant, last);
     const held = trajectory.data;
     incoming = [...incoming, "2026-01-01T00:00:08Z"];
-    await render();
+    await rerender({ incoming });
     assert.equal(trajectory.instant, incoming[1]);
     assert.equal(trajectory.data, held);
     assert.equal(grid.instant, incoming.at(-1));
-    await act(async () => {
-      trajectory.replay();
-    });
+    trajectory.replay();
+    await tick();
     assert.equal(trajectory.instant, first);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(200);
-    });
+    await vi.advanceTimersByTimeAsync(200);
+    await tick();
     assert.equal(trajectory.instant, held[1]);
-    await act(async () => {
-      trajectory.pause();
-      await vi.advanceTimersByTimeAsync(600);
-    });
+    trajectory.pause();
+    await tick();
+    await vi.advanceTimersByTimeAsync(600);
+    await tick();
     assert.equal(trajectory.instant, held[1]);
-    await act(async () => {
-      trajectory.play();
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(600);
-    });
+    trajectory.play();
+    await tick();
+    await vi.advanceTimersByTimeAsync(600);
+    await tick();
     assert.equal(trajectory.instant, last);
     assert.equal(trajectory.playing, false);
     assert.equal(trajectory.following, false);
-    await act(async () => {
-      trajectory.seek(held.length - 1, true);
-    });
+    trajectory.seek(held.length - 1, true);
+    await tick();
     assert.equal(trajectory.instant, incoming.at(-1));
     assert.equal(trajectory.following, true);
-    await act(async () => {
-      trajectory.play();
-    });
+    trajectory.play();
+    await tick();
     assert.equal(trajectory.following, false);
     incoming = [...incoming, "2026-01-01T00:00:12Z"];
-    await render();
+    await rerender({ incoming });
     assert.equal(trajectory.instant, "2026-01-01T00:00:08Z");
-    await act(async () => {
-      trajectory.latest();
-    });
+    trajectory.latest();
+    await tick();
     assert.equal(trajectory.instant, incoming.at(-1));
     incoming = [first];
-    await render();
+    await rerender({ incoming });
     assert.equal((host.querySelector("button") as HTMLButtonElement).disabled, true);
     incoming = [];
-    await render();
+    await rerender({ incoming });
     assert.equal(trajectory.instant, null);
     assert.equal(host.querySelector('[data-slot="slider"]')?.getAttribute("aria-disabled"), "true");
-    assert.equal(useSummaryWindowStore.getState().windows, windows);
+    assert.equal(summaryWindowStore.getState().windows, windows);
     assert.equal(fetch.mock.calls.length, 0);
   } finally {
-    await act(async () => {
-      root.unmount();
-    });
-    host.remove();
+    unmount();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   }
@@ -2482,7 +2399,6 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
 
 test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async () => {
   vi.useFakeTimers();
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const raf = vi
     .spyOn(window, "requestAnimationFrame")
     .mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
@@ -2492,7 +2408,7 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
     (_, index) =>
       ({ plot_id: `live-${index}`, title: `Plot ${index}`, stream: "signal", plot_type: "time_series", y: ["value"] }) as DocumentViewPlot,
   );
-  useSummaryWindowStore.setState({ visible: Object.fromEntries(plots.map((plot) => [plot.plot_id, true])) });
+  summaryWindowStore.setState({ visible: Object.fromEntries(plots.map((plot) => [plot.plot_id, true])) });
   refreshFixture.watch.mockReset();
   const streams: { generation: string; ids: string[]; stream: ReturnType<typeof plotStream> }[] = [];
   let release!: () => void;
@@ -2513,28 +2429,26 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
   const first = session("1", () => current);
   const second = session("2");
   const replacement = session("3");
-  const states = new Map<string, ReturnType<typeof useLivePlotPayloads>>();
-  function Probe({ name }: { name: string }) {
-    states.set(name, useLivePlotPayloads({ enabled: true, plots, scope: { cycleId: "cycle", executionId: "execution" }, windowS: 300 }));
-    return null;
-  }
-  const roots = [createRoot(document.createElement("div")), createRoot(document.createElement("div"))];
-  const render = async (index: number, owner: ConnectedSession) =>
-    act(async () => {
-      roots[index].render(createElement(Connection.Provider, { value: owner }, createElement(Probe, { name: String(index) })));
-    });
+  const states = new Map<number, LivePlotStateMap>();
+  const options = { enabled: true, plots, scope: { cycleId: "cycle", executionId: "execution" }, windowS: 300 };
+  const probes = [first, second].map((owner, index) =>
+    render(LivePlotProbe, {
+      options,
+      session: owner,
+      onRender: (state) => states.set(index, state),
+    }),
+  );
   try {
-    await render(0, first);
-    await render(1, second);
+    await tick();
     assert.equal(streams.filter((group) => group.generation === "1").length, 4);
     assert.equal(streams.filter((group) => group.generation === "2").length, 4);
     assert.ok(streams.every((group) => group.ids.length <= 32));
     current = false;
-    await render(0, replacement);
-    await act(async () => {
+    await probes[0].rerender({ session: replacement });
+    await updatePlots(async () => {
       release();
     });
-    await act(async () => {
+    await updatePlots(async () => {
       for (const group of streams) {
         // A Producer Can Deliver Many Revisions Before Either Client Paints.
         for (let revision = 1; revision <= 128; revision++) {
@@ -2548,7 +2462,7 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
       }
       await vi.advanceTimersByTimeAsync(20);
     });
-    for (const name of ["0", "1"]) {
+    for (const name of [0, 1]) {
       const values = Object.values(states.get(name) ?? {});
       assert.equal(values.length, 100);
       assert.ok(values.every((state) => state.revision === 128));
@@ -2556,23 +2470,21 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
       assert.ok(values.every((state) => state.droppedBatches === 0));
     }
     assert.ok(streams.filter((group) => group.generation === "1").every((group) => group.stream.cancel.mock.calls.length === 1));
-    const retained = states.get("0")?.["live-0"];
-    await act(async () => {
+    const retained = states.get(0)?.["live-0"];
+    await updatePlots(async () => {
       const group = streams.find((group) => group.generation === "3" && group.ids.includes("live-96"));
       assert.ok(group);
       group.stream.push(...group.ids.map((plot_id) => ({ ...streamMessage("replace", 129, hostFrame([129], [[129]])), plot_id })));
       await vi.advanceTimersByTimeAsync(20);
     });
-    assert.equal(states.get("0")?.["live-0"], retained);
-    assert.equal(states.get("1")?.["live-96"].revision, 128);
-    assert.equal(states.get("0")?.["live-96"].revision, 129);
+    assert.equal(states.get(0)?.["live-0"], retained);
+    assert.equal(states.get(1)?.["live-96"].revision, 128);
+    assert.equal(states.get(0)?.["live-96"].revision, 129);
   } finally {
-    await act(async () => {
-      for (const root of roots) {
-        root.unmount();
-      }
-    });
-    useSummaryWindowStore.setState({ visible: {}, windows: {}, widths: {}, heights: {} });
+    for (const probe of probes) {
+      probe.unmount();
+    }
+    summaryWindowStore.setState({ visible: {}, windows: {}, widths: {}, heights: {} });
     raf.mockRestore();
     cancel.mockRestore();
     vi.useRealTimers();

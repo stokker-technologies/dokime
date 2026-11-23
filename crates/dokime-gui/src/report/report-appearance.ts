@@ -9,7 +9,7 @@
 
 /* === Local Imports === */
 
-import type { RuntimeAppearanceFrame } from "@/lib/appearance";
+import type { RuntimeAppearanceFrame } from "@/lib/types/appearance";
 import { type Brand, brandFromLogos, defaultBrand } from "@/lib/brand";
 import { applyBrandFavicon } from "@/lib/favicon";
 import { applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "@/lib/theme";

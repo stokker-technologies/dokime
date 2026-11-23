@@ -17,13 +17,9 @@
 
 /* === External Imports === */
 
-import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useCallback } from "react";
 import { z } from "zod";
 
 /* === Local Imports === */
-
-import { cycleIdOfPathname } from "./route-scope";
 
 /* === Types === */
 
@@ -73,36 +69,4 @@ export function focusPresentation(focused: boolean, frozen = false): FocusPresen
     heading: !focused,
     toggleLabel: focused ? "Leave Focus" : "Focus",
   };
-}
-
-/** Reads and writes the focus flag of the cycle route the operator is on. */
-export function useFocusMode(): FocusMode {
-  const navigate = useNavigate();
-  const { cycleId, focused } = useRouterState({
-    select: (state) => {
-      const cycleId = cycleIdOfPathname(state.location.pathname);
-      return {
-        cycleId,
-        focused: cycleId !== null && focusSearchSchema.parse((state.location.search as { focus?: unknown }).focus) === true,
-      };
-    },
-  });
-
-  const setFocused = useCallback(
-    (next: boolean) => {
-      if (!cycleId) return;
-      void navigate({
-        params: { cycleId },
-        replace: true,
-        search: (current: Record<string, unknown>) => ({
-          ...current,
-          focus: next ? (true as const) : undefined,
-        }),
-        to: "/cycles/$cycleId",
-      });
-    },
-    [cycleId, navigate],
-  );
-
-  return { focused, setFocused };
 }

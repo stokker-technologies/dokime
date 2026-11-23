@@ -16,12 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { createElement, isValidElement, type ReactNode, useSyncExternalStore } from "react";
-import type { ExternalToast } from "sonner";
-import * as sonner from "sonner";
+import * as sonner from "svelte-sonner";
+import type { ExternalToast } from "svelte-sonner";
 
 // Local Imports
 import { type FailureContext, routeFailure } from "./failure-routing";
+import NotificationToast from "../features/notifications/NotificationToast.svelte";
 import { failureOf, type NotificationFailure } from "./notification-details";
 
 /* === Re-Exports === */
@@ -74,7 +74,7 @@ export type NotificationCursor = Pick<NotificationRecord, "at" | "id">;
 
 export type NotificationPage = { records: NotificationRecord[]; older: boolean; newer: boolean };
 
-type NotificationOptions = Omit<ExternalToast, "description"> & {
+type NotificationOptions = Omit<ExternalToast<typeof NotificationToast>, "description" | "component" | "componentProps"> & {
   description?: string | null;
   source?: string;
   pluginSettings?: string;
@@ -93,10 +93,6 @@ type Summary = { count: number; unread: number; revision: number; error?: Notifi
 export function openNotificationDetails(record: NotificationRecord | null): void {
   selectedNotification = record;
   for (const listener of detailsListeners) listener();
-}
-
-export function useNotificationDetails(): NotificationRecord | null {
-  return useSyncExternalStore(subscribeDetails, getNotificationDetails, () => null);
 }
 
 export function getNotificationDetails(): NotificationRecord | null {
@@ -198,20 +194,8 @@ export async function clearPluginNotifications(generation: string, installations
   if (removed.length) await refresh();
 }
 
-export function useNotificationSummary(): Summary {
-  return useSyncExternalStore(
-    subscribe,
-    () => summary,
-    () => summary,
-  );
-}
-
-export function notificationText(node: ReactNode): string {
-  if (node == null || typeof node === "boolean") return "";
-  if (typeof node === "string" || typeof node === "number" || typeof node === "bigint") return String(node);
-  if (Array.isArray(node)) return node.map(notificationText).filter(Boolean).join(" ");
-  if (isValidElement<{ children?: ReactNode }>(node)) return notificationText(node.props.children);
-  return "";
+export function getNotificationSummary(): Summary {
+  return summary;
 }
 
 /* === Private Functions === */
@@ -308,7 +292,7 @@ async function refresh(): Promise<void> {
   return refreshing;
 }
 
-function subscribe(listener: () => void): () => void {
+export function subscribeNotificationSummary(listener: () => void): () => void {
   listeners.add(listener);
   void refresh().catch(historyFailure);
   return () => {
@@ -344,40 +328,19 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
   return id;
 }
 
-function showNotification(record: NotificationRecord, options: ExternalToast = {}): string | number {
-  const content = createElement(
-    "div",
-    {
-      className: "grid min-w-0 gap-1 text-left",
-    },
-    createElement("span", { className: "font-medium" }, record.title),
-    record.description &&
-      createElement(
-        "span",
-        { className: "select-text whitespace-pre-wrap break-words text-xs font-normal text-muted-foreground" },
-        record.description,
-      ),
-    createElement(
-      "button",
-      {
-        type: "button",
-        className: "w-fit rounded text-sm underline outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        "aria-haspopup": "dialog",
-        "aria-label": `Details for ${record.title}`,
-        onClick: () => openNotificationDetails(record),
-      },
-      "Details",
-    ),
-  );
-  return sonner.toast[record.tone](content, {
+function showNotification(
+  record: NotificationRecord,
+  options: Omit<ExternalToast<typeof NotificationToast>, "component" | "componentProps" | "description"> = {},
+): string | number {
+  return sonner.toast[record.tone](NotificationToast, {
     ...options,
     id: options.id ?? record.id,
-    description: undefined,
+    componentProps: { record, openDetails: () => openNotificationDetails(record) },
     ...(record.tone === "error" ? { duration: Infinity } : {}),
   });
 }
 
-function subscribeDetails(listener: () => void): () => void {
+export function subscribeNotificationDetails(listener: () => void): () => void {
   detailsListeners.add(listener);
   return () => {
     detailsListeners.delete(listener);

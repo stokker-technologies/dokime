@@ -14,15 +14,13 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { render } from "@testing-library/svelte";
 import { test } from "vitest";
 
 // Local Imports
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
-import type { DocumentViewCard, DocumentViewPayload, DocumentViewPlot } from "@/lib/types";
-import { DocumentViewRenderer } from "../../../src/components/document/DocumentViewRenderer";
-import { ExecutionSectionCard } from "../../../src/features/cycle/ExecutionSectionCard";
+import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
+import DocumentLayoutFixture from "./DocumentLayoutFixture.svelte";
+import ExecutionSectionCard from "../../../src/features/cycle/ExecutionSectionCard.svelte";
 
 /* === Re-Exports === */
 
@@ -68,30 +66,10 @@ const documentView: DocumentViewPayload = {
 
 /* === Entry Point === */
 
-test("Document Sections Share One Heading Scale Across Every Chrome", () => {
-  const host = document.createElement("div");
+test("Document Sections Share One Heading Scale Across Every Chrome", async () => {
+  const { container: host, rerender } = render(DocumentLayoutFixture, { document: documentView, headingsOnly: true });
   for (const sectionChrome of ["plain", "grouped", "card"] as const) {
-    host.innerHTML = renderToStaticMarkup(
-      createElement(DocumentViewRenderer, {
-        document: documentView,
-        sectionChrome,
-        renderCard: (card) =>
-          createElement(LivePlotGroupGrid, {
-            documentPlots: [
-              {
-                plot_id: card.card_id,
-                title: `${card.title} Plot`,
-                plot_type: "time_series",
-                stream: "readings",
-                y: ["value"],
-              } as DocumentViewPlot,
-            ],
-            title: card.title,
-            showGroupHeaders: false,
-            viewportMode: "fit",
-          }),
-      }),
-    );
+    await rerender({ document: documentView, headingsOnly: true, sectionChrome });
     const headings = host.querySelectorAll(
       "[data-section-id] > header .document-section-title, [data-section-id] > [data-slot=card-header] .document-section-title",
     );
@@ -103,7 +81,6 @@ test("Document Sections Share One Heading Scale Across Every Chrome", () => {
 });
 
 test("Execution Sections Use the Document Heading Scale", () => {
-  const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(createElement(ExecutionSectionCard, { title: "Report" }));
+  const { container: host } = render(ExecutionSectionCard, { title: "Report" });
   assert.ok(host.querySelector("section[aria-labelledby] > header > h2.document-section-title"));
 });

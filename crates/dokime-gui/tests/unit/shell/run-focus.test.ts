@@ -8,7 +8,7 @@
  */
 
 /**
- * Run Focus Selection And Clock Behavior.
+ * Run Focus Selection And Elapsed Label.
  */
 
 /* === Imports === */
@@ -19,7 +19,7 @@
 
 // Local Imports
 import { test, expect } from "vitest";
-import { activeRunFocus, elapsedMinutes, runDestination } from "@/shell/run-focus";
+import { activeRunFocus, runDestination, runElapsed } from "@/shell/run-focus";
 import type { TestCyclePlan, TestExecution } from "@/lib/types";
 
 /* === Re-Exports === */
@@ -47,7 +47,9 @@ test("execution lifecycle", () => {
   expect(focus[0]?.percent).toBeNull();
   expect(runDestination(focus)).toEqual({ to: "/cycles", hash: "active" });
   const second = details[0]?.executions[1];
-  if (!second) throw new Error("Missing execution fixture");
+  if (!second) {
+    throw new Error("Missing Execution Fixture");
+  }
   second.status = "passed";
   const remaining = activeRunFocus(details);
   expect(runDestination(remaining)).toEqual({ to: "/cycles/$cycleId", params: { cycleId: "cycle" }, search: { executionId: "older" } });
@@ -74,13 +76,10 @@ test("known step progress", () => {
   execution.steps = [];
   expect(activeRunFocus([{ plan, executions: [execution] }])[0]?.percent).toBeNull();
 });
-test("multi day elapsed", () => {
-  const start = "2026-10-20T00:00:00Z";
-  const now = Date.parse(start) + (3 * 1440 + 125) * 60000;
-  expect(elapsedMinutes(start, now)).toBe(4445);
-  expect(elapsedMinutes(start, now + 600000)).toBe(4455);
-  expect(elapsedMinutes(start, Date.parse(start) - 1000)).toBe(0);
-  expect(elapsedMinutes(undefined, now)).toBeNull();
+test("elapsed label across days", () => {
+  expect(runElapsed(4445 * 60 + 59)).toBe("3d 2h 5m");
+  expect(runElapsed(0)).toBe("0d 0h 0m");
+  expect(runElapsed(null)).toBe("");
 });
 
 /* === Private Functions === */

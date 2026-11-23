@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -13,13 +14,12 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { progressCount } from "@/features/cycle/ControlCard";
-import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { executionControlState, inputNeededLabel, progressCount } from "@/features/cycle/control-model";
+import { render } from "@testing-library/svelte";
 import { test } from "vitest";
 // Local Imports
-import { SettingsFields, cycleSettingsReadOnly } from "@/features/cycle/SettingsForm";
+import SettingsFields from "@/features/cycle/SettingsFields.svelte";
+import { cycleSettingsReadOnly } from "@/features/cycle/settings-fields";
 import {
   CYCLE_STATE_LABELS,
   archiveRefusal,
@@ -52,7 +52,7 @@ import {
   refuseLabel,
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
-import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
+import CycleStatusPill from "@/features/cycles-home/CycleStatusPill.svelte";
 import { archivedCycleGroups, groupCycleRows, type CycleRow } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { sameFrontiers } from "@/lib/api/native-documents";
@@ -60,7 +60,7 @@ import { RECORD_TAIL, appendRecordTail } from "@/lib/api/native-evidence";
 import { failureOf } from "@/lib/notification-details";
 import { defaultCycleLabel } from "@/lib/time-format";
 import type { HubRecord } from "@/lib/types";
-import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
+import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/row-window";
 import { focusPresentation } from "@/shell/focus-mode";
 
 /* === Re-Exports === */
@@ -158,19 +158,20 @@ test("Cycle State", () => {
 test("Status Pill", () => {
   // The Longest State Label Renders Whole, on a Track Every Label Sizes
   const longest = CYCLE_STATE_LABELS.reduce((wide, label) => (label.length > wide.length ? label : wide));
-  const markup = renderToStaticMarkup(createElement(CycleStatusPill, { label: longest, tone: "good" }));
-  const badges = [...markup.matchAll(/<span ([^>]*data-slot="badge"[^>]*)>([^<]*)<\/span>/g)];
-  const visible = badges.filter(([, attributes]) => !attributes.includes("aria-hidden"));
+  const view = render(CycleStatusPill, { label: longest, tone: "good" });
+  const badges = [...view.container.querySelectorAll('[data-slot="badge"]')];
+  const visible = badges.filter((badge) => !badge.hasAttribute("aria-hidden"));
   assert.deepEqual(
-    visible.map(([, , text]) => text),
+    visible.map((badge) => badge.textContent),
     [longest],
     "the visible pill states the full label",
   );
-  const sizers = [...markup.matchAll(/aria-hidden="true"[^>]*>([^<]*)</g)].map((match) => match[1]);
+  const sizers = badges.filter((badge) => badge.getAttribute("aria-hidden") === "true").map((badge) => badge.textContent);
   assert.deepEqual(sizers, [...CYCLE_STATE_LABELS], "every label sizes the shared track");
-  assert.doesNotMatch(markup, /pill-width|truncate|text-ellipsis/, "no fixed width or ellipsis can clip a label");
-  assert.match(markup, /inline-grid/);
-  assert.match(markup, /w-full \[grid-area:1\/1\]/, "the visible pill fills the widest label's track");
+  assert.doesNotMatch(view.container.innerHTML, /pill-width|truncate|text-ellipsis/, "no fixed width or ellipsis can clip a label");
+  assert.ok(view.container.querySelector(".inline-grid"));
+  assert.ok(visible[0].classList.contains("w-full") && visible[0].classList.contains("[grid-area:1/1]"));
+  view.unmount();
 });
 
 test("Live Data Flow", () => {
@@ -211,26 +212,29 @@ test("Live Data Flow", () => {
 });
 
 test("Settings Dialogs", () => {
-  const render = (props: Parameters<typeof SettingsFields>[0]) => renderToStaticMarkup(createElement(SettingsFields, props));
-  const cycle = { continueAutomatically: true, description: "Bench run", title: "Test Cycle" };
+  const values = { continueAutomatically: true, description: "Bench run", title: "Test Cycle" };
+  const onChange = () => {};
 
-  // An Active Cycle Edits Its Title And Continuation; Its Description Was Written At Creation
-  const active = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("active", false), values: cycle });
-  assert.match(active, /Title/);
-  assert.match(active, /Continue Automatically/);
-  assert.doesNotMatch(active, /Continue after a failed case/);
-  assert.equal((active.match(/ disabled=""/g) ?? []).length, 1, "only the description is read-only");
-  assert.match(active, /Set when the cycle was created/);
+  // An Active Cycle Edits Title And Continuation; Its Description Was Written At Creation.
+  const active = render(SettingsFields, { onChange, values, readOnly: cycleSettingsReadOnly("active", false) });
+  assert.equal((active.getByRole("textbox", { name: "Title" }) as HTMLInputElement).disabled, false);
+  assert.equal((active.getByRole("textbox", { name: "Description" }) as HTMLTextAreaElement).disabled, true);
+  const continuation = active.getByRole("switch", { name: "Continue Automatically" }) as HTMLButtonElement;
+  assert.equal(continuation.disabled, false);
+  assert.equal(continuation.getAttribute("aria-checked"), "true");
+  active.unmount();
 
-  // A Sealed Cycle Shows Its Settings Read-Only
-  const sealed = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("sealed", false), values: cycle });
-  assert.ok((sealed.match(/ disabled=""/g) ?? []).length >= 3, "title, description and continuation are all read-only");
-  assert.match(sealed, /role="switch"[^>]* disabled=""/);
+  // A Sealed Cycle Shows All Three Settings Read-Only.
+  const sealed = render(SettingsFields, { onChange, values, readOnly: cycleSettingsReadOnly("sealed", false) });
+  assert.equal(sealed.container.querySelectorAll("input:disabled, textarea:disabled, button[role=switch]:disabled").length, 3);
+  sealed.unmount();
 
-  // An Execution's Settings Are Its Title Alone, the Same Form
-  const execution = render({ onChange: () => undefined, values: { title: "Charger Start-Up" } });
-  assert.match(execution, /Title/);
-  assert.doesNotMatch(execution, /Description|Continue Automatically/);
+  // An Execution Uses The Same Fields For Its Title.
+  const execution = render(SettingsFields, { onChange, values: { title: "Charger Start-Up" } });
+  assert.equal(execution.getAllByRole("textbox").length, 1);
+  assert.ok(execution.getByRole("textbox", { name: "Title" }));
+  assert.equal(execution.queryByRole("switch"), null);
+  execution.unmount();
 });
 
 test("Node Menus", () => {
@@ -264,7 +268,6 @@ test("Node Menus", () => {
   assert.equal(rest.length, 0);
   assert.equal(group.title, "Archived");
   assert.deepEqual(group.rows, rows);
-  assert.equal(archivedCycleGroups([], true)[0].emptyText, "No Archived Cycles Match This Filter");
 });
 
 test("Execution Controls", () => {

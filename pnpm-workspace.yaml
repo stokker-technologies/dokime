@@ -1,3 +1,6 @@
 packages:
   - crates/dokime-gui
   - docs
+
+overrides:
+  typescript: 6.0.3

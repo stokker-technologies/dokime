@@ -10,25 +10,16 @@
 /* === External Imports === */
 
 import { z } from "zod";
-import { create } from "zustand";
+import { createStore } from "zustand/vanilla";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 /* === Local Imports === */
 
 import { isTauriDesktop } from "../lib/surface-environment";
 import type { DensityPreference } from "../lib/theme";
+import type { ConsoleLevel, ConsoleScope } from "../shell/console-view-model";
 
 /* === Types === */
-
-/**
- * The console drawer's own state.
- *
- * `Trace` is a threshold, not a severity the backend emits: the projection
- * carries four levels, and asking for Trace means "hold nothing back".
- */
-export type ConsoleLevel = "trace" | "debug" | "info" | "warning" | "error";
-
-export type ConsoleScope = "instance" | "cycle" | "execution";
 
 export type ConsoleState = {
   /**
@@ -59,7 +50,6 @@ type UiStoreState = {
   activeCycleId: string | null;
   /** Whether the active cycle picker is open; one picker serves the shell and the template dialog. */
   activeCyclePickerOpen: boolean;
-  desktopUpdateDialogOpen: boolean;
   leftRailCollapsed: boolean;
   noteText: string;
   rightRailCollapsed: boolean;
@@ -107,7 +97,6 @@ const initialUiStoreState: UiStoreState = {
   density: "comfortable",
   activeCycleId: null,
   activeCyclePickerOpen: false,
-  desktopUpdateDialogOpen: false,
   leftRailCollapsed: false,
   noteText: "",
   rightRailCollapsed: false,
@@ -162,7 +151,7 @@ function storageKey(name: string): string {
 
 /* === Public Functions === */
 
-export const useUiStore = create<UiStore>()(
+export const uiStore = createStore<UiStore>()(
   persist(
     (set) => ({
       ...initialUiStoreState,
