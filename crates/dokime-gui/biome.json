@@ -22,5 +22,11 @@
   },
   "vcs": {
     "root": "../.."
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.svelte"],
+      "linter": { "rules": { "a11y": { "noHeaderScope": "off" } } }
+    }
+  ]
 }
