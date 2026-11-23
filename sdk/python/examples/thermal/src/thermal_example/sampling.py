@@ -12,12 +12,12 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Callable
 
 # isort: split
 
 # Third Party Imports
-from dokime_sdk.templates import Context, Window, stream, window_observer
+from dokime_sdk.operations import Context
+from dokime_sdk.templates import Observer, Window
 from google.protobuf.message import Message
 
 # isort: split
@@ -43,13 +43,18 @@ def counter(window: Window) -> Message:
     return CounterColumns(value=[1_152_921_504_606_847_975] * window.count)
 
 
-def channel(identifier: str) -> Callable[[object, Context, Window], Message]:
-    @stream(identifier.replace("_", " ").title(), identifier=identifier, row=Counter)
-    @window_observer(columns=CounterColumns, interval_ms=1)
-    def read(self: object, ctx: Context, window: Window) -> Message:
-        return counter(window)
+def channel(identifier: str) -> type[Observer[Counter]]:
+    class CounterObserver(Observer[Counter]):
+        row = Counter
+        columns = CounterColumns
+        interval_ms = 1
 
-    return read
+        def sample(self, ctx: Context, window: Window) -> Message:
+            return counter(window)
+
+    CounterObserver.identifier = identifier
+    CounterObserver.label = identifier.replace("_", " ").title()
+    return CounterObserver
 
 
 # === Private Functions === #

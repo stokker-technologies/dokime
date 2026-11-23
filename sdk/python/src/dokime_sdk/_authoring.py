@@ -12,7 +12,6 @@
 
 # Standard Library Imports
 import inspect
-import math
 import re
 from collections.abc import Callable, Mapping, Sequence
 from copy import copy, deepcopy
@@ -48,14 +47,27 @@ if TYPE_CHECKING:
 # === Classes === #
 
 
-@dataclass(frozen=True)
-class Sampling:
-    """How an Observer Samples: Its Interval, Optional Settings and Window Columns."""
+class Observer[T: Payload = float]:
+    """Plugin Sampling State, Created Anew for Each Sampling Period."""
 
-    interval_ms: float
-    interval_setting: str
-    window_setting: str
-    columns: type[Message] | None
+    identifier: ClassVar[str | None] = None
+    label: ClassVar[str | None] = None
+    row: type[T] = cast(type[T], float)
+    interval_ms: ClassVar[float] = 1000
+    interval_setting: ClassVar[str] = ""
+    window_setting: ClassVar[str] = ""
+    columns: ClassVar[type[Message] | None] = None
+    plots: ClassVar[Sequence["templates.Plot"]] = ()
+
+    @classmethod
+    def field(cls, name: str = "value") -> "Expression":
+        from .templates._plots import Expression
+
+        identifier = build_identifier(cls.__name__, cls.identifier, class_name=True)
+        return Expression(DataExpression(stream={"identifier": identifier, "field": name}))
+
+    async def close(self) -> None:
+        pass
 
 
 @dataclass(frozen=True)
@@ -124,8 +136,7 @@ class _Template:
     identifier: str | None = None
     steps: Sequence[Step] = ()
     criteria: Sequence[Criterion] = ()
-    streams: Sequence[Stream[Any]] = ()
-    uses_streams: Sequence[Stream[Any]] = ()
+    uses_streams: Sequence[type[Observer[Any]] | Stream[Any]] = ()
     parameters: Sequence[shared.Parameter] = ()
     documents: Sequence["Document"] = ()
     files: Sequence[FileParameter] = ()
@@ -148,16 +159,13 @@ class _Template:
         self.criteria = tuple(self.criteria) + tuple(
             method.__dokime_criterion__ for method in self._methods.values() if hasattr(method, "__dokime_criterion__")
         )
-        self.streams = tuple(self.streams) + tuple(
-            method.__dokime_stream__ for method in self._methods.values() if hasattr(method, "__dokime_stream__")
-        )
+        if any(hasattr(method, "__dokime_stream__") for method in self._methods.values()):
+            raise ValueError("Declare Stream: Place Producers on the Plugin and Select Them With uses_streams")
         for stream in self.uses_streams:
-            if (
-                not isinstance(stream, Stream)
-                or not stream.identifier
-                or not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)+", stream.identifier)
-            ):
-                raise ValueError("Use Template Stream: Supply a Stream With an Explicit Qualified Identifier")
+            if isinstance(stream, type) and issubclass(stream, Observer):
+                continue
+            if not isinstance(stream, Stream) or not stream.identifier or not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)+", stream.identifier):
+                raise ValueError("Use Template Stream: Supply an Observer Class or a Qualified Stream")
         if sum(bool(getattr(method, "__dokime_materialize__", False)) for method in self._methods.values()) > 1:
             raise ValueError("Build Template: Declare Exactly One Custom Materializer")
         self.records = tuple(member for member in self._methods.values() if isinstance(member, Record))
@@ -170,6 +178,13 @@ class _Template:
         bound._identifiers = {}
         bound._lifecycle = {name: build_identifier(name, prefix=bound.identifier) for name in ("materialize", "initialize", "cleanup")}
         bound._prompts = {}
+        stream_ids = {}
+        for declaration in self.uses_streams:
+            if isinstance(declaration, type):
+                local = build_identifier(declaration.__name__, declaration.identifier, class_name=True)
+                identity = build_identifier(declaration.__name__, declaration.identifier, prefix=root, class_name=True)
+                bound._identifiers[id(declaration)] = identity
+                stream_ids[local] = identity
         names: list[str] = []
         declarations: list[tuple[object, str, str | None]] = []
         members: tuple[Step | Criterion, ...] = (*self.steps, *self.criteria)
@@ -180,10 +195,6 @@ class _Template:
                 declarations.append((member, name, member.identifier))
             if isinstance(member, PromptDeclaration):
                 declarations.append((member, name, member.identifier))
-            stream = getattr(member, "__dokime_stream__", None)
-            if isinstance(stream, Stream):
-                declarations.append((member, name, stream.identifier))
-                bound._identifiers[id(stream)] = build_identifier(name, stream.identifier, prefix=bound.identifier, root=root)
         for member, name, explicit in declarations:
             qualified = build_identifier(name, explicit, prefix=bound.identifier, root=root)
             names.append(qualified)
@@ -210,6 +221,8 @@ class _Template:
             pending: list[Message] = [document.message]
             while pending:
                 value = pending.pop()
+                if isinstance(value, DataExpression) and value.WhichOneof("kind") == "stream":
+                    value.stream.identifier = stream_ids.get(value.stream.identifier, value.stream.identifier)
                 if isinstance(value, DataExpression) and value.WhichOneof("kind") == "record":
                     value.record.identifier = record_ids.get(value.record.identifier, value.record.identifier)
                 if isinstance(value, TransformExpression) and value.WhichOneof("kind") == "time_between":
@@ -288,7 +301,7 @@ class TestTemplate:
     label: ClassVar[str | None] = None
     files: ClassVar[Sequence[FileParameter]] = ()
     documents: ClassVar[Sequence["Document"]] = ()
-    uses_streams: ClassVar[Sequence[Stream]] = ()
+    uses_streams: ClassVar[Sequence[type[Observer[Any]] | Stream[Any]]] = ()
 
     def __init__(self) -> None:
         pass
@@ -328,7 +341,7 @@ class Materialization:
         self.parameters: Mapping[str, Scalar] = MappingProxyType(deepcopy(parameters))
         self.message = TestCase(
             parameters={key: encode(value) for key, value in parameters.items()},
-            streams=list(dict.fromkeys(template.resolve(item) for item in (*template.streams, *template.uses_streams))),
+            streams=list(dict.fromkeys(template.resolve(item) for item in template.uses_streams)),
         )
         self.bindings: dict[tuple[str, str], tuple[Callable[..., object], dict[str, object]]] = {}
 
@@ -459,28 +472,6 @@ def materialize[**P, R](handler: Callable[P, R]) -> Callable[P, R]:
     return handler
 
 
-def observer[**P, R](
-    *, interval_ms: float = 1000, interval_setting: str = "", window_setting: str = ""
-) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    """Sample One Row per Call; Each Host Window Calls the Method Once per Sample, in Order.
-
-    `interval_ms` may be fractional (`0.001` samples at 1 MHz). `window_setting` names a plugin
-    duration setting that replaces the host's window length for this stream.
-    """
-    return _sampling(Sampling(interval_ms, interval_setting, window_setting, None))
-
-
-def window_observer[**P, R](
-    *, columns: type[Message], interval_ms: float = 1000, interval_setting: str = "", window_setting: str = ""
-) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    """Answer a Whole Host Window per Call with `columns`, Which Repeats Every Field of the Row.
-
-    The method receives the context and the `SampleWindow`; sample `i` is due at
-    `window.start + i * window.period`, and every column holds `window.count` values.
-    """
-    return _sampling(Sampling(interval_ms, interval_setting, window_setting, columns))
-
-
 def stream[**P, R](label: str, *, identifier: str | None = None, row: type[Payload] = float) -> Callable[[Callable[P, R]], Callable[P, R]]:
     message_type(row)
 
@@ -526,19 +517,6 @@ def bind_suite(declaration: type[Suite], prefix: str) -> _Suite:
         ).bind(identity, prefix)
         templates.append(template)
     return _Suite(identity, tuple(templates), declaration.label or build_label(declaration.__name__))
-
-
-def _sampling[**P, R](sampling: Sampling) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    if not math.isfinite(sampling.interval_ms) or sampling.interval_ms <= 0:
-        raise ValueError("Declare Observer: Supply a Positive Interval")
-
-    def decorate(handler: Callable[P, R]) -> Callable[P, R]:
-        if not isinstance(handler, FunctionType):
-            raise TypeError("Register Definition: Supply a Function")
-        vars(handler)["__dokime_observer__"] = sampling
-        return handler
-
-    return decorate
 
 
 # === Entry Point === #

@@ -43,7 +43,7 @@ from dokime_sdk._wire.host.v1.executions import schemas_pb2
 from dokime_sdk._wire.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
 from dokime_sdk._wire.host.v1.files import uploads_pb2
 from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
-from dokime_sdk.templates import Context, Document, Section, Termination, TestTemplate, observer, record, stream
+from dokime_sdk.templates import Context, Document, Section, Termination, TestTemplate, Observer, record, stream
 
 # Type Checking Imports
 
@@ -229,20 +229,27 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(artifact.execution)
 
     async def test_client_and_scoped_callers_share_publication_and_record_queries(self) -> None:
+        class CaptureTestTemplateVoltage(Observer):
+            identifier = 'voltage'
+            label = "Voltage"
+            row = float
+
+            async def sample(self, ctx: Context) -> float:
+                return 0.0
+
+
         class CaptureTestTemplate(TestTemplate):
+            uses_streams = (CaptureTestTemplateVoltage,)
             flag = record(bool)
             report = Document("Report")
             documents: ClassVar[list[Document]] = [report]
 
-            @stream("Voltage")
-            @observer()
-            async def voltage(self, ctx: Context) -> float:
-                return 0.0
 
         class CaptureSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [CaptureTestTemplate]
 
         class CapturePlugin(Plugin):
+            observers = (CaptureTestTemplateVoltage,)
             version = "1.0.0"
             suites: ClassVar[list[type[Suite]]] = [CaptureSuite]
 
@@ -278,7 +285,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await query.last())
         self.assertIs(context.termination, None)
         self.requests.clear()
-        statistics = await context.statistics(CaptureTestTemplate.voltage)
+        statistics = await context.statistics(CaptureTestTemplateVoltage)
         self.assertEqual(
             (statistics.count, statistics.min, statistics.max, statistics.mean, statistics.stddev), (3, 1, 2**64 - 1, Fraction(7, 3), 1.25)
         )

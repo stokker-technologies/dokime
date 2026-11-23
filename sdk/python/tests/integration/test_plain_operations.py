@@ -40,7 +40,7 @@ import dokime_sdk.operations
 from dokime_sdk import Failure, Plugin, Suite
 from dokime_sdk._errors import wire_failure
 from dokime_sdk.operations import OperationError, Visibility, operation
-from dokime_sdk.templates import Context, TestTemplate, Window, criterion, observer, prompt, record, step, stream, window_observer
+from dokime_sdk.templates import Context, TestTemplate, Window, criterion, Observer, prompt, record, step, stream
 
 # Type Checking Imports
 
@@ -130,18 +130,30 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         rows = (row_type(), row_type(value=0.0), row_type(value=2.5))
         pending = iter(rows)
 
-        class ReadingsPlugin(Plugin):
-            version = "1.0.0"
+        class ReadingsPluginWindow(Observer):
+            identifier = 'window'
+            label = "Window"
+            row = row_type
+            columns = columns
 
-            @stream("Reading", row=row_type)
-            @observer()
-            def reading(self, ctx: dokime_sdk.operations.Context) -> Message:
+            def sample(self, ctx: dokime_sdk.operations.Context, window: Window) -> Message:
+                return columns(value=[{}, {"value": 0.0}, {"value": 2.5}])
+
+
+        class ReadingsPluginReading(Observer):
+            identifier = 'reading'
+            label = "Reading"
+            row = row_type
+
+            def sample(self, ctx: dokime_sdk.operations.Context) -> Message:
                 return next(pending)
 
-            @stream("Window", row=row_type)
-            @window_observer(columns=columns)
-            def window(self, ctx: dokime_sdk.operations.Context, window: Window) -> Message:
-                return columns(value=[{}, {"value": 0.0}, {"value": 2.5}])
+
+        class ReadingsPlugin(Plugin):
+            observers = (ReadingsPluginReading, ReadingsPluginWindow)
+            version = "1.0.0"
+
+
 
         endpoint = await ReadingsPlugin()._activate("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.stop)
@@ -156,6 +168,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             call = samples()
             try:
                 await call.write(InstanceSamplesRequest(open={"stream": f"readings.{name}"}))
+                await call.write(InstanceSamplesRequest(demand={"streams": [f"readings.{name}"]}))
                 await call.write(InstanceSamplesRequest(window={"start": {}, "count": 3, "period": {"seconds": 1}}))
                 response = await call.read()
                 assert isinstance(response, InstanceSamplesResponse)
@@ -265,25 +278,37 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             call.cancel()
 
     async def test_scalar_streams_use_declared_payload_types(self) -> None:
+        class ReadingsTestTemplateAccepted(Observer):
+            identifier = 'accepted'
+            label = "Accepted"
+            row = bool
+
+            def sample(self, ctx: Context) -> bool:
+                return True
+
+
+        class ReadingsTestTemplateVoltage(Observer):
+            identifier = 'voltage'
+            label = "Voltage"
+            row = float
+
+            def sample(self, ctx: Context) -> float:
+                return 2.5
+
+
         class ReadingsTestTemplate(TestTemplate):
+            uses_streams = (ReadingsTestTemplateVoltage, ReadingsTestTemplateAccepted)
             @step("Start")
             def start(self, ctx: Context) -> None:
                 pass
 
-            @stream("Voltage")
-            @observer()
-            def voltage(self, ctx: Context) -> float:
-                return 2.5
 
-            @stream("Accepted", row=bool)
-            @observer()
-            def accepted(self, ctx: Context) -> bool:
-                return True
 
         class ReadingsSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [ReadingsTestTemplate]
 
         class StreamsPlugin(Plugin):
+            observers = (ReadingsTestTemplateVoltage, ReadingsTestTemplateAccepted)
             version = "1.0.0"
             suites: ClassVar[list[type[Suite]]] = [ReadingsSuite]
 
@@ -330,12 +355,13 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         for name, row, expected in (("voltage", DoubleValue, [2.5, 2.5]), ("accepted", BoolValue, [True, True])):
             call = samples()
             try:
-                await call.write(InstanceSamplesRequest(open={"stream": f"streams.readings.readings.{name}", "scope": "execution"}))
+                await call.write(InstanceSamplesRequest(open={"stream": f"streams.{name}", "scope": "execution"}))
+                await call.write(InstanceSamplesRequest(demand={"streams": [f"streams.{name}"]}))
                 await call.write(InstanceSamplesRequest(window={"start": {}, "count": 2, "period": {"seconds": 1}}))
                 response = await call.read()
                 assert isinstance(response, InstanceSamplesResponse)
                 self.assertEqual(response.batch.count, 2)
-                values = columns_type(row, f"streams.readings.readings.{name}").FromString(response.batch.columns)
+                values = columns_type(row, f"streams.{name}").FromString(response.batch.columns)
                 self.assertEqual(MessageToDict(values)["value"], expected)
             finally:
                 call.cancel()

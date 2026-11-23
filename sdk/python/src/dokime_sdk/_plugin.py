@@ -14,6 +14,7 @@
 import asyncio
 import inspect
 import json
+import math
 import os
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -39,7 +40,7 @@ from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, Recor
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from . import _logs
-from ._authoring import Materialization, Record, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
+from ._authoring import Materialization, Observer, Record, Stream, Suite, _Template, bind_suite, build_identifier, build_label
 from ._configuration import load
 from ._connection import connect
 from ._errors import SdkError, wire_failure
@@ -83,6 +84,7 @@ class Plugin:
     version: ClassVar[str | None] = None
     suites: ClassVar[Sequence[type[Suite]]] = ()
     lanes: ClassVar[Sequence[Lane]] = ()
+    observers: ClassVar[Sequence[type[Observer[Any]]]] = ()
     records: ClassVar[Sequence[Record[Any]]] = ()
     operations: ClassVar[Sequence[Callable[..., object]]] = ()
     settings: ClassVar[Sequence[type[dokime_sdk.operations.Settings]]] = ()
@@ -131,7 +133,6 @@ class Plugin:
             raise ValueError("Build Plugin: Declare Each Settings Class Once")
         self._settings_values: dict[type[dokime_sdk.operations.Settings], dokime_sdk.operations.Settings] = {}
         self._sessions: dict[tuple[str, str], _Session] = {}
-        self._ready: dict[tuple[str, str], asyncio.Event] = {}
         templates = [template for suite in self._suites for template in suite.templates]
         for name, identifiers in (
             ("suite", [item.identifier for item in self._suites]),
@@ -163,9 +164,6 @@ class Plugin:
                     methods[f"{kind}_{index}_{position}"] = self._execution(
                         template, kind, definition.handler, getattr(definition, "retries", 0), definition.policy
                     )
-            for position, (name, method) in enumerate(template._methods.items()):
-                if hasattr(method, "__dokime_stream__"):
-                    methods[f"stream_{index}_{position}"] = self._stream(template, name, method)
         self._streams: dict[int, str] = {}
         requires = tuple(host_requirement(item) for item in HostOperation)
         for index, (name, method) in enumerate(plugin_methods.items()):
@@ -179,7 +177,23 @@ class Plugin:
                 raise ValueError("Build Plugin: Give Every Plugin Stream a Unique Identifier")
             self._streams[id(method)] = identity
             self._streams[id(declaration)] = identity
-            methods[f"plugin_stream_{index}"] = self._stream(None, name, method)
+            methods[f"plugin_stream_{index}"] = self._stream(name, method)
+        self._observers = tuple(self.observers)
+        for index, declaration in enumerate(self._observers):
+            if not isinstance(declaration, type) or not issubclass(declaration, Observer):
+                raise TypeError("Declare Observers: Supply Observer Classes")
+            identity = build_identifier(declaration.__name__, declaration.identifier, prefix=self.identifier, class_name=True)
+            if identity in self._streams.values():
+                raise ValueError("Declare Observers: Give Each Stream a Unique Identifier")
+            self._streams[id(declaration)] = identity
+            methods[f"observer_{index}"] = self._observer(declaration, identity)
+        for template in templates:
+            for declaration in template.uses_streams:
+                if isinstance(declaration, type):
+                    identity = self._streams.get(id(declaration))
+                    if identity is None:
+                        raise ValueError("Use Observer: Declare Its Class on the Plugin")
+                    template._identifiers[id(declaration)] = identity
         methods["initialize"] = self._lifecycle("initialize")
         methods["finalize"] = self._lifecycle("finalize")
         adapter = type("DokimeOperations", (), methods)()
@@ -336,7 +350,6 @@ class Plugin:
                     raise ValueError(f"{kind.title()} Execution: Frozen Test Case Does Not Match Materialization")
                 session = _Session(template.instance(), case, origin.SerializeToString(deterministic=True))
                 self._sessions[key] = session
-                self._ready.setdefault(key, asyncio.Event()).set()
             if session.case.message != request.test_case or session.origin != origin.SerializeToString(deterministic=True):
                 raise ValueError(f"{kind.title()} Execution: Frozen Definition Changed")
             context = Context(
@@ -365,7 +378,6 @@ class Plugin:
             finally:
                 if kind == "cleanup":
                     self._sessions.pop(key, None)
-                    self._ready.pop(key, None)
 
         identity = template.resolve(handler) if handler is not None else template._lifecycle[kind]
         wire_policy = policy._definition() if policy is not None else None
@@ -381,79 +393,56 @@ class Plugin:
             replay_safe=bool(retries or policy is not None and policy.retries is not None),
         )(execute)
 
-    def _stream(
-        self, template: _Template | None, name: str, method: FunctionType
-    ) -> Callable[..., Awaitable[Message]] | Callable[..., Awaitable[None]]:
+    def _observer(self, declaration: type[Observer[Any]], identity: str) -> Callable[..., Awaitable[Message]]:
+        interval_ms = declaration.interval_ms
+        if not math.isfinite(interval_ms) or interval_ms <= 0:
+            raise ValueError("Declare Observer: Supply a Positive Interval")
+        instance: Observer[Any] | None = None
+
+        async def start(transport: harmos.plugin.Context) -> None:
+            nonlocal instance
+            instance = declaration()
+
+        async def stop(transport: harmos.plugin.Context) -> None:
+            nonlocal instance
+            closing, instance = instance, None
+            if closing is not None:
+                await closing.close()
+
+        async def sample(adapter: object, transport: harmos.plugin.Context, *arguments: Window) -> Message:
+            if instance is None:
+                raise ValueError("Sample Observer: Start Sampling Before Requesting a Window")
+            context = dokime_sdk.operations.Context(transport, self)
+            result = await _logs.run(context, getattr(instance, "sample"), context, *arguments)
+            return pack(declaration.columns or declaration.row, result)
+
+        nanoseconds = round(interval_ms * 1_000_000)
+        duration = Duration(seconds=nanoseconds // 1_000_000_000, nanos=nanoseconds % 1_000_000_000)
+        options = dict(
+            row=message_type(declaration.row), interval=duration,
+            interval_setting=declaration.interval_setting, window_setting=declaration.window_setting,
+            description=declaration.label or build_label(declaration.__name__), on_start=start, on_stop=stop,
+        )
+        if declaration.columns is not None:
+            return window_observer(identity, columns=declaration.columns, **options)(sample)
+        return observer(identity, **options)(sample)
+
+    def _stream(self, name: str, method: FunctionType) -> Callable[..., Awaitable[None]]:
         definition = cast(Stream, vars(method)["__dokime_stream__"])
-        identity = template.resolve(method) if template is not None else self._streams[id(method)]
-        sampling = cast(Sampling | None, getattr(method, "__dokime_observer__", None))
-
-        async def observe(adapter: object, transport: harmos.plugin.Context) -> Message:
-            try:
-                instance, context = await self._stream_context(template, transport)
-                result = await _logs.run(context, getattr(instance, name), context)
-                return pack(definition.row, result)
-            except SdkError as error:
-                raise harmos.OperationError(wire_failure(error.failure)) from error
-
-        async def observe_window(adapter: object, transport: harmos.plugin.Context, window: Window) -> Message:
-            try:
-                instance, context = await self._stream_context(template, transport)
-                result = await _logs.run(context, getattr(instance, name), context, window)
-                columns = cast(type[Message], sampling.columns if sampling else None)
-                return pack(columns, result)
-            except SdkError as error:
-                raise harmos.OperationError(wire_failure(error.failure)) from error
+        identity = self._streams[id(method)]
 
         async def publish(adapter: object, transport: harmos.plugin.Context, publisher: Publisher) -> None:
-            try:
-                instance, context = await self._stream_context(template, transport)
+            context = dokime_sdk.operations.Context(transport, self)
 
-                async def produce() -> None:
-                    async for result in getattr(instance, name)(context):
-                        row = pack(definition.row, result)
-                        await _logs.flush()
-                        await publisher.publish(row)
+            async def produce() -> None:
+                async for result in getattr(self, name)(context):
+                    row = pack(definition.row, result)
+                    await _logs.flush()
+                    await publisher.publish(row)
 
-                await _logs.run(context, produce)
-            except SdkError as error:
-                raise harmos.OperationError(wire_failure(error.failure)) from error
+            await _logs.run(context, produce)
 
-        if sampling:
-            nanoseconds = round(sampling.interval_ms * 1_000_000)
-            duration = Duration(seconds=nanoseconds // 1_000_000_000, nanos=nanoseconds % 1_000_000_000)
-            if sampling.columns is None:
-                return observer(
-                    identity,
-                    row=message_type(definition.row),
-                    interval=duration,
-                    interval_setting=sampling.interval_setting,
-                    window_setting=sampling.window_setting,
-                    description=definition.label,
-                )(observe)
-            return window_observer(
-                identity,
-                row=message_type(definition.row),
-                columns=sampling.columns,
-                interval=duration,
-                interval_setting=sampling.interval_setting,
-                window_setting=sampling.window_setting,
-                description=definition.label,
-            )(observe_window)
         return publisher(identity, row=message_type(definition.row), description=definition.label)(publish)
-
-    async def _stream_context(
-        self,
-        template: _Template | None,
-        transport: harmos.plugin.Context,
-    ) -> tuple[object, dokime_sdk.operations.Context]:
-        if template is None:
-            return self, dokime_sdk.operations.Context(transport, self)
-        key = (cast(str, template.identifier), transport.scope())
-        await self._ready.setdefault(key, asyncio.Event()).wait()
-        session = self._sessions[key]
-        context = Context(transport, self, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
-        return session.instance, context
 
     def _lifecycle(self, name: str) -> Callable[..., Awaitable[None]]:
         async def invoke(adapter: object, transport: harmos.plugin.Context) -> None:
@@ -488,7 +477,6 @@ class Plugin:
             finally:
                 if name == "finalize":
                     self._sessions.clear()
-                    self._ready.clear()
 
         return invoke
 

@@ -28,7 +28,7 @@ from grpc.aio import AioRpcError
 from dokime_sdk import Client, Plugin, ResultStatus, SdkError, Suite
 from dokime_sdk._generated.shared import SettingValues
 from dokime_sdk.operations import Setting, Settings
-from dokime_sdk.templates import Context, TestTemplate, criterion, observer, record, step, stream
+from dokime_sdk.templates import Context, TestTemplate, criterion, Observer, record, step, stream
 
 # Type Checking Imports
 
@@ -132,26 +132,35 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         class ObserverSettings(Settings):
             sample_count: int = Setting.integer("Sample Count", default=0, min=0, max=10, description="Samples per Capture")
 
+        written = asyncio.Event()
+
+        class ObserverTestTemplateReading(Observer):
+            identifier = 'reading'
+            label = "Reading"
+            row = float
+            interval_ms = 10
+
+            async def sample(self, ctx: Context) -> float:
+                try:
+                    saved = ctx.settings(ObserverSettings)
+                    await ctx.record(ObserverTestTemplate.flag, saved.sample_count == 0)
+                    return 2.5
+                finally:
+                    written.set()
+
+
         class ObserverTestTemplate(TestTemplate):
+            uses_streams = (ObserverTestTemplateReading,)
             flag = record(bool)
 
             def __init__(self) -> None:
-                self.written = asyncio.Event()
+                pass
 
             @step("Capture")
             async def capture(self, ctx: Context) -> None:
                 await ctx.sleep(0.25)
-                await self.written.wait()
+                await written.wait()
 
-            @stream("Reading")
-            @observer(interval_ms=10)
-            async def reading(self, ctx: Context) -> float:
-                try:
-                    saved = ctx.settings(ObserverSettings)
-                    await ctx.record(self.flag, saved.sample_count == 0)
-                    return 2.5
-                finally:
-                    self.written.set()
 
             @criterion("Captured")
             async def captured(self, ctx: Context) -> bool:
@@ -164,6 +173,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
             version = "1.0.0"
             suites = (ObserverSuite,)
             settings = (ObserverSettings,)
+            observers = (ObserverTestTemplateReading,)
 
         # Start the Product Host and Bind the Observer's Execution Scope.
         specification = spec_from_file_location("observer_host", REPOSITORY / "sdk/python/tests/support/host.py")

@@ -124,11 +124,37 @@ time_series(field("measurement.samples", "value")).markers("reading")
 
 Import these authoring values from `dokime_sdk.templates`. Document record fields
 require an explicit record identifier; template binding qualifies local record
-references and markers. Observer and window payloads preserve proto3 optional
-field presence, including explicit zero values; interval storage adoption remains
-pending. Execution observers inherit execution resources for admitted child calls,
-including record publication. Typed stream subscription remains unavailable
-in the product context adapter.
+references and markers. Observer and window payloads preserve proto3 optional field presence, including explicit zero values.
+Observers are plugin-owned classes. The library starts a fresh instance when sampling demand
+begins and calls its optional `close()` when the last sampling scope stops. Templates select
+classes in `uses_streams`; optional observer `plots` are placed explicitly in template documents.
+An observer uses an operation context and may publish plugin records to the call's capturing executions.
+
+```python
+from dokime_sdk.operations import Context
+from dokime_sdk.templates import Observer, TestTemplate
+
+
+class Temperature(Observer[float]):
+    row = float
+    interval_ms = 100
+
+    def sample(self, ctx: Context) -> float:
+        return 21.5
+
+
+class Capture(TestTemplate):
+    uses_streams = (Temperature,)
+
+
+class MeasurementsPlugin(Plugin):
+    observers = (Temperature,)
+```
+
+For window sampling, declare `columns` on the observer and implement
+`sample(self, ctx, window)`. Plugin publishers use `@stream` on plugin methods.
+Typed subscriptions use `await ctx.subscribe(declaration, max_item_bytes=...)`.
+
 
 Use `ended.time_since(began)` for elapsed-time document expressions between record
 declarations. Binding qualifies both identifiers in the expression. Reference

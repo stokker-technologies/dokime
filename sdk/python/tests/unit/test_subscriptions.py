@@ -42,9 +42,7 @@ from dokime_sdk.templates import Stream, TestTemplate, stream
 
 
 class SubscriptionTemplate(TestTemplate):
-    @stream("Readings", row=Int64Value)
-    async def readings(self, ctx: templates.Context) -> AsyncIterator[Int64Value]:
-        yield Int64Value(value=1)
+    pass
 
 
 class SubscriptionSuite(Suite):
@@ -105,11 +103,9 @@ class SubscriptionTests(IsolatedAsyncioTestCase):
         context = Context(transport, owner)
         template_context = templates.Context(transport, owner, {}, owner._suites[0].templates[0])
         plugin_stream = cast(Stream[Int64Value], vars(SubscriptionPlugin.readings)["__dokime_stream__"])
-        template_stream = cast(Stream[Int64Value], vars(SubscriptionTemplate.readings)["__dokime_stream__"])
         for caller, declaration, identifier in (
             (context, plugin_stream, "subscription.readings"),
             (template_context, plugin_stream, "subscription.readings"),
-            (template_context, template_stream, owner._suites[0].templates[0].resolve(template_stream)),
             (context, Stream("peer.readings", Int64Value), "peer.readings"),
         ):
             subscription = await caller.subscribe(declaration, max_item_bytes=8192)

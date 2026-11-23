@@ -36,7 +36,7 @@ from dokime_sdk.templates import (
     TestTemplate,
     criterion,
     materialize,
-    observer,
+    Observer,
     prompt,
     record,
     step,
@@ -113,7 +113,17 @@ class AuthoringStory(unittest.TestCase):
         async def read(ctx: dokime_sdk.operations.Context, request: int) -> int:
             return request
 
+        class TrackingTestTemplateStatus(Observer):
+            identifier = "example.status"
+            label = "Status"
+            row = int
+
+            async def sample(self, ctx: dokime_sdk.templates.Context) -> int:
+                return 1
+
+
         class TrackingTestTemplate(TestTemplate):
+            uses_streams = (TrackingTestTemplateStatus,)
             identifier = "example.layout.tracking"
             reading = record(int, identifier="example.reading")
             question = prompt("Continue?", identifier="example.question")
@@ -123,10 +133,6 @@ class AuthoringStory(unittest.TestCase):
             async def take(self, ctx: dokime_sdk.templates.Context) -> None:
                 pass
 
-            @stream("Status", row=int, identifier="example.status")
-            @observer()
-            async def status(self, ctx: dokime_sdk.templates.Context) -> int:
-                return 1
 
             @materialize
             def materialize(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
@@ -136,16 +142,22 @@ class AuthoringStory(unittest.TestCase):
             identifier = "example.layout"
             templates = (TrackingTestTemplate,)
 
+        class QualifiedPluginSystem(Observer):
+            identifier = "example.system"
+            label = "System"
+            row = int
+
+            async def sample(self, ctx: dokime_sdk.operations.Context) -> int:
+                return 1
+
+
         class QualifiedPlugin(Plugin):
             identifier = "example"
             version = "1.0.0"
             suites = (LayoutSuite,)
             operations = (measure, read)
+            observers = (TrackingTestTemplateStatus, QualifiedPluginSystem)
 
-            @stream("System", row=int, identifier="example.system")
-            @observer()
-            async def system(self, ctx: dokime_sdk.operations.Context) -> int:
-                return 1
 
         plugin = QualifiedPlugin()
         template = plugin._suites[0].templates[0]
@@ -154,7 +166,7 @@ class AuthoringStory(unittest.TestCase):
         self.assertEqual(template.resolve(TrackingTestTemplate.reading), "example.reading")
         self.assertEqual(template.resolve(TrackingTestTemplate.question), "example.question")
         self.assertEqual(template.resolve(TrackingTestTemplate.take), "example.take")
-        self.assertEqual(template.resolve(TrackingTestTemplate.status), "example.status")
+        self.assertEqual(template.resolve(TrackingTestTemplateStatus), "example.status")
         self.assertEqual(template.definition().documents[0].metadata.identifier, "example.report")
         self.assertEqual(template.build({}).message.steps[0].metadata.identifier, "example.channel")
         declarations = plugin.declarations()

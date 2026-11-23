@@ -35,7 +35,7 @@ from dokime_sdk.templates import (
     TestTemplate,
     criterion,
     materialize,
-    observer,
+    Observer,
     step,
     stream,
 )
@@ -118,25 +118,33 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
     async def test_plugin_observers_use_the_actual_plugin_without_execution_fields(self) -> None:
         contexts: list[dokime_sdk.operations.Context] = []
 
+        class ObserverPluginReading(Observer):
+            identifier = 'reading'
+            label = "Reading"
+            row = int
+
+            async def sample(self, ctx: dokime_sdk.operations.Context) -> int:
+                contexts.append(ctx)
+                owner = cast(ObserverPlugin, ctx.plugin)
+                owner.reading_count += 1
+                return owner.reading_count
+
+
         class ObserverPlugin(Plugin):
+            observers = (ObserverPluginReading,)
             version = "1.0.0"
 
             def __init__(self) -> None:
                 self.reading_count = 0
                 super().__init__()
 
-            @stream("Reading", row=int)
-            @observer()
-            async def reading(self, ctx: dokime_sdk.operations.Context) -> int:
-                contexts.append(ctx)
-                self.reading_count += 1
-                return self.reading_count
 
         author = ObserverPlugin()
         definition, handler, observing = author._plugin._registrations()[1][0]
         self.assertTrue(observing)
         self.assertEqual(definition.id, "observer.reading")
         transport = plugin.Context(Request(attempt=1), author.identifier, {})
+        await definition.on_start(transport)
         for expected in (1, 2):
             result = await cast(Any, handler)(transport)
             self.assertEqual(result.value, expected)

@@ -20,7 +20,7 @@ from datetime import timedelta
 # Third Party Imports
 from dokime_sdk import Plugin, Suite, operations
 from dokime_sdk.operations import OperationPolicy, RetryPolicy, Setting, Settings, Visibility, operation
-from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, observer, record, step, stream, window_observer
+from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, Observer, record, step, stream
 from google.protobuf.message import Message
 from google.protobuf.wrappers_pb2 import BytesValue
 
@@ -28,7 +28,7 @@ from google.protobuf.wrappers_pb2 import BytesValue
 
 # Local Imports
 from thermal_example import sampling
-from thermal_example.load import ThermalLoadTestTemplate
+from thermal_example.load import CHANNELS, Burst, ThermalLoadTestTemplate
 from thermal_example.models import Counter, CounterColumns, Door, Temperature
 
 # Type Checking Imports
@@ -44,7 +44,29 @@ log = logging.getLogger(__name__)
 # === Classes === #
 
 
+class ThermalCycleTestTemplateCounter(Observer):
+    identifier = 'counter'
+    label = "Exact Counter"
+    row = Counter
+    columns = CounterColumns
+    interval_ms = 1
+
+    def sample(self, ctx: Context, window: Window) -> Message:
+        return sampling.counter(window)
+
+
+class ThermalCycleTestTemplateTemperature(Observer):
+    identifier = 'temperature'
+    label = "Temperature [°C]"
+    row = Temperature
+    interval_ms = 1000
+
+    def sample(self, ctx: Context) -> Message:
+        return Temperature(celsius=84.0)
+
+
 class ThermalCycleTestTemplate(TestTemplate):
+    uses_streams = (ThermalCycleTestTemplateTemperature, ThermalCycleTestTemplateCounter)
     identifier = "cycle"
     label = "Thermal Cycle"
     limit = Parameter.number("Limit", default=85.0)
@@ -69,20 +91,12 @@ class ThermalCycleTestTemplate(TestTemplate):
         await ctx.sleep(2.5)
         await ctx.progress(2, 2, label="Hold")
 
-    @stream("Temperature [°C]", row=Temperature)
-    @observer(interval_ms=1000)
-    def temperature(self, ctx: Context) -> Message:
-        return Temperature(celsius=self.target_celsius - 1.0)
 
     # A 1 kHz Stream Answers Each Host Window at Once.
-    @stream("Exact Counter", row=Counter)
-    @window_observer(columns=CounterColumns, interval_ms=1)
-    def counter(self, ctx: Context, window: Window) -> Message:
-        return sampling.counter(window)
 
     @criterion("Temperature Within Limit", identifier="within_limit")
     async def within_limit(self, ctx: Context) -> bool:
-        stats = await ctx.statistics(self.temperature, "celsius", step=self.hold)
+        stats = await ctx.statistics(ThermalCycleTestTemplateTemperature, "celsius", step=self.hold)
         door = await ctx.records(self.door, step=self.hold).last()
         maximum = stats.max
         return (
@@ -115,6 +129,7 @@ class ThermalPlugin(Plugin):
     suites = [ThermalSuite]
     operations = [echo]
     settings = (ThermalSettings,)
+    observers = (ThermalCycleTestTemplateTemperature, ThermalCycleTestTemplateCounter, *CHANNELS, Burst)
 
 
 # === Public Functions === #
