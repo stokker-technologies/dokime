@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 
 
 class LogTemplate(TestTemplate):
-    reading = record(int)
+    reading = record(int, identifier='reading')
 
 
 class LogSuite(Suite):
@@ -48,6 +48,7 @@ class LogSuite(Suite):
 class LogPlugin(Plugin):
     version = "1.0.0"
     suites = (LogSuite,)
+    records = (LogTemplate.reading,)
 
 
 class RecordingTransport(plugin.Context):

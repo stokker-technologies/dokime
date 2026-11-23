@@ -47,7 +47,7 @@ class RemoteApi(Resource):
 
 
 class ConfirmationTestTemplate(TestTemplate):
-    confirmation = record(bool)
+    confirmation = record(bool, identifier='confirmation')
 
     @step("Confirm")
     async def confirm(self, ctx: dokime_sdk.templates.Context) -> None:
@@ -67,6 +67,7 @@ class CaptureSuite(Suite):
 class ExamplePlugin(Plugin):
     version = "1.0.0"
     suites = (CaptureSuite,)
+    records = (ConfirmationTestTemplate.confirmation,)
 
 
 # === Public Functions === #

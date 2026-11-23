@@ -371,11 +371,11 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
 
         class CaptureTestTemplate(TestTemplate):
             question = prompt("Choose a Reading", choices=["Yes", "No"])
-            flag = record(bool)
-            text = record(str)
-            integer = record(int)
-            number = record(float)
-            structured = record(BoolValue)
+            flag = record(bool, identifier='flag')
+            text = record(str, identifier='text')
+            integer = record(int, identifier='integer')
+            number = record(float, identifier='number')
+            structured = record(BoolValue, identifier='structured')
 
             @step("Save")
             async def save(self, ctx: Context) -> None:
@@ -409,6 +409,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         class RecordsPlugin(Plugin):
             version = "1.0.0"
             suites: ClassVar[list[type[Suite]]] = [CaptureSuite]
+            records = (CaptureTestTemplate.flag, CaptureTestTemplate.text, CaptureTestTemplate.integer, CaptureTestTemplate.number, CaptureTestTemplate.structured,)
 
         plugin = RecordsPlugin()
         endpoint = await plugin._activate("127.0.0.1:0")
@@ -495,11 +496,11 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             set(records),
             {
-                "records.capture.capture.flag",
-                "records.capture.capture.text",
-                "records.capture.capture.integer",
-                "records.capture.capture.number",
-                "records.capture.capture.structured",
+                "records.flag",
+                "records.text",
+                "records.integer",
+                "records.number",
+                "records.structured",
             },
         )
 

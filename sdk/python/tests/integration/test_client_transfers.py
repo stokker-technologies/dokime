@@ -145,7 +145,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         types = FileDescriptorSet()
         BoolValue.DESCRIPTOR.file.CopyToProto(types.file.add())
         digest = sha256(types.SerializeToString()).digest()
-        bindings = [{"record_type": "capture.capture.capture.flag", "message_name": BoolValue.DESCRIPTOR.full_name}]
+        bindings = [{"record_type": "capture.flag", "message_name": BoolValue.DESCRIPTOR.full_name}]
         self.detail = client_types.ExecutionDetail(
             summary={"execution_id": "execution", "case_id": "case"},
             cycle_id="cycle",
@@ -240,7 +240,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
 
         class CaptureTestTemplate(TestTemplate):
             uses_streams = (CaptureTestTemplateVoltage,)
-            flag = record(bool)
+            flag = record(bool, identifier='flag')
             report = Document("Report")
             documents: ClassVar[list[Document]] = [report]
 
@@ -252,6 +252,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
             observers = (CaptureTestTemplateVoltage,)
             version = "1.0.0"
             suites: ClassVar[list[type[Suite]]] = [CaptureSuite]
+            records = (CaptureTestTemplate.flag,)
 
         owner = CapturePlugin()
         channel = self.client._transport._owned_channel
@@ -274,7 +275,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await context.artifact("trace.json", b"{}", mime="test/json")).mime, "test/json")
 
         self.requests.clear()
-        rows = await execution.records("capture.capture.capture.flag", row_type=bool).read(limit=2)
+        rows = await execution.records("capture.flag", row_type=bool).read(limit=2)
         client_requests = list(self.requests)
         self.requests.clear()
         query = context.records(CaptureTestTemplate.flag)

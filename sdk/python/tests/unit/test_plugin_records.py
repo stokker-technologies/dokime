@@ -23,11 +23,15 @@ EVENT = record(int, identifier="event", label="Event")
 
 
 class CaptureTestTemplate(TestTemplate):
-    pass
+    event = EVENT
+
+
+class InspectTestTemplate(TestTemplate):
+    event = EVENT
 
 
 class CaptureSuite(Suite):
-    templates = (CaptureTestTemplate,)
+    templates = (CaptureTestTemplate, InspectTestTemplate,)
 
 
 class EventPlugin(Plugin):
@@ -42,7 +46,9 @@ class PluginRecordTests(IsolatedAsyncioTestCase):
         section = next(item for item in owner.declarations().sections if item.type == RecordContracts.DESCRIPTOR.full_name)
         records = RecordContracts.FromString(section.payload).records
         self.assertEqual([item.metadata.identifier for item in records], ["event.event"])
-        self.assertEqual(owner._suites[0].templates[0].resolve(EVENT), "event.event")
+        for template in owner._suites[0].templates:
+            self.assertEqual(template.resolve(EVENT), "event.event")
+            self.assertFalse(hasattr(template, "records"))
 
     async def test_observer_record_calls_leave_recipient_selection_to_the_host(self) -> None:
         owner = EventPlugin()

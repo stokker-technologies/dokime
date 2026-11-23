@@ -44,7 +44,7 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 
 
 class CaptureTestTemplate(TestTemplate):
-    flag = record(bool, label="Captured Flag")
+    flag = record(bool, label="Captured Flag", identifier='flag')
 
     @step("Capture")
     async def capture(self, ctx: Context) -> None:
@@ -62,6 +62,7 @@ class CaptureSuite(Suite):
 class CapturePlugin(Plugin):
     version = "1.0.0"
     suites = (CaptureSuite,)
+    records = (CaptureTestTemplate.flag,)
 
 
 class Host(Protocol):
@@ -151,7 +152,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
 
         class ObserverTestTemplate(TestTemplate):
             uses_streams = (ObserverTestTemplateReading,)
-            flag = record(bool)
+            flag = record(bool, identifier='flag')
 
             def __init__(self) -> None:
                 pass
@@ -172,6 +173,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         class ObserverPlugin(Plugin):
             version = "1.0.0"
             suites = (ObserverSuite,)
+            records = (ObserverTestTemplate.flag,)
             settings = (ObserverSettings,)
             observers = (ObserverTestTemplateReading,)
 

@@ -123,8 +123,7 @@ time_series(field("measurement.samples", "value")).markers("reading")
 ```
 
 Import these authoring values from `dokime_sdk.templates`. Document record fields
-require an explicit record identifier; template binding qualifies local record
-references and markers. Observer and window payloads preserve proto3 optional field presence, including explicit zero values.
+require an explicit record identifier; the plugin qualifies record references and markers. Observer and window payloads preserve proto3 optional field presence, including explicit zero values.
 Observers are plugin-owned classes. The library starts a fresh instance when sampling demand
 begins and calls its optional `close()` when the last sampling scope stops. Templates select
 classes in `uses_streams`; optional observer `plots` are placed explicitly in template documents.

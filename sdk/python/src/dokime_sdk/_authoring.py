@@ -140,7 +140,6 @@ class _Template:
     parameters: Sequence[shared.Parameter] = ()
     documents: Sequence["Document"] = ()
     files: Sequence[FileParameter] = ()
-    records: Sequence[Record[Any]] = field(init=False)
     prompts: Sequence[PromptDeclaration] = field(init=False)
     _methods: dict[str, Any] = field(init=False, repr=False)
     _identifiers: dict[int, str] = field(default_factory=dict, init=False, repr=False)
@@ -168,7 +167,6 @@ class _Template:
                 raise ValueError("Use Template Stream: Supply an Observer Class or a Qualified Stream")
         if sum(bool(getattr(method, "__dokime_materialize__", False)) for method in self._methods.values()) > 1:
             raise ValueError("Build Template: Declare Exactly One Custom Materializer")
-        self.records = tuple(member for member in self._methods.values() if isinstance(member, Record))
         self.prompts = tuple(member for member in self._methods.values() if isinstance(member, PromptDeclaration))
 
     def bind(self, prefix: str, root: str) -> "_Template":
@@ -191,8 +189,6 @@ class _Template:
         for item in members:
             declarations.append((item.handler, getattr(item.handler, "__name__", ""), item.identifier))
         for name, member in self._methods.items():
-            if isinstance(member, Record):
-                declarations.append((member, name, member.identifier))
             if isinstance(member, PromptDeclaration):
                 declarations.append((member, name, member.identifier))
         for member, name, explicit in declarations:
@@ -216,7 +212,8 @@ class _Template:
             bound._identifiers[id(declaration)] = qualified
             document.message.metadata.identifier = qualified
             record_ids = {
-                member.identifier or name: bound.resolve(member) for name, member in self._methods.items() if isinstance(member, Record)
+                member.identifier or name: build_identifier(name, member.identifier, prefix=root)
+                for name, member in self._methods.items() if isinstance(member, Record)
             }
             pending: list[Message] = [document.message]
             while pending:

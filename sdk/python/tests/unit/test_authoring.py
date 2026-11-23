@@ -56,7 +56,7 @@ from dokime_sdk.templates import (
 
 
 class ConfirmationTestTemplate(TestTemplate):
-    confirmation = record(bool, label="Confirmation")
+    confirmation = record(bool, label="Confirmation", identifier='confirmation')
 
     @step("Confirm")
     async def confirm(self, ctx: dokime_sdk.templates.Context) -> None:
@@ -74,6 +74,7 @@ class CaptureSuite(Suite):
 class ExamplePlugin(Plugin):
     version = "0.1.5"
     suites: ClassVar[list[type[Suite]]] = [CaptureSuite]
+    records = (ConfirmationTestTemplate.confirmation,)
 
 
 class AuthoringStory(unittest.TestCase):
@@ -98,9 +99,10 @@ class AuthoringStory(unittest.TestCase):
         class ReadingsPlugin(Plugin):
             version = "1.0.0"
             suites = (ReadingsSuite,)
+            records = (ReadingsTestTemplate.reading,)
 
         bound = ReadingsPlugin()._suites[0].templates[0].documents[0].message.sections[0].cards[0].plot
-        self.assertEqual(bound.x.transform.at.record_type, "readings.readings.readings.reading")
+        self.assertEqual(bound.x.transform.at.record_type, "readings.reading")
         self.assertEqual(bound.filters[0].expression.transform.input.transform.at.record_type, bound.x.transform.at.record_type)
         self.assertEqual(sampled.message.transform.at.record_type, "reading")
 
@@ -155,6 +157,7 @@ class AuthoringStory(unittest.TestCase):
             identifier = "example"
             version = "1.0.0"
             suites = (LayoutSuite,)
+            records = (TrackingTestTemplate.reading,)
             operations = (measure, read)
             observers = (TrackingTestTemplateStatus, QualifiedPluginSystem)
 
@@ -207,8 +210,8 @@ class AuthoringStory(unittest.TestCase):
 
         bound = ReadingsPlugin()._suites[0].templates[0]
         cards = bound.documents[0].message.sections[0].cards
-        self.assertEqual(bound.documents[0].message.sections[0].repeat.value.record.identifier, "readings.readings.readings.reading")
-        self.assertEqual(list(cards[1].plot.marker_records), ["readings.readings.readings.reading"])
+        self.assertEqual(bound.documents[0].message.sections[0].repeat.value.record.identifier, "readings.reading")
+        self.assertEqual(list(cards[1].plot.marker_records), ["readings.reading"])
         self.assertEqual(reading.message.record.identifier, "reading")
 
     def test_lanes_preserve_declarations_and_operation_assignments(self) -> None:
@@ -272,21 +275,22 @@ class AuthoringStory(unittest.TestCase):
         template = plugin._suites[0].templates[0]
         self.assertEqual(plugin.identifier, "example")
         self.assertEqual(template.identifier, "example.capture.confirmation")
-        self.assertEqual(template.resolve(ConfirmationTestTemplate.confirmation), "example.capture.confirmation.confirmation")
+        self.assertEqual(template.resolve(ConfirmationTestTemplate.confirmation), "example.confirmation")
         self.assertEqual(template.resolve(ConfirmationTestTemplate().confirm), "example.capture.confirmation.confirm")
         self.assertIsNone(ConfirmationTestTemplate.identifier)
-        self.assertIsNone(ConfirmationTestTemplate.confirmation.identifier)
+        self.assertEqual(ConfirmationTestTemplate.confirmation.identifier, "confirmation")
 
         class OtherSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [ConfirmationTestTemplate]
 
         class OtherPlugin(ExamplePlugin):
             suites: ClassVar[list[type[Suite]]] = [OtherSuite]
+            records = (ConfirmationTestTemplate.confirmation,)
 
         other = OtherPlugin()._suites[0].templates[0]
-        self.assertEqual(other.resolve(ConfirmationTestTemplate.confirmation), "other.other.confirmation.confirmation")
+        self.assertEqual(other.resolve(ConfirmationTestTemplate.confirmation), "other.confirmation")
         self.assertEqual(template.identifier, "example.capture.confirmation")
-        self.assertRaises(ValueError, other.resolve, "other.other.confirmation.confirmation")
+        self.assertRaises(ValueError, other.resolve, "other.confirmation")
 
     def test_acronyms_suffixes_and_local_overrides(self) -> None:
         class ReadHTTPVoltageTestTemplate(TestTemplate):
@@ -302,6 +306,7 @@ class AuthoringStory(unittest.TestCase):
 
         class HTTPPlugin(ExamplePlugin):
             suites: ClassVar[list[type[Suite]]] = [HTTPAccuracySuite]
+            records = (ReadHTTPVoltageTestTemplate.reading,)
 
         plugin = HTTPPlugin()
         bound = plugin._suites[0]
@@ -310,7 +315,7 @@ class AuthoringStory(unittest.TestCase):
         self.assertEqual(bound.identifier, "http.http_accuracy")
         self.assertEqual(bound.label, "HTTP Accuracy")
         self.assertEqual(template.identifier, "http.http_accuracy.read_http_voltage")
-        self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.reading), "http.http_accuracy.read_http_voltage.rms")
+        self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.reading), "http.rms")
         self.assertEqual(template.resolve(ReadHTTPVoltageTestTemplate.measure), "http.http_accuracy.read_http_voltage.take")
 
     def test_duplicate_empty_invalid_and_reused_members_fail(self) -> None:
@@ -318,17 +323,9 @@ class AuthoringStory(unittest.TestCase):
             declaration = type("InvalidSuite", (CaptureSuite,), {"identifier": identity})
             plugin = type("InvalidPlugin", (ExamplePlugin,), {"suites": [declaration]})
             self.assertRaises(ValueError, plugin)
-        for members in (
-            {"a": record(bool, identifier="same"), "b": record(str, identifier="same")},
-            {"reading": record(bool, identifier="cleanup")},
-        ):
-            template = type("InvalidTestTemplate", (TestTemplate,), members)
-            suite = type("InvalidSuite", (Suite,), {"templates": [template]})
-            plugin = type("InvalidPlugin", (ExamplePlugin,), {"suites": [suite]})
-            self.assertRaises(ValueError, plugin)
-
         class DuplicatePlugin(ExamplePlugin):
             suites: ClassVar[list[type[Suite]]] = [CaptureSuite, CaptureSuite]
+            records = (ConfirmationTestTemplate.confirmation, ConfirmationTestTemplate.confirmation,)
 
         self.assertRaises(ValueError, DuplicatePlugin)
 

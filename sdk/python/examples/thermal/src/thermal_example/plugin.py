@@ -71,7 +71,7 @@ class ThermalCycleTestTemplate(TestTemplate):
     label = "Thermal Cycle"
     limit = Parameter.number("Limit", default=85.0)
 
-    door = record(Door, label="Door Check")
+    door = record(Door, label="Door Check", identifier='door')
 
     async def initialize(self, ctx: Context) -> None:
         limit = ctx.parameter(ThermalCycleTestTemplate.limit)
@@ -127,6 +127,7 @@ class ThermalSettings(Settings):
 class ThermalPlugin(Plugin):
     version = "1.0.0"
     suites = [ThermalSuite]
+    records = (ThermalCycleTestTemplate.door,)
     operations = [echo]
     settings = (ThermalSettings,)
     observers = (ThermalCycleTestTemplateTemperature, ThermalCycleTestTemplateCounter, *CHANNELS, Burst)

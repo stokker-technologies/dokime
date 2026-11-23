@@ -98,7 +98,6 @@ class Plugin:
         self._label = self.label if self.label is not None else build_label(type(self).__name__)
         self._version = self.version if self.version is not None else _distribution_version(type(self))
         self._suites = tuple(bind_suite(item, self.identifier) for item in tuple(self.suites))
-        self._records = tuple((template, record) for suite in self._suites for template in suite.templates for record in template.records)
         self._plugin_records = tuple(self.records)
         self._record_identities: dict[int, str] = {}
         for record in self._plugin_records:
@@ -137,7 +136,7 @@ class Plugin:
         for name, identifiers in (
             ("suite", [item.identifier for item in self._suites]),
             ("template", [item.identifier for item in templates]),
-            ("record", [template.resolve(item) for template, item in self._records] + list(self._record_identities.values())),
+            ("record", list(self._record_identities.values())),
             ("secret", [item.identifier for item in self._secrets]),
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
@@ -198,17 +197,10 @@ class Plugin:
         methods["finalize"] = self._lifecycle("finalize")
         adapter = type("DokimeOperations", (), methods)()
         contributions: list[Message] = [Suites(suites=[item.definition() for item in self._suites])] if self._suites else []
-        if self._records or self._plugin_records:
+        if self._plugin_records:
             contributions.append(
                 RecordContracts(
                     records=[
-                        RecordContract(
-                            metadata={"identifier": template.resolve(item), "label": item.label or template.resolve(item)},
-                            message=message_type(item.row).DESCRIPTOR.full_name,
-                        )
-                        for template, item in self._records
-                    ]
-                    + [
                         RecordContract(
                             metadata={"identifier": self._record_identities[id(item)], "label": item.label or item.identifier},
                             message=message_type(item.row).DESCRIPTOR.full_name,
@@ -227,8 +219,7 @@ class Plugin:
             requires=requires,
             sections=contributions,
             settings=[field._definition(name) for item in self._settings for name, field in item._fields().items()],
-            messages=[message_type(record.row) for _, record in self._records]
-            + [message_type(record.row) for record in self._plugin_records],
+            messages=[message_type(record.row) for record in self._plugin_records],
         )
         self._plugin = harmos.plugin.Plugin(
             id=self.identifier,
