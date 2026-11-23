@@ -126,10 +126,10 @@ impl Resources {
         for kind in opened.into_iter().rev() {
             let entry = &self.entries[&kind];
             let value = entry.value.lock().await.take();
-            if let Some(value) = value {
-                if let Err(error) = (entry.close)(value).await {
-                    failures.push(error.to_string());
-                }
+            if let Some(value) = value
+                && let Err(error) = (entry.close)(value).await
+            {
+                failures.push(error.to_string());
             }
         }
         if failures.is_empty() {

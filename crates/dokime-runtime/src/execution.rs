@@ -444,7 +444,7 @@ fn launch(
                 if cut.state == ExecutionState::Open {
                     host.inner.store.close_streams(execution)?;
                     host.inner.store.close(
-                        &execution,
+                        execution,
                         Termination::Interrupted,
                         ExecutionOutcome {
                             attribution: Some(Attribution::NotEvaluated(UnevaluatedOutcome {

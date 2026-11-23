@@ -239,6 +239,12 @@ jobs:
     - name: Install the .NET SDK
       if: inputs.fixture-language == 'csharp'
       run: mise -C sdk/csharp install dotnet
+    - name: Select GCC 12 for the C++ SDK
+      # The Library Uses std::atomic<std::shared_ptr>, Which GCC 11's Default Standard Library Lacks.
+      if: inputs.fixture-language == 'cpp' && matrix.platform == 'unix'
+      run: |
+        echo "CC=gcc-12" >> "$GITHUB_ENV"
+        echo "CXX=g++-12" >> "$GITHUB_ENV"
     - name: Install CMake and Ninja
       if: inputs.fixture-language == 'cpp'
       run: mise -C sdk/cpp install cmake ninja

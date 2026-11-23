@@ -154,7 +154,7 @@ impl Store for Context {
         match expected.put(&value).await {
             Ok(_) => Ok(true),
             Err(harmos::Error::Failure(failure)) if failure.code == "state_revision_conflict" => Ok(false),
-            Err(error) => Err(error.into()),
+            Err(error) => Err(error),
         }
     }
 }

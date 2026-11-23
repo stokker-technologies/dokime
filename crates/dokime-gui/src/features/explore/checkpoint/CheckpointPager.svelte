@@ -9,5 +9,14 @@
     Previous Page
   </Button>
   <span class="text-xs">Page {cursors.length}</span>
-  <Button size="sm" variant="outline" disabled={!next} onclick={() => next && (cursors = [...cursors, next])}> Next Page </Button>
+  <Button
+    size="sm"
+    variant="outline"
+    disabled={!next}
+    onclick={() => {
+      if (next) cursors = [...cursors, next];
+    }}
+  >
+    Next Page
+  </Button>
 </div>

@@ -365,6 +365,8 @@ pub fn serve() -> Result<()> {
         .setting(SettingDeclaration {
             minimum: None,
             maximum: None,
+            choices: Vec::new(),
+            required: false,
             name: "sample_interval".into(),
             title: "Sample Interval".into(),
             description: "Canonical sample cadence for the three-day history".into(),

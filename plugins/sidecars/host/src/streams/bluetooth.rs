@@ -55,7 +55,7 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
         let host = host.clone();
         async move |transport, rows: CollectionOutput| {
             let ctx = Context::from_collection(transport, host.clone())?;
-            collect(&ctx, &rows).await.map_err(Into::into)
+            collect(&ctx, &rows).await
         }
     })
     .stream(streams::probe(BLUETOOTH_PROBE))

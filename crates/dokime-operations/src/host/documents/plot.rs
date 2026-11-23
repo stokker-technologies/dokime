@@ -593,7 +593,7 @@ mod tests {
                 "execution",
                 Evidence {
                     kind: "record:connected".into(),
-                    source_ns: 300000_000_000_000,
+                    source_ns: 300_000_000_000_000,
                     payload: RecordsAppendRequest {
                         payload: Row { value: 3 }.encode_to_vec(),
                         ..Default::default()

@@ -57,7 +57,7 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
         let host = host.clone();
         async move |transport, rows: CollectionOutput| {
             let ctx = Context::from_collection(transport, host.clone())?;
-            collect_link(&ctx, &rows).await.map_err(Into::into)
+            collect_link(&ctx, &rows).await
         }
     })
     .stream(streams::probe(WIFI_LINK_PROBE))
@@ -73,7 +73,7 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
     .interval_setting(settings::WIFI_LINK_INTERVAL)
     .on_start({
         let host = host.clone();
-        async move |_| host.wifi.start_link().map_err(Into::into)
+        async move |_| host.wifi.start_link()
     })
     .on_stop({
         let host = host.clone();
@@ -86,7 +86,7 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
         let host = host.clone();
         async move |transport, rows: CollectionOutput| {
             let ctx = Context::from_collection(transport, host.clone())?;
-            collect_scan(&ctx, &rows).await.map_err(Into::into)
+            collect_scan(&ctx, &rows).await
         }
     })
     .stream(streams::probe(WIFI_SCAN_PROBE))
@@ -107,7 +107,7 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
         let host = host.clone();
         async move |transport, rows: CollectionOutput| {
             let ctx = Context::from_collection(transport, host.clone())?;
-            collect_latency(&ctx, &rows).await.map_err(Into::into)
+            collect_latency(&ctx, &rows).await
         }
     })
     .stream(streams::probe(WIFI_LATENCY_PROBE))

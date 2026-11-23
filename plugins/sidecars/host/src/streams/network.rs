@@ -53,7 +53,7 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
         let host = host.clone();
         async move |transport, rows: CollectionOutput| {
             let ctx = Context::from_collection(transport, host.clone())?;
-            collect(&ctx, &rows).await.map_err(Into::into)
+            collect(&ctx, &rows).await
         }
     })
     .stream(streams::probe(NETWORK_PROBE))
@@ -65,7 +65,7 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
     .interval_setting(settings::NETWORK_INTERVAL)
     .on_start({
         let host = host.clone();
-        async move |_| host.network.start().map_err(Into::into)
+        async move |_| host.network.start()
     })
     .on_stop({
         let host = host.clone();

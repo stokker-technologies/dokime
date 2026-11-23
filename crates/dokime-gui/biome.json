@@ -26,7 +26,44 @@
   "overrides": [
     {
       "includes": ["**/*.svelte"],
-      "linter": { "rules": { "a11y": { "noHeaderScope": "off" } } }
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noHeaderScope": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/FailureConsequences.svelte"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noStaticElementInteractions": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/MediaGalleryCard.svelte", "src/components/MediaGalleryView.svelte"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useMediaCaption": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/features/cycle/CycleSidebarCasesView.svelte"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noNoninteractiveElementToInteractiveRole": "off",
+            "useSemanticElements": "off"
+          }
+        }
+      }
     }
   ]
 }

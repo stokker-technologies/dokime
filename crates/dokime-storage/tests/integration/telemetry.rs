@@ -1199,7 +1199,7 @@ fn telemetry_at_records_skips_rows_without_the_selected_field() -> Result<()> {
     }
 
     // Check Independent Fields and Ordinary Stream Attachments
-    for expression in [FieldReference::new("readings").field("other").into(), FieldReference::new("readings").field("other").at("status")] {
+    for expression in [FieldReference::new("readings").field("other"), FieldReference::new("readings").field("other").at("status")] {
         let filters = [PlotFilter {
             expression: Some(expression),
             operator: FilterOperator::Exists as i32,
