@@ -11,7 +11,7 @@
 //
 // A field's statistics advance one value at a time in capture order, so the statistics a writer
 // saves after each chunk, extended with rows still pending, equal one pass over every row. The
-// moments are the library's mergeable summary, integer sums and means stay exact, and the value
+// moments follow the library's scaled population moments, integer sums and means stay exact, and the value
 // histogram keeps exact counts on fine power-of-two bins: their width is always the narrowest that
 // fits the extremes in the histogram's resolution, so it depends only on the values it holds.
 
@@ -26,7 +26,6 @@ use std::collections::VecDeque;
 use std::num::NonZeroU128;
 
 // Third Party Imports
-use harmos_query::Summary;
 use harmos_query::scalar::ExactNumber;
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +57,20 @@ pub(crate) struct Running {
     float: bool,
     /// Exact Integer Total, or None After It Overflowed.
     total: Option<i128>,
-    moments: Summary,
+    moments: Moments,
+}
+
+/// Scaled Population Moments, as the Library Keeps Them, So Extremes Stay Finite.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+struct Moments {
+    count: u64,
+    sum: f64,
+    squares: f64,
+    mean: f64,
+    lowest: f64,
+    highest: f64,
+    scale: f64,
+    deviations: f64,
 }
 
 /// Exact Counts of Finite Values on Bins of Width 2^exponent, at Most `resolution` Bins From the Lowest to the Highest.
@@ -95,6 +107,68 @@ enum Number {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Default for Moments {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            sum: 0.0,
+            squares: 0.0,
+            mean: 0.0,
+            lowest: f64::INFINITY,
+            highest: f64::NEG_INFINITY,
+            scale: 1.0,
+            deviations: 0.0,
+        }
+    }
+}
+
+impl Moments {
+    fn push(&mut self, value: f64) {
+        let maximum = value.abs().max(if self.count == 0 { 0.0 } else { self.lowest.abs().max(self.highest.abs()) });
+        let count = self.count + 1;
+        let safe = (f64::MAX / count as f64).sqrt() / 2.0;
+        let tiny = maximum > 0.0 && maximum < f64::MIN_POSITIVE.sqrt();
+        let scale = if maximum > safe || tiny { maximum } else { self.scale.max(1.0) };
+        let ratio = self.scale / scale;
+        if self.mean != 0.0 {
+            self.mean *= ratio;
+        }
+        if self.deviations != 0.0 {
+            self.deviations *= ratio * ratio;
+        }
+        self.scale = scale;
+        let scaled = value / scale;
+        let before = self.mean;
+        self.count = count;
+        self.sum += value;
+        self.squares += value * value;
+        self.lowest = self.lowest.min(value);
+        self.highest = self.highest.max(value);
+        self.mean += (scaled - before) / count as f64;
+        self.deviations += (scaled - before) * (scaled - self.mean);
+    }
+
+    fn mean(&self) -> f64 {
+        self.mean * self.scale
+    }
+
+    fn spread(&self) -> f64 {
+        (self.deviations / self.count as f64).max(0.0).sqrt()
+    }
+
+    fn bound(&self) -> f64 {
+        self.lowest.abs().max(self.highest.abs()) / self.scale
+    }
+
+    fn std(&self) -> f64 {
+        if self.count == 0 { 0.0 } else { self.scale * self.spread().min(self.bound()) }
+    }
+
+    fn rms(&self) -> f64 {
+        if self.count == 0 { 0.0 } else { self.scale * self.mean.hypot(self.spread()).min(self.bound()) }
+    }
+}
 
 impl Number {
     fn float(self) -> f64 {
@@ -166,9 +240,7 @@ impl Running {
         let scalar = |value: Option<Number>| value.map_or(ScalarValue::Missing, Number::scalar);
         let (sum, average) = match self.count {
             0 => (ScalarValue::Unsigned(0), ScalarValue::Missing),
-            _ if self.float => {
-                (ScalarValue::Float(finite(self.moments.sum())?), ScalarValue::Float(finite(self.moments.mean().unwrap_or_default())?))
-            }
+            _ if self.float => (ScalarValue::Float(finite(self.moments.sum)?), ScalarValue::Float(finite(self.moments.mean())?)),
             _ => {
                 let total = self.total.ok_or(Error::Data("narrow the selection: its exact integer total overflows"))?;
                 let total = ExactNumber::new(total < 0, total.unsigned_abs(), NonZeroU128::MIN);
@@ -185,8 +257,8 @@ impl Running {
             last: scalar(self.last),
             sum,
             average,
-            standard_deviation: self.moments.std().unwrap_or_default(),
-            rms: self.moments.rms().unwrap_or_default(),
+            standard_deviation: self.moments.std(),
+            rms: self.moments.rms(),
         })
     }
 }
