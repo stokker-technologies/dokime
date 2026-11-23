@@ -224,7 +224,8 @@ jobs:
         - platform: windows
           runner: windows-latest
     env:
-      MISE_ENABLE_TOOLS: ${{ inputs.fixture-language == 'cpp' && 'cmake,ninja,python,uv' || inputs.fixture-language == 'csharp' && 'dotnet,python,uv' || inputs.fixture-language == 'python' && 'python,uv' || 'python,rust,protoc,uv,sccache' }}
+      # The C# and C++ SDKs resolve the pinned library through Cargo; installing Rust here once keeps parallel cargo and rustfmt calls from racing rustup.
+      MISE_ENABLE_TOOLS: ${{ inputs.fixture-language == 'cpp' && 'cmake,ninja,python,rust,uv' || inputs.fixture-language == 'csharp' && 'dotnet,python,rust,uv' || inputs.fixture-language == 'python' && 'python,uv' || 'python,rust,protoc,uv,sccache' }}
       CI_TRANSPORT: 'true'
       CI_OUTPUTS: >-
         [{"archive":"target/ci/build-host-${{ inputs.fixture-language }}-{profile}-${{ matrix.platform }}.tar.zst","paths":["${{ inputs.fixture-language == 'python' && 'target/build/{profile}/any/python' || 'target/build/{profile}/{target}/fixtures/host' }}"]}]
