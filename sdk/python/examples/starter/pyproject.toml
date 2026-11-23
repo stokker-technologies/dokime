@@ -21,7 +21,7 @@ dependencies = ["dokime-sdk @ git+https://github.com/stokker-technologies/dokime
 Repository = "https://github.com/your-organization/starter-project"
 
 [dependency-groups]
-dev = ["ruff", "ty"]
+dev = ["ruff", "ty", "types-protobuf"]
 
 # === Build === #
 
