@@ -55,7 +55,7 @@
   });
 </script>
 
-<div class="grid min-w-0 gap-2" data-trajectory-instant={playback.instant ?? ""}>
+<div class="min-w-0" data-trajectory-instant={playback.instant ?? ""}>
   <CartesianPlot
     plotId={plot.key}
     badge="Trajectory"
@@ -80,6 +80,9 @@
     yScale={plot.yScale}
     xFormat={plot.xFormat}
     yFormat={plot.yFormat}
-  />
-  <PlotPlayback title={plot.title} {playback} />
+  >
+    {#snippet controls()}
+      <PlotPlayback title={plot.title} {playback} />
+    {/snippet}
+  </CartesianPlot>
 </div>

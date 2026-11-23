@@ -8,13 +8,14 @@
   /* === Local Imports === */
 
   import type { ValueFormat } from "@generated/host/model";
-  import type { Wire } from "../lib/rpc/canonical";
-  import Button from "../components/ui/Button.svelte";
+  import { markerColor, plotColor, resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
+  import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
   import ErrorCard from "../components/ErrorCard.svelte";
+  import Button from "../components/ui/Button.svelte";
+  import { formatNumber, formatTime, formatUnitLabel, type TimeFormatOrigin } from "../lib/format";
   import type { NotificationFailure } from "../lib/notification-details";
   import { failureOf } from "../lib/notification-details";
-  import StatsSummaryTable from "./StatsSummaryTable.svelte";
-  import { formatNumber, formatTime, formatUnitLabel, type TimeFormatOrigin } from "../lib/format";
+  import type { Wire } from "../lib/rpc/canonical";
   import { nearestDrawnPoint, type SeriesSummary, seriesLegendColumns, seriesLegendRows, toggleTrace } from "../lib/statistics";
   import type {
     DocumentAxisScale,
@@ -30,10 +31,10 @@
   import {
     applyFrame,
     chartFrameFromCartesian,
-    drawnData,
     type DrawnWindow,
-    intervalRangeData,
+    drawnData,
     type IntervalRange,
+    intervalRangeData,
     limitRenderedSeries,
     linearXRange,
     liveCartesianXRange,
@@ -43,14 +44,13 @@
     usableCartesianFrame,
     windowServes,
   } from "./cartesian-frame";
-  import { markerColor, plotColor, resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
-  import { getPlotInteraction } from "./plot-interaction";
   import { drawMarkerKinds, type MarkerTooltip, markerKinds, markerTooltip } from "./markers";
   import PlotPlaceholder from "./PlotPlaceholder.svelte";
+  import { getPlotInteraction } from "./plot-interaction";
   import { plotPlaceholderText, plotUnavailableText } from "./plot-placeholder";
   import type { PromptMarker } from "./prompt-markers";
+  import StatsSummaryTable from "./StatsSummaryTable.svelte";
   import type { PlotViewportMode } from "./types";
-  import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
   /* === Constants === */
 
@@ -126,6 +126,8 @@
     resetKey?: string;
     /** Per-plot controls the host places beside the follow button. */
     actions?: Snippet;
+    /** Controls inside the card directly under the chart, such as playback. */
+    controls?: Snippet;
     badge?: string;
     stateLabel?: string;
     stateDetail?: string;
@@ -625,6 +627,7 @@
     cycleStartedAt = null,
     resetKey,
     actions,
+    controls,
     badge,
     stateLabel,
     stateDetail,
@@ -1357,6 +1360,7 @@
       {/if}
     </div>
   {/if}
+  {@render controls?.()}
   {#if description}
     <p class="text-xs text-muted-foreground">{description}</p>
   {/if}
