@@ -60,6 +60,7 @@ use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost::Message;
 use prost_types::Timestamp;
 use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 use tokio::sync::watch;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Code, Status};
@@ -204,6 +205,30 @@ pub async fn complete<T>(action: &str, timeout: Duration, work: impl Future<Outp
         Ok(Err(error)) => Err(error),
         Err(_) => Err(Error::Deadline(action.into())),
     }
+}
+/// Admit Background Work the Host Settles on Shutdown, Dropping It Once Shutdown Begins So the Host Stops Promptly.
+pub(crate) fn stoppable_work<T: Send + 'static>(
+    context: &Context, action: &'static str, work: impl Future<Output = Result<T>> + Send + 'static,
+) -> Result<oneshot::Receiver<Result<T>>> {
+    let (sender, receiver) = oneshot::channel();
+    let host = context.host.clone();
+    let mut changes = host.changes();
+    context.host.spawn_work(Box::pin(async move {
+        tokio::pin!(work);
+        let result = loop {
+            if host.shutting_down() {
+                break Err(Error::Cancelled(format!("{action}: The Host Stopped; the Next Request Creates It")));
+            }
+            tokio::select! {
+                result = &mut work => break result,
+                changed = changes.changed() => if changed.is_err() {
+                    break Err(Error::Cancelled(format!("{action}: The Host Stopped; the Next Request Creates It")));
+                },
+            }
+        };
+        let _ = sender.send(result);
+    }))?;
+    Ok(receiver)
 }
 pub(crate) fn page_size(requested: u32, configured: usize) -> Result<usize> {
     let maximum = MAX_PAGE_ITEMS.min(configured);

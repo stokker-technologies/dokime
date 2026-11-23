@@ -470,11 +470,12 @@ mod tests {
     use dokime_client_internal::Client;
     use dokime_operations::host::executions::commands;
     use dokime_operations::host::plots::snapshots;
+    use dokime_operations::host::reports;
     use dokime_operations::host::storage::administration;
-    use dokime_protocol::host::CycleSummary;
     use dokime_protocol::host::executions::{ExecutionCommandAction, ExecutionCommandPhase, ExecutionCommandReceipt};
     use dokime_protocol::host::plots::{PlotRequest, SnapshotsWatchRequest};
-    use dokime_protocol::model::{EvidenceScope, Import, Origin, origin};
+    use dokime_protocol::host::{CycleSummary, ExecutionOutcome, ReportSubject, ReportsCreateRequest, report_subject};
+    use dokime_protocol::model::{EvidenceScope, Import, Origin, PluginRun, Termination, origin};
     use dokime_storage::persisted::Scope;
     use dokime_storage::storage_defaults;
     use dokime_storage::{Execution, Sample};
@@ -580,6 +581,85 @@ mod tests {
             assert_eq!(envelope.payload.as_ref().unwrap().series[0].raw_points, 128);
             assert_eq!(host.store.metadata("execution")?.frontier, 0);
             drop(updates);
+            host.shutdown().await?;
+            Ok(())
+        }))
+    }
+
+    #[test]
+    fn shutdown_cancels_an_in_flight_freeze_and_the_next_download_creates_the_report() -> Result<(), Box<dyn Error>> {
+        credentials::run(Box::pin(async {
+            // Seal a Run Before Its Report Is Frozen
+            let root = credentials::tempdir()?;
+            let settings = HostSettings {
+                installation: None,
+                placement: PlacementSettings {
+                    reconnect_delay: Duration::from_secs(1),
+                    stream_window: NonZeroUsize::new(8).unwrap(),
+                    interval_window: crate::INTERVAL_WINDOW,
+                    interval_lag: crate::INTERVAL_LAG,
+                    message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                },
+                storage: storage_defaults(),
+                clock: Arc::new(ControlledClock::new(1_000_000_000)),
+                capture: CaptureSettings::default(),
+                credentials: credentials::namespace(),
+            };
+            let operations = ClientSettings {
+                read_timeout: crate::PLUGINS_TIMEOUT,
+                mutation_timeout: crate::PLUGINS_TIMEOUT,
+                watch_timeout: UNBOUNDED,
+                max_cases: 1000,
+                page_items: 50,
+                message_bytes: settings.placement.message_bytes.get(),
+                stream_buffer: settings.placement.stream_window.get(),
+            };
+            let host = Host::open(root.path(), settings.clone(), operations.clone()).await?;
+            host.store.create(&Execution {
+                identifier: "execution".into(),
+                cycle: "cycle".into(),
+                origin: Some(Origin {
+                    kind: Some(origin::Kind::PluginRun(PluginRun {
+                        plugin: "plugin".into(),
+                        template: "template".into(),
+                        digest: vec![1],
+                        started_at: Some(Timestamp::default()),
+                        test_case: Some(Default::default()),
+                    })),
+                }),
+                ..Default::default()
+            })?;
+            host.store.close("execution", Termination::Completed, ExecutionOutcome::default())?;
+            host.store.seal("execution", Default::default())?;
+
+            // Shut Down While Report Admission Holds the Seal's Freeze in Flight
+            let context = host.assembly.as_ref().unwrap().context.clone();
+            let admitted = context.reports.lock().await;
+            let settled = host.executions.admitted_work()?;
+            let freezing = tokio::spawn({
+                let context = context.clone();
+                async move { reports::create::freeze(&context, "execution").await.map(|_| ()) }
+            });
+            while host.executions.admitted_work()? == settled {
+                tokio::task::yield_now().await;
+            }
+            host.shutdown().await?;
+            assert!(matches!(freezing.await?, Err(dokime_operations::Error::Cancelled(_))));
+            assert!(host.store.report_identifiers("execution")?.is_empty());
+            drop(admitted);
+            drop((context, host));
+
+            // The Next Download Creates the Report Once
+            let host = Host::open(root.path(), settings, operations).await?;
+            let download = ReportsCreateRequest {
+                subject: Some(ReportSubject {
+                    kind: Some(report_subject::Kind::Execution("execution".into())),
+                }),
+                request_id: "download".into(),
+                ..Default::default()
+            };
+            let created = reports::create::handle(&host.assembly.as_ref().unwrap().context, download).await?;
+            assert_eq!(host.store.report_identifiers("execution")?, vec![created.report.unwrap().identifier]);
             host.shutdown().await?;
             Ok(())
         }))

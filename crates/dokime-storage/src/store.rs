@@ -65,8 +65,8 @@ const APPLICATION_ID: i32 = 0x444b4e58;
 /* === Type Aliases === */
 
 type StatisticsCache = HashMap<(String, String, String, u64), (u64, StatisticsRead)>;
-/// Full-Extent Plot Results by Execution, Stream, Field and Kind, With the Preview Position They Cover.
-pub(crate) type ExtentCache = HashMap<String, (u64, Vec<u8>)>;
+/// Sealed Fields' Exact Full-Range Ranks by Execution, Stream and Field; a Field's Readers Share One Ranking.
+pub(crate) type RankCache = HashMap<String, Arc<Mutex<Option<Vec<u8>>>>>;
 
 /* === Structs === */
 
@@ -88,8 +88,8 @@ pub struct Store {
     pub(crate) live_samples: Option<Arc<telemetry::LiveSamples>>,
 
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
-    /// Full-Extent Plot Results Cover Immutable Saved Values, So Unlike Summaries the Host Store Shares Them.
-    pub(crate) extents: Arc<Mutex<ExtentCache>>,
+    /// Sealed Ranks Cover Immutable Values, So Unlike Summaries the Host Store Shares Them.
+    pub(crate) ranks: Arc<Mutex<RankCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub(crate) changed: Sender<u64>,
 }
@@ -280,7 +280,7 @@ impl Store {
             sample_reads: None,
             live_samples: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
-            extents: Arc::default(),
+            ranks: Arc::default(),
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
         };
@@ -321,7 +321,7 @@ impl Store {
             sample_reads: self.sample_reads.clone(),
             live_samples: self.live_samples.clone(),
             statistics: self.statistics.clone(),
-            extents: self.extents.clone(),
+            ranks: self.ranks.clone(),
             verified: self.verified.clone(),
             changed: self.changed.clone(),
         };

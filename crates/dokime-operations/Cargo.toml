@@ -112,6 +112,7 @@ zeroize = { workspace = true, features = ["serde"] }
 # Concurrency
 
 # Async
+tokio = { workspace = true, features = ["test-util"] }
 
 # Networking
 

@@ -712,6 +712,101 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     Ok(())
 }
 #[test]
+fn live_statistics_equal_one_pass_over_the_same_rows() -> Result<()> {
+    #[derive(Clone, PartialEq, Message)]
+    struct Reading {
+        #[prost(double, optional, tag = "1")]
+        value: Option<f64>,
+    }
+
+    // Declare an Optional Measurement So Rows Can Miss It
+    let open = || -> Result<(tempfile::TempDir, Store)> {
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        let mut execution = fixture::execution();
+        let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+        let file = &mut catalog.types.as_mut().unwrap().file[0];
+        file.syntax = Some("proto2".into());
+        file.message_type[0].field[0].r#type = Some(Type::Double as i32);
+        execution.catalog = catalog.encode_to_vec();
+        store.create(&execution)?;
+        store.open_stream("execution", "readings")?;
+        Ok((root, store))
+    };
+    let rows = (0..4000usize)
+        .map(|index| {
+            let value = match index % 13 {
+                0 => None,
+                1 => Some(f64::NAN),
+                2 => Some(f64::INFINITY),
+                _ => Some(((index * 7919) % 1009) as f64 * 0.25 - 100.0),
+            };
+            Sample {
+                stream: "readings".into(),
+                // Repeated and Earlier Source Times Exercise the Time Buckets.
+                source_ns: (index as i64 / 3) * 1_000_000 - if index % 97 == 0 { 5_000_000 } else { 0 },
+                sequence: index as u64,
+                row: Reading { value }.encode_to_vec(),
+                ..Default::default()
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Save Uneven Flushes, Then Read Live With the Last Rows Still Pending
+    let (_incremental, live) = open()?;
+    for chunk in [&rows[..700], &rows[700..1901], &rows[1901..3500]] {
+        live.sample_batch("execution", chunk)?;
+        live.flush_samples()?;
+    }
+    live.sample_batch("execution", &rows[3500..])?;
+    let (reader, _cancellation) = live.live_read_session()?;
+    let through = reader.accepted_frontier("execution")?;
+    assert!(through > reader.metadata("execution")?.frontier);
+
+    // Save the Same Rows at Once, and Read Them Again Without Their Saved Statistics
+    let (whole_root, whole) = open()?;
+    whole.sample_batch("execution", &rows)?;
+    whole.flush_samples()?;
+    let window = NumericWindow {
+        bins: NonZeroUsize::new(64).unwrap(),
+        ..numeric(through)
+    };
+    let bounds = |store: &Store| store.numeric_bounds("execution", "readings", "value", through);
+    let incremental =
+        (bounds(&reader)?, reader.series_summary(&window)?, reader.histogram_window(window, 24)?, reader.time_series_window(window)?);
+    let once = (bounds(&whole)?, whole.series_summary(&window)?, whole.histogram_window(window, 24)?, whole.time_series_window(window)?);
+    assert_eq!(incremental, once);
+
+    // An Open Execution's Full-History Median Waits for the Seal; Ranking Its Rows Gives the Exact Median
+    assert_eq!((once.1.median.as_ref(), once.2.statistics.as_ref().unwrap().median.as_ref()), (None, None));
+    let (sealed_root, sealed) = open()?;
+    sealed.sample_batch("execution", &rows)?;
+    sealed.flush_samples()?;
+    sealed.close_streams("execution")?;
+    sealed.close("execution", Termination::Completed, Default::default())?;
+    sealed.seal("execution", Default::default())?;
+    let (reader, _cancellation) = sealed.read_session()?;
+    let median = reader.series_summary(&window)?.median;
+    assert_eq!(reader.histogram_window(window, 24)?.statistics.unwrap().median, median);
+    assert_eq!(reader.numeric_statistics(&window)?.median, median);
+    sealed.retain_ranks("execution")?;
+    drop((reader, sealed));
+    assert_eq!(Store::open(sealed_root.path())?.series_summary(&window)?.median, median);
+    Connection::open(whole_root.path().join("execution.sqlite3"))?.execute("DELETE FROM telemetry_previews", [])?;
+    let (reader, _cancellation) = whole.read_session()?;
+    let (mut summary, mut histogram) = (reader.series_summary(&window)?, reader.histogram_window(window, 24)?);
+    assert_eq!((summary.median.take(), histogram.statistics.as_mut().unwrap().median.take()), (median.clone(), median.clone()));
+    assert_eq!(median, reader.numeric_statistics(&window)?.median);
+    assert_eq!((bounds(&reader)?, summary, histogram), (once.0, once.1, once.2));
+
+    // Missing, NaN and Infinite Values Are Missing Measurements Everywhere
+    let finite = rows.iter().filter(|row| Reading::decode(row.row.as_slice()).unwrap().value.is_some_and(f64::is_finite)).count();
+    assert_eq!(incremental.1.count, finite as u64);
+    assert_eq!(incremental.2.bins.iter().map(|bin| bin.count).sum::<u64>(), finite as u64);
+    Ok(())
+}
+
+#[test]
 fn integer_document_medians_preserve_exact_values() -> Result<()> {
     let base = 1_152_921_504_606_847_975u64;
     for signed in [false, true] {
@@ -773,7 +868,7 @@ fn integer_document_medians_preserve_exact_values() -> Result<()> {
     Ok(())
 }
 #[test]
-fn histogram_medians_match_native_integer_medians() -> Result<()> {
+fn statistics_medians_match_native_integer_medians() -> Result<()> {
     let base = (1u64 << 60) + 487;
     for signed in [false, true] {
         let root = tempfile::tempdir()?;
@@ -807,8 +902,6 @@ fn histogram_medians_match_native_integer_medians() -> Result<()> {
                 ..store.cut("execution")?
             };
             let expected = store.document_value(&cut, &expression)?;
-            let histogram = store.histogram_window(numeric(through), 2)?;
-            assert_eq!(histogram.statistics.unwrap().median, Some(expected.clone()));
             assert_eq!(store.numeric_statistics(&numeric(through))?.median, Some(expected));
         }
     }
@@ -1551,6 +1644,84 @@ fn sealing_as_not_run_refuses_started_evidence() -> Result<()> {
 }
 
 #[test]
+fn heat_strips_keep_evenly_spaced_instants_within_their_budget() -> Result<()> {
+    #[derive(Clone, PartialEq, Message)]
+    struct HeatRow {
+        #[prost(double, tag = "1")]
+        value: f64,
+
+        #[prost(uint64, tag = "2")]
+        cell: u64,
+
+        #[prost(string, tag = "3")]
+        facet: String,
+    }
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let mut execution = fixture::execution();
+    let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+    catalog.types.as_mut().unwrap().file[0].message_type[0].field =
+        [("value", Type::Double), ("cell", Type::Uint64), ("facet", Type::String)]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (name, kind))| FieldDescriptorProto {
+                name: Some(name.into()),
+                number: Some(index as i32 + 1),
+                label: Some(Label::Optional as i32),
+                r#type: Some(kind as i32),
+                ..Default::default()
+            })
+            .collect();
+    execution.catalog = catalog.encode_to_vec();
+    store.create(&execution)?;
+    store.open_stream("execution", "readings")?;
+
+    // Scan Four Cells Every Second for 500 Seconds, Far More Instants Than Ten Fit
+    let samples = (0..500i64)
+        .flat_map(|second| {
+            (0..4).map(move |cell| Sample {
+                stream: "readings".into(),
+                source_ns: second * 1_000_000_000,
+                row: HeatRow {
+                    value: second as f64,
+                    cell,
+                    facet: "a".into(),
+                }
+                .encode_to_vec(),
+                ..Default::default()
+            })
+        })
+        .collect::<Vec<_>>();
+    store.sample_batch("execution", &samples)?;
+    store.flush_samples()?;
+    let window = NumericWindow {
+        start_ns: 0,
+        end_ns: 499_000_000_000,
+        ..numeric(store.cut("execution")?.frontier)
+    };
+    let request = KindWindow {
+        window,
+        x: Some("cell"),
+        z: None,
+        group: Some("facet"),
+        limit: 40,
+    };
+    let (frame, _, _) = store.heat_strip_window(request, Reduction::Last)?;
+    assert!(frame.point_count <= 40);
+    let seconds = frame.series[0]
+        .instants
+        .iter()
+        .map(|instant| instant.parse::<prost_types::Timestamp>().unwrap().seconds)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    assert_eq!((seconds.first(), seconds.last()), (Some(&0), Some(&499)), "{seconds:?}");
+    assert!((5..=10).contains(&seconds.len()), "{seconds:?}");
+    assert!(seconds.windows(2).all(|pair| pair[1] - pair[0] <= 3 * 499 / 8), "{seconds:?}");
+    Ok(())
+}
+
+#[test]
 fn heat_strip_samples_reduce_only_tied_instants_and_keep_facet_categories() -> Result<()> {
     #[derive(Clone, PartialEq, Message)]
     struct HeatRow {
@@ -1646,7 +1817,8 @@ fn heat_strip_samples_reduce_only_tied_instants_and_keep_facet_categories() -> R
         assert!(frame.series[1].y.iter().all(|v| v.value.is_none()));
         assert_eq!(frame.series[1].instants, [6, 9].map(|seconds| prost_types::Timestamp { seconds, nanos: 0 }.to_string()));
     }
-    assert!(store.heat_strip_window(KindWindow { limit: 7, ..binding() }, Reduction::Last).is_err());
+    // Fewer Cells Than Groups Keep Fewer Instants Instead of Refusing the Strip.
+    assert!(store.heat_strip_window(KindWindow { limit: 7, ..binding() }, Reduction::Last)?.0.point_count <= 7);
     let (frame, count, _) = store.heat_strip_window(
         KindWindow {
             window: NumericWindow {

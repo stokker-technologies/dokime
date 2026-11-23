@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 // Third Party Imports
 use harmos_protocol::model::Failure;
@@ -49,6 +50,13 @@ pub const ID: &str = "dokime.host.v1.plots.Snapshots/Watch";
 
 /* === Structs === */
 
+/// Live Page Pacing: a Refresh Starts Once the Interval Since the Previous Page Started Has Passed, So Pages Keep a
+/// Steady Cadence; a Page Slower Than the Interval Is Followed at Once, Without a Backlog.
+struct Pacer {
+    interval: Duration,
+    started: time::Instant,
+}
+
 /* === Enums === */
 
 #[derive(Debug, PartialEq, Eq)]
@@ -62,6 +70,16 @@ enum WatchProgress {
 
 /* === Implementations === */
 
+impl Pacer {
+    fn start(interval: Duration) -> Self {
+        Self { interval, started: time::Instant::now() }
+    }
+
+    async fn wait(&self) {
+        time::sleep_until(self.started + self.interval).await;
+    }
+}
+
 /* === Public Functions === */
 
 pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result<Output<SnapshotsWatchResponse>> {
@@ -73,6 +91,7 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
             at: request.at,
             page: request.page,
         };
+        let mut pacer = Pacer::start(context.host.store().storage_settings()?.previews.refresh_interval);
         // Keep the Query State off the Watch's Inline Future and Poll Stack.
         let first = Box::pin(list::handle(context, selection.clone())).await?;
         let context = context.clone();
@@ -129,6 +148,12 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                                 changed = runtime.changed() => if changed.is_err() { return; },
                             }
                         }
+                        // Changes While the Interval Runs Coalesce Into This Refresh.
+                        tokio::select! {
+                            _ = sender.closed() => return,
+                            () = pacer.wait() => {},
+                        }
+                        pacer = Pacer::start(pacer.interval);
                         opening = false;
                         selection.at = None;
                         selection.page.get_or_insert_default().page_token.clear();
@@ -188,8 +213,12 @@ fn progress(
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::time::Duration;
 
-    use super::{WatchProgress, progress};
+    use tokio::sync::watch;
+    use tokio::time::{self, Instant};
+
+    use super::{Pacer, WatchProgress, progress};
     use dokime_protocol::host::plots::PlotRequest;
     use dokime_protocol::model::EvidenceScope;
     use dokime_storage::ExecutionState;
@@ -213,6 +242,32 @@ mod tests {
         assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh);
         observed.insert("last".into(), 5);
         assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Complete);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn refreshes_keep_their_interval_coalesce_changes_and_follow_slow_pages_at_once() {
+        // Change Every 10 ms, Far More Often Than Pages
+        let (changes, mut changed) = watch::channel(0u64);
+        tokio::spawn(async move {
+            loop {
+                time::sleep(Duration::from_millis(10)).await;
+                changes.send_modify(|revision| *revision += 1);
+            }
+        });
+        let interval = Duration::from_millis(200);
+        for (page, expected) in [(50, [0, 200, 400, 600]), (300, [0, 300, 600, 900])] {
+            let origin = Instant::now();
+            let mut starts = Vec::new();
+            let mut pacer = Pacer::start(interval);
+            for _ in 0..4 {
+                starts.push((Instant::now() - origin).as_millis());
+                time::sleep(Duration::from_millis(page)).await;
+                changed.changed().await.unwrap();
+                pacer.wait().await;
+                pacer = Pacer::start(pacer.interval);
+            }
+            assert_eq!(starts, expected);
+        }
     }
 }
 

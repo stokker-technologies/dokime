@@ -126,7 +126,15 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
         };
         let (saved, cut) = views::read(context, scope, &key, request.at.as_ref(), async {
             let reply = SnapshotsListResponse {
-                envelopes: query_batch(context, request.requests).await?,
+                envelopes: snapshots(
+                    &context.host.store(),
+                    request.requests,
+                    context.settings.page_items,
+                    context.host.now_ns(),
+                    &context.host.identity().epoch,
+                    Some(context.settings.message_bytes),
+                )
+                .await?,
                 ..Default::default()
             };
             Ok(reply)
@@ -146,6 +154,15 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
     .await
 }
 
+/// Serve Plot Responses at the Saved Cut, or at the Accepted Frontier for Live Windows.
+pub async fn snapshots(
+    store: &Store, requests: Vec<PlotRequest>, maximum: usize, now_ns: i64, epoch: &str, message_bytes: Option<usize>,
+) -> Result<Vec<PlotEnvelope>> {
+    let live = requests.iter().any(|request| request.window_s.is_some() && request.at.is_none());
+    let (store, _cancellation) = if live { store.live_read_session()? } else { store.read_session()? };
+    batch(&store, requests, None, maximum, now_ns, epoch, message_bytes).await
+}
+
 /// Capture Complete Plot Responses at a Fixed Cut Without Live Reply Coarsening.
 pub async fn snapshots_at(
     store: &Store, cut: &ExecutionCut, requests: Vec<PlotRequest>, maximum: usize, now_ns: i64, epoch: &str,
@@ -154,21 +171,6 @@ pub async fn snapshots_at(
 }
 
 /* === Private Functions === */
-
-async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Vec<PlotEnvelope>> {
-    let live = requests.iter().any(|request| request.window_s.is_some() && request.at.is_none());
-    let (store, _cancellation) = if live { context.host.store().live_read_session()? } else { context.host.store().read_session()? };
-    batch(
-        &store,
-        requests,
-        None,
-        context.settings.page_items,
-        context.host.now_ns(),
-        &context.host.identity().epoch,
-        Some(context.settings.message_bytes),
-    )
-    .await
-}
 
 async fn batch(
     store: &Store, requests: Vec<PlotRequest>, fixed: Option<&ExecutionCut>, maximum: usize, now_ns: i64, epoch: &str,
@@ -1441,7 +1443,8 @@ mod tests {
         // Check Time Series Serve and Summarize Only Finite Samples
         let number = |value: f64| Some(Value { kind: Some(value::Kind::Number(value)) });
         let summary = &series.summaries[0];
-        assert_eq!((summary.count, &summary.min, &summary.max, &summary.median), (5, &number(1.0), &number(5.0), &number(3.0)));
+        // An Open Execution's Full-History Median Waits for Its Seal.
+        assert_eq!((summary.count, &summary.min, &summary.max, &summary.median), (5, &number(1.0), &number(5.0), &None));
         let ys = |payload: &PlotPayload| {
             payload.frame.as_ref().unwrap().series.iter().flat_map(|column| &column.y).map(|y| y.value).collect::<Vec<_>>()
         };
@@ -1454,7 +1457,8 @@ mod tests {
         assert_eq!(Some(percentile), number(4.0));
 
         // Check Histograms of Streams and of Status Events Bin Only Finite Samples
-        for (payload, count, median) in [(&histogram, 5, number(3.0)), (&sampled, 4, number(2.0)), (&lost_histogram, 0, None)] {
+        // A Filtered Selection Ranks Its Own Rows; the Open Stream's Full History Waits for Its Seal.
+        for (payload, count, median) in [(&histogram, 5, None), (&sampled, 4, number(2.0)), (&lost_histogram, 0, None)] {
             let Some(plot_analysis_result::Kind::Histogram(analysis)) = payload.analysis.clone().and_then(|analysis| analysis.result?.kind)
             else {
                 panic!("expected a histogram");

@@ -272,6 +272,11 @@ impl ExecutionManager {
         }
         Ok(())
     }
+    /// Admitted Host Work Not Yet Settled by Shutdown.
+    #[cfg(test)]
+    pub(crate) fn admitted_work(&self) -> Result<usize> {
+        Ok(lock(&self.inner.tasks)?.iter().filter(|task| !task.is_finished()).count())
+    }
     pub(crate) fn spawn(&self, task: impl Future<Output = ()> + Send + 'static) -> Result<()> {
         let runtime = Handle::try_current().map_err(|_| Error::Invalid("Start Host Work: Run the Host Inside Its Tokio Runtime".into()))?;
         let mut tasks = lock(&self.inner.tasks)?;

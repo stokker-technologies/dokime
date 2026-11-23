@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, future::Future, io::Write, num::NonZeroUsize, pin::Pin, time::Instant};
+use std::{collections::HashMap, future::Future, io, io::Write, num::NonZeroUsize, pin::Pin, time::Instant};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray, UInt64Array};
@@ -34,11 +34,13 @@ use harmos_runtime::{
 };
 use prost::Message;
 use tempfile::NamedTempFile;
-use tokio::sync::oneshot;
 
 // Local Imports
 use crate::host::storage::administration;
-use crate::{Error, Result, host::Context};
+use crate::{
+    Error, Result,
+    host::{Context, Host},
+};
 use dokime_protocol::host::evidence::{AnnotationOwner, AnnotationOwnerOwner, AnnotationSelection, annotation_owner_owner};
 use dokime_protocol::host::evidence_subject;
 use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceArchiveResponse, EvidenceSubject};
@@ -55,11 +57,30 @@ pub const ID: &str = "dokime.host.v1.Evidence/Archive";
 
 /* === Structs === */
 
+/// An Archive Output That Refuses Writes Once the Host Shuts Down, So Copying Evidence Never Holds Its Drain.
+struct Stoppable<'a, W> {
+    output: W,
+    host: &'a dyn Host,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl<W: Write> Write for Stoppable<'_, W> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if self.host.shutting_down() {
+            return Err(io::Error::other("Freeze Evidence: The Host Stopped; the Next Export Creates It"));
+        }
+        self.output.write(bytes)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.output.flush()
+    }
+}
 
 /* === Public Functions === */
 
@@ -111,12 +132,9 @@ pub async fn freeze(context: &Context, execution: &str) -> Result<FileReference>
     if !revision.is_empty() {
         return Ok(saved);
     }
-    // The Host Settles an Admitted Build After a Caller's Deadline Drops Its Receiver.
-    let (sender, receiver) = oneshot::channel();
+    // The Host Settles an Admitted Build After a Caller's Deadline Drops Its Receiver, Unless It Stops.
     let (owned, execution) = (context.clone(), execution.to_owned());
-    context.host.spawn_work(Box::pin(async move {
-        let _ = sender.send(build(&owned, &execution, &key).await);
-    }))?;
+    let receiver = crate::host::stoppable_work(context, "Freeze Evidence", async move { build(&owned, &execution, &key).await })?;
     receiver.await.map_err(|_| Error::Cancelled("Freeze Evidence: Reconnect After the Host Stops".into()))?
 }
 
@@ -140,7 +158,14 @@ pub(crate) fn materialize(
                 let mut files = contents.remove(execution).unwrap();
                 files.report = Some(native_file(context, report, None).await?);
                 let (store, _read_cancellation) = context.host.store().read_session()?;
-                store.write_execution_archive(execution, &mut file, files)?;
+                store.write_execution_archive(
+                    execution,
+                    &mut Stoppable {
+                        output: &mut file,
+                        host: context.host.as_ref(),
+                    },
+                    files,
+                )?;
             }
             Some(evidence_subject::Kind::Cycle(cycle)) => {
                 let page = NonZeroUsize::new(context.settings.page_items).unwrap();
@@ -167,7 +192,16 @@ pub(crate) fn materialize(
                 let report = report.ok_or_else(|| Error::Precondition("Seal Cycle: Materialize Its Report Before Its Archive".into()))?;
                 owned.report = Some(native_file(context, report, None).await?);
                 let (store, _read_cancellation) = context.host.store().read_session()?;
-                store.write_cycle_archive(cycle, page, &mut file, &mut files, owned)?;
+                store.write_cycle_archive(
+                    cycle,
+                    page,
+                    &mut Stoppable {
+                        output: &mut file,
+                        host: context.host.as_ref(),
+                    },
+                    &mut files,
+                    owned,
+                )?;
             }
             None => return Err(Error::Invalid("Download Evidence: Select an Execution or Cycle".into())),
         }
@@ -189,7 +223,7 @@ pub(crate) fn materialize(
                 expected_sha256: Some(digest),
             },
             |offset, data| crate::host::content::transfer::read_temporary(&file, offset, data),
-            || false,
+            || context.host.shutting_down(),
         )
         .await?;
         tracing::debug!(phase = "archive_upload", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Archive Stage");

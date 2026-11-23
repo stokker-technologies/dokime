@@ -27,7 +27,6 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use harmos_protocol::model::{FileMetadata, FileReference, History, Position, ReadCut};
 use harmos_runtime::Identifier;
 use prost::Message;
-use tokio::sync::oneshot;
 use uuid::Uuid;
 
 // Local Imports
@@ -96,12 +95,9 @@ pub async fn freeze(context: &Context, execution: &str) -> Result<(String, FileR
     if let Some(frozen) = frozen(context, execution).await? {
         return Ok(frozen);
     }
-    // The Host Settles Admitted Materialization After a Caller's Deadline Drops Its Receiver.
-    let (sender, receiver) = oneshot::channel();
+    // The Host Settles Admitted Materialization After a Caller's Deadline Drops Its Receiver, Unless It Stops.
     let (owned, execution) = (context.clone(), execution.to_owned());
-    context.host.spawn_work(Box::pin(async move {
-        let _ = sender.send(materialize(&owned, &execution).await);
-    }))?;
+    let receiver = crate::host::stoppable_work(context, "Freeze Report", async move { materialize(&owned, &execution).await })?;
     receiver.await.map_err(|_| Error::Cancelled("Freeze Report: Reconnect After the Host Stops".into()))?
 }
 
@@ -214,7 +210,7 @@ async fn materialize(context: &Context, execution: &str) -> Result<(String, File
     let html = fs::read(&rendered.path).map_err(|source| Error::Invalid(format!("Freeze Report: Read Its Temporary HTML: {source}")))?;
     let document = prepared.document.ok_or_else(|| Error::Invalid("Freeze Report: Capture Its Document".into()))?;
     let report = super::publish::publish(context, execution, &prepared.execution_seal, document, html, &file).await?;
-    context.host.store().retain_extents(execution)?;
+    context.host.store().retain_ranks(execution)?;
     context.host.signal_change();
     tracing::info!(%execution, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Frozen");
     Ok((report.identifier, file))
@@ -246,7 +242,7 @@ async fn upload(context: &Context, rendered: &ArchivedNativeFile, scope: Identif
             ..metadata
         },
         |offset, data| crate::host::content::transfer::read_temporary(&retained, offset, data),
-        || false,
+        || context.host.shutting_down(),
     )
     .await
 }

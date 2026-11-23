@@ -136,7 +136,7 @@ impl Store {
         Ok((session, cancellation))
     }
 
-    fn pending_batches(&self, execution: &str, stream: &str) -> Result<Vec<RecordBatch>> {
+    pub(super) fn pending_batches(&self, execution: &str, stream: &str) -> Result<Vec<RecordBatch>> {
         let key = (execution.to_owned(), stream.to_owned());
         if let Some(samples) = &self.live_samples {
             return Ok(samples.batches.get(&key).cloned().unwrap_or_default());
@@ -217,7 +217,7 @@ impl Store {
         let codec = telemetry.codec(&connection, selection.execution, selection.stream)?;
         let id = catalog::identifier(selection.execution, selection.stream, &codec.digest);
         let order = if latest { "b.end_ns DESC,b.first_position DESC" } else { "b.first_position" };
-        let mut query=connection.prepare(&format!("SELECT b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,b.end_ns FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE b.file=?1 AND f.schema_hash=?2 AND b.last_position>?3 AND b.first_position<=?4 AND b.start_ns<=?5 AND b.end_ns>=?6 ORDER BY {order}"))?;
+        let mut query=connection.prepare(&format!("SELECT b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,b.end_ns,b.first_position>?3 AND b.last_position<=?4 AND b.start_ns>=?6 AND b.end_ns<=?5 FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE b.file=?1 AND f.schema_hash=?2 AND b.last_position>?3 AND b.first_position<=?4 AND b.start_ns<=?5 AND b.end_ns>=?6 ORDER BY {order}"))?;
         let indices = query
             .query_map(
                 params![
@@ -228,7 +228,7 @@ impl Store {
                     selection.end_ns,
                     selection.start_ns
                 ],
-                |row| Ok((catalog::index(row)?, row.get::<_, i64>(5)?)),
+                |row| Ok((catalog::index(row)?, row.get::<_, i64>(5)?, row.get::<_, bool>(6)?)),
             )?
             .collect::<result::Result<Vec<_>, _>>()?;
         drop(query);
@@ -292,12 +292,19 @@ impl Store {
                 }
             }
         }
-        for (index, end_ns) in indices {
+        for (index, end_ns, inside) in indices {
             self.check_read()?;
             let batch = match &self.sample_reads {
                 Some(reads) => reads.batch(self, &path, &index, &projection, maximum)?,
                 None => ipc::read_query_batch(&path, &index, &projection, maximum)?,
             };
+            // A Chunk Wholly Inside the Selection Needs No Row Filter.
+            if inside {
+                if !read(batch, end_ns)? {
+                    return Ok(());
+                }
+                continue;
+            }
             let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("metadata layout differs"))?;
             let positions = storage.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
             let times = storage.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
@@ -400,7 +407,7 @@ fn positions(batch: &RecordBatch) -> &UInt64Array {
 }
 
 /// The Accepted Rows of One Pending Batch Inside a Selection's Positions and Source Times.
-fn tail(batch: &RecordBatch, selection: &BatchSelection<'_>) -> Result<RecordBatch> {
+pub(super) fn tail(batch: &RecordBatch, selection: &BatchSelection<'_>) -> Result<RecordBatch> {
     let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("metadata layout differs"))?;
     let times = storage.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
     let selected = positions(batch)

@@ -19,23 +19,25 @@
 use std::{collections::BTreeMap, mem, sync::Arc};
 
 // Third Party Imports
-use arrow_array::{Float64Array, Int64Array, ListArray, RecordBatch, UInt64Array};
+use arrow_array::{Float64Array, Int64Array, ListArray, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use harmos_domain::model::storage::query::transform::statistics;
 use harmos_query::transform::{
-    FieldPath, FieldPathExecution, HistogramExecution, Transform,
+    FieldPath, FieldPathExecution, Transform,
     downsample::{self, Algorithm},
-    histogram,
 };
 use harmos_query::{Aggregate, TableWriter};
-use prost::Message;
 use prost_types::Timestamp;
 use rusqlite::{OptionalExtension, params};
+use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::scalar::{self, ScalarValue};
-use crate::telemetry::aggregates;
-use crate::{Error, NumericWindow, Result, Store};
+use crate::stream_windows::{self, WindowBins};
+use crate::telemetry::aggregates::{NumericSummary, Ranked};
+use crate::telemetry::previews::Bucket;
+use crate::telemetry::summary::{Grid, Running};
+use crate::{Error, NumericBin, NumericWindow, Result, Store};
 use dokime_protocol::model::Downsample;
 use dokime_protocol::model::Value;
 
@@ -59,6 +61,21 @@ use dokime_protocol::model::value;
 
 /* === Structs === */
 
+/// One Window's Moments, Its Exact Median (None While a Live Full History Waits for Its Seal) and What a Plot Draws.
+struct Selected {
+    moments: NumericSummary,
+    median: Option<ScalarValue>,
+    bins: Vec<NumericBin>,
+    grid: Option<Grid>,
+}
+
+/// A Sealed Field's Exact Full-Range Median and Percentiles.
+#[derive(Serialize, Deserialize)]
+struct Ranks {
+    median: ScalarValue,
+    percentiles: BTreeMap<u8, ScalarValue>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -73,7 +90,7 @@ impl Store {
             return Err(Error::Data("supply a positive raw limit or at least three LTTB vertices"));
         }
         let boolean = self.boolean_window(window)?;
-        let summary = self.series_summary(&window)?;
+        let (summary, bins) = self.series_window(window, boolean)?;
         let count = summary.count;
         if count > limit as u64 && !boolean && technique == Downsample::Lttb && limit < 3 {
             return Err(Error::Data("supply at least three LTTB vertices or include every selected sample"));
@@ -82,7 +99,7 @@ impl Store {
             return Err(Error::Data("narrow the raw plot window or select downsampling"));
         }
         if count > limit as u64 && (boolean || !matches!(technique, Downsample::Raw | Downsample::Lttb)) {
-            return self.binned_series(window, summary);
+            return Ok((binned(&bins, boolean), summary, count));
         }
         let schema = Arc::new(Schema::new(vec![
             Field::new("time", DataType::Int64, false),
@@ -122,8 +139,14 @@ impl Store {
         Ok((column, summary, count))
     }
     fn boolean_window(&self, window: NumericWindow<'_>) -> Result<bool> {
-        let mut boolean = false;
         let field = FieldPath::from(format!("values.{}", window.field).as_str());
+        if !self.has_projection(window)? {
+            let connection = self.lock()?;
+            let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry reader lock failed"))?;
+            let codec = telemetry.codec(&connection, window.execution, window.stream)?;
+            return Ok(field.field(codec.schema.as_ref())?.data_type() == &DataType::Boolean);
+        }
+        let mut boolean = false;
         self.evaluated_batches(window, &[window.field.into()], |batch| {
             boolean = field.field(batch.schema().as_ref())?.data_type() == &DataType::Boolean;
             Ok(false)
@@ -160,44 +183,109 @@ impl Store {
     pub fn numeric_rms(&self, window: &NumericWindow<'_>) -> Result<f64> {
         Ok(self.numeric_summary(*window)?.rms)
     }
+    /// A Series' Moments and Exact Median Over Its Window.
     pub fn series_summary(&self, window: &NumericWindow<'_>) -> Result<PlotSeriesSummary> {
-        self.extent(*window, "series", || {
-            if self.boolean_window(*window)? {
-                return Ok(PlotSeriesSummary {
-                    count: self.numeric_bins(*window)?.iter().map(|bin| bin.count).sum(),
-                    ..Default::default()
-                });
+        series(&self.selected(*window, false, false)?, self.boolean_window(*window)?)
+    }
+    #[tracing::instrument(name = "plot.preview", skip_all)]
+    fn series_window(&self, window: NumericWindow<'_>, boolean: bool) -> Result<(PlotSeriesSummary, Vec<NumericBin>)> {
+        let selected = self.selected(window, true, false)?;
+        Ok((series(&selected, boolean)?, selected.bins))
+    }
+    /// A Window's Moments, Exact Median and, When Asked, Display Bins or Value Histogram: the Field's Incremental
+    /// Statistics When the Window Selects Every Value, Whose Median Waits for the Seal, Otherwise One Pass Over It.
+    fn selected(&self, window: NumericWindow<'_>, bins: bool, histogram: bool) -> Result<Selected> {
+        if let Some(mut envelope) = self.envelope(window)? {
+            if bins {
+                envelope.fit(window.bins.get())?;
             }
-            let moments = self.numeric_summary(*window)?;
-            if moments.count == 0 {
-                return Ok(Default::default());
+            return Ok(Selected {
+                moments: envelope.summary.finish()?,
+                median: self.sealed_ranks(window)?.map(|ranks| ranks.median),
+                bins: if bins { envelope.buckets.values().map(Bucket::bin).collect() } else { Vec::new() },
+                grid: histogram.then_some(envelope.histogram),
+            });
+        }
+        let settings = self.storage_settings()?;
+        let mut running = Running::default();
+        let mut ranked = Ranked::new(settings.query_bytes.get());
+        let mut display = bins.then(|| WindowBins::new(&window)).transpose()?;
+        let mut grid = histogram.then(|| Grid::new(settings.previews.histogram_bins.get()));
+        self.numeric_batches(window, |batch, column| {
+            running.extend(&column.values, |row| column.valid(row));
+            ranked.extend(&column.values, |row| column.valid(row))?;
+            if let Some(grid) = &mut grid {
+                grid.extend(&column.values, |row| column.valid(row));
             }
-            let (median, _) = self.numeric_order_statistics(*window, &[], |_| Ok(()))?;
-            Ok(PlotSeriesSummary {
-                count: moments.count,
-                min: Some(scalar::wire(&moments.min)?),
-                max: Some(scalar::wire(&moments.max)?),
-                mean: Some(scalar::wire(&moments.average)?),
-                median: Some(scalar::wire(&median)?),
-                std: Some(moments.standard_deviation),
-                rms: Some(moments.rms),
-                ..Default::default()
-            })
+            match &mut display {
+                Some(display) => stream_windows::visit(batch, column, |position, time, value| display.push(position, time, value)),
+                None => Ok(()),
+            }
+        })?;
+        Ok(Selected {
+            moments: running.finish()?,
+            median: Some(ranked.finish(&[Aggregate::Median])?.remove(0)),
+            bins: display.map_or_else(Vec::new, WindowBins::finish),
+            grid,
         })
+    }
+    /// A Sealed Field's Exact Full-Range Ranks, Ranked Once; None While Its Execution Is Open.
+    fn sealed_ranks(&self, window: NumericWindow<'_>) -> Result<Option<Ranks>> {
+        let sealed =
+            self.lock()?.query_row("SELECT state=2 FROM executions WHERE id=?1", [window.execution], |row| row.get(0)).optional()?;
+        if sealed != Some(true) {
+            return Ok(None);
+        }
+        let key =
+            format!("{}{}:{}/{}:{}", ranks_prefix(window.execution), window.stream.len(), window.stream, window.field.len(), window.field);
+        let failed = || Error::Data("restart after the field rank cache failed");
+        let shared = self.ranks.lock().map_err(|_| failed())?.entry(key.clone()).or_default().clone();
+        // A Field Ranked by Another Reader Is Awaited, Never Ranked Twice; the Store Lock Is Not Held Meanwhile.
+        let mut ranked = shared.lock().map_err(|_| failed())?;
+        if ranked.is_none() {
+            *ranked = self.lock()?.query_row("SELECT payload FROM administration WHERE id=?1", [&key], |row| row.get(0)).optional()?;
+        }
+        if ranked.is_none() {
+            // One Pass Over the Whole Field Gains Nothing From Retaining Its Source Blocks for Later Readers.
+            let mut reader = self.clone();
+            reader.sample_reads = None;
+            let (median, percentiles) = reader.numeric_order_statistics(window, &[5, 95, 99])?;
+            *ranked = Some(postcard::to_allocvec(&Ranks { median, percentiles })?);
+        }
+        Ok(Some(postcard::from_bytes(ranked.as_deref().unwrap_or_default())?))
+    }
+    /// Retain a Sealed Execution's Ranked Fields So Reads After a Restart Need Not Rank Them Again.
+    pub fn retain_ranks(&self, execution: &str) -> Result<()> {
+        let prefix = ranks_prefix(execution);
+        let failed = || Error::Data("restart after the field rank cache failed");
+        let ranks = self.ranks.lock().map_err(|_| failed())?.clone();
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        for (key, ranked) in ranks.iter().filter(|(key, _)| key.starts_with(&prefix)) {
+            if let Some(payload) = ranked.lock().map_err(|_| failed())?.as_ref() {
+                transaction.execute(
+                    "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                    params![key, payload],
+                )?;
+            }
+        }
+        transaction.commit()?;
+        Ok(())
     }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<Statistics> {
-        if self.boolean_window(*window)? {
+        let moments = self.numeric_summary(*window)?;
+        if moments.count == 0 || self.boolean_window(*window)? {
             return Ok(Statistics {
-                count: self.numeric_bins(*window)?.iter().map(|bin| bin.count).sum(),
+                count: moments.count,
                 ..Default::default()
             });
         }
-        let moments = self.numeric_summary(*window)?;
-        if moments.count == 0 {
-            return Ok(Default::default());
-        }
-        let (median, ranks) = self.numeric_order_statistics(*window, &[5, 95, 99], |_| Ok(()))?;
+        let sealed = if self.envelope(*window)?.is_some() { self.sealed_ranks(*window)? } else { None };
+        let (median, ranks) = match sealed {
+            Some(ranks) => (ranks.median, ranks.percentiles),
+            None => self.numeric_order_statistics(*window, &[5, 95, 99])?,
+        };
         Ok(Statistics {
             count: moments.count,
             min: Some(scalar::wire(&moments.min)?),
@@ -214,86 +302,17 @@ impl Store {
         })
     }
     pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
-        self.binned_series(window, self.series_summary(&window)?)
-    }
-    #[tracing::instrument(name = "plot.preview", skip_all)]
-    fn binned_series(&self, window: NumericWindow<'_>, summary: PlotSeriesSummary) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
-        let bins = self.numeric_bins(window)?;
         let boolean = self.boolean_window(window)?;
+        let (summary, bins) = self.series_window(window, boolean)?;
         let count = summary.count;
-        let mut points = Vec::with_capacity(bins.len() * if boolean { 2 } else { 4 });
-        for bin in &bins {
-            let mut extrema = [(bin.first_ns, bin.first), (bin.min_ns, bin.min), (bin.max_ns, bin.max), (bin.last_ns, bin.last)];
-            if boolean {
-                extrema[1] = extrema[3];
-            }
-            let extrema = if boolean { &mut extrema[..2] } else { &mut extrema[..] };
-            extrema.sort_by_key(|point| point.0);
-            for &point in extrema.iter() {
-                if points.last() != Some(&point) {
-                    points.push(point);
-                }
-            }
-        }
-        let column = PlotColumn {
-            x: points.iter().map(|(at, _)| number(*at as f64 / 1e9)).collect(),
-            instants: points.iter().map(|(at, _)| instant(*at)).collect(),
-            y: points.iter().map(|(_, value)| NullableNumber { value: Some(*value) }).collect(),
-            ..Default::default()
-        };
-        Ok((column, summary, count))
+        Ok((binned(&bins, boolean), summary, count))
     }
+    /// The Window's Values in `bins` Equal Bins From Its Lowest to Its Highest Value, With Its Moments and Median.
     pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
-        self.extent(window, &format!("histogram/{bins}"), || self.histogram(window, bins))
-    }
-    fn histogram(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
-        let summary = self.numeric_summary(window)?;
-        if summary.count == 0 {
-            return Ok(Default::default());
-        }
         if bins == 0 {
             return Err(Error::Data("supply at least one histogram bin"));
         }
-        let min = scalar::number(&summary.min).unwrap();
-        let max = scalar::number(&summary.max).unwrap();
-        let width = if max == min { 1.0 } else { (max - min) / bins as f64 };
-        let edges = (0..=bins).map(|index| min + index as f64 * width).collect();
-        let plan = histogram::Histogram {
-            field: FieldPath::from(format!("values.{}", window.field).as_str()),
-            edges,
-        };
-        let mut histogram = None;
-        let (median, _) = self.numeric_order_statistics(window, &[], |batch| {
-            if histogram.is_none() {
-                histogram = Some(plan.start(batch.schema().as_ref())?);
-            }
-            histogram.as_mut().unwrap().push(batch, &mut || Ok(()))?;
-            Ok(())
-        })?;
-        let batch = histogram.ok_or(Error::Data("capture numeric values in the selected histogram window"))?.finish()?;
-        let lower = batch.column_by_name("lower").unwrap().as_any().downcast_ref::<Float64Array>().unwrap();
-        let upper = batch.column_by_name("upper").unwrap().as_any().downcast_ref::<Float64Array>().unwrap();
-        let counts = batch.column_by_name("count").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
-        let histogram = (1..=bins)
-            .map(|row| PlotHistogramBin {
-                lower: lower.value(row),
-                upper: upper.value(row),
-                count: counts.value(row),
-            })
-            .collect();
-        Ok(PlotHistogramSeries {
-            bins: histogram,
-            count: summary.count,
-            statistics: Some(PlotHistogramStatistics {
-                mean: Some(scalar::wire(&summary.average)?),
-                median: Some(scalar::wire(&median)?),
-                std: summary.standard_deviation,
-                rms: summary.rms,
-                min: Some(scalar::wire(&summary.min)?),
-                max: Some(scalar::wire(&summary.max)?),
-            }),
-            ..Default::default()
-        })
+        histogram(&self.selected(window, false, true)?, bins)
     }
     pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<PlotBoxSummary> {
         let summary = self.numeric_summary(window)?;
@@ -327,75 +346,11 @@ impl Store {
             ..Default::default()
         })
     }
-    /// Retain an Execution's Full-Extent Plot Results So Reads After a Restart Need Not Recompute Them.
-    pub fn retain_extents(&self, execution: &str) -> Result<()> {
-        let prefix = extent_prefix(execution);
-        let extents = self.extents.lock().map_err(|_| Error::Data("restart after the plot extent cache failed"))?;
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        for (key, (through, payload)) in extents.iter().filter(|(key, _)| key.starts_with(&prefix)) {
-            transaction.execute(
-                "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-                params![key, [through.to_le_bytes().as_slice(), payload].concat()],
-            )?;
-        }
-        transaction.commit()?;
-        Ok(())
-    }
-    /// Full-Extent Results Depend Only on Saved Values Through the Field's Preview, So Every Read Shares Them;
-    /// A Sealed Execution's Report Computes and Retains Them Once at Seal for Every Plot That Follows.
-    fn extent<T: Message + Default>(&self, window: NumericWindow<'_>, kind: &str, compute: impl FnOnce() -> Result<T>) -> Result<T> {
-        let Some(through) = self.preview_through(window)? else {
-            return compute();
-        };
-        let key = format!(
-            "{}{}:{}/{}:{}/{kind}",
-            extent_prefix(window.execution),
-            window.stream.len(),
-            window.stream,
-            window.field.len(),
-            window.field
-        );
-        let extents = || self.extents.lock().map_err(|_| Error::Data("restart after the plot extent cache failed"));
-        let saved = extents()?.get(&key).cloned();
-        let saved = match saved {
-            Some(saved) => Some(saved),
-            None => self
-                .lock()?
-                .query_row("SELECT payload FROM administration WHERE id=?1", [&key], |row| row.get::<_, Vec<u8>>(0))
-                .optional()?
-                .filter(|bytes| bytes.len() >= 8)
-                .map(|bytes| (u64::from_le_bytes(bytes[..8].try_into().unwrap()), bytes[8..].to_vec())),
-        };
-        if let Some((saved, payload)) = saved
-            && saved == through
-        {
-            let value = T::decode(payload.as_slice())?;
-            extents()?.insert(key, (through, payload));
-            return Ok(value);
-        }
-        let value = compute()?;
-        extents()?.insert(key, (through, value.encode_to_vec()));
-        Ok(value)
-    }
-    fn numeric_order_statistics(
-        &self, window: NumericWindow<'_>, percentiles: &[u8], mut read: impl FnMut(&RecordBatch) -> Result<()>,
-    ) -> Result<(ScalarValue, BTreeMap<u8, ScalarValue>)> {
+    fn numeric_order_statistics(&self, window: NumericWindow<'_>, percentiles: &[u8]) -> Result<(ScalarValue, BTreeMap<u8, ScalarValue>)> {
         let statistics = [Aggregate::Median].into_iter().chain(percentiles.iter().copied().map(Aggregate::Percentile)).collect::<Vec<_>>();
-        let field = FieldPath::from(format!("values.{}", window.field).as_str());
-        let mut values = aggregates::rank_values(
-            |push| {
-                self.evaluated_batches(window, &[window.field.into()], |batch| {
-                    read(&batch)?;
-                    for row in 0..batch.num_rows() {
-                        push(field.value(&batch, row)?)?;
-                    }
-                    Ok(true)
-                })
-            },
-            &statistics,
-            self.storage_settings()?.query_bytes.get(),
-        )?;
+        let mut ranked = Ranked::new(self.storage_settings()?.query_bytes.get());
+        self.numeric_batches(window, |_, column| ranked.extend(&column.values, |row| column.valid(row)))?;
+        let mut values = ranked.finish(&statistics)?;
         let median = values.remove(0);
         Ok((median, percentiles.iter().copied().zip(values).collect()))
     }
@@ -420,8 +375,84 @@ impl Store {
 
 /* === Private Functions === */
 
-pub(crate) fn extent_prefix(execution: &str) -> String {
-    format!("plot-extent/{}:{execution}/", execution.len())
+pub(crate) fn ranks_prefix(execution: &str) -> String {
+    format!("field-ranks/{}:{execution}/", execution.len())
+}
+
+fn wired(median: &Option<ScalarValue>) -> Result<Option<Value>> {
+    median.as_ref().filter(|median| !matches!(median, ScalarValue::Missing | ScalarValue::Null)).map(scalar::wire).transpose()
+}
+
+fn series(selected: &Selected, boolean: bool) -> Result<PlotSeriesSummary> {
+    let moments = &selected.moments;
+    if boolean || moments.count == 0 {
+        return Ok(PlotSeriesSummary {
+            count: moments.count,
+            ..Default::default()
+        });
+    }
+    Ok(PlotSeriesSummary {
+        count: moments.count,
+        min: Some(scalar::wire(&moments.min)?),
+        max: Some(scalar::wire(&moments.max)?),
+        mean: Some(scalar::wire(&moments.average)?),
+        median: wired(&selected.median)?,
+        std: Some(moments.standard_deviation),
+        rms: Some(moments.rms),
+        ..Default::default()
+    })
+}
+
+/// A Series Drawn Through Each Bin's First, Extreme and Last Values in Time Order; Booleans Keep Their Edges.
+fn binned(bins: &[NumericBin], boolean: bool) -> PlotColumn {
+    let mut points = Vec::with_capacity(bins.len() * if boolean { 2 } else { 4 });
+    for bin in bins {
+        let mut extrema = [(bin.first_ns, bin.first), (bin.min_ns, bin.min), (bin.max_ns, bin.max), (bin.last_ns, bin.last)];
+        if boolean {
+            extrema[1] = extrema[3];
+        }
+        let extrema = if boolean { &mut extrema[..2] } else { &mut extrema[..] };
+        extrema.sort_by_key(|point| point.0);
+        for &point in extrema.iter() {
+            if points.last() != Some(&point) {
+                points.push(point);
+            }
+        }
+    }
+    PlotColumn {
+        x: points.iter().map(|(at, _)| number(*at as f64 / 1e9)).collect(),
+        instants: points.iter().map(|(at, _)| instant(*at)).collect(),
+        y: points.iter().map(|(_, value)| NullableNumber { value: Some(*value) }).collect(),
+        ..Default::default()
+    }
+}
+
+fn histogram(selected: &Selected, bins: usize) -> Result<PlotHistogramSeries> {
+    let summary = &selected.moments;
+    let Some(grid) = selected.grid.as_ref().filter(|_| summary.count > 0) else {
+        return Ok(Default::default());
+    };
+    Ok(PlotHistogramSeries {
+        bins: grid
+            .bins(bins)
+            .into_iter()
+            .map(|bin| PlotHistogramBin {
+                lower: bin.lower,
+                upper: bin.upper,
+                count: bin.count,
+            })
+            .collect(),
+        count: summary.count,
+        statistics: Some(PlotHistogramStatistics {
+            mean: Some(scalar::wire(&summary.average)?),
+            median: wired(&selected.median)?,
+            std: summary.standard_deviation,
+            rms: summary.rms,
+            min: Some(scalar::wire(&summary.min)?),
+            max: Some(scalar::wire(&summary.max)?),
+        }),
+        ..Default::default()
+    })
 }
 
 fn number(value: f64) -> Value {

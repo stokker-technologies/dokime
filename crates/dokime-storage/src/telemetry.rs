@@ -17,6 +17,7 @@ pub(crate) mod codec;
 pub(crate) mod config;
 pub(crate) mod previews;
 mod reader;
+pub(crate) mod summary;
 mod writer;
 
 /* === Re-Exports === */
