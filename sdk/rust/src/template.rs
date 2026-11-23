@@ -234,9 +234,8 @@ impl Template {
     }
 
     pub fn record<T: Payload>(mut self, record: Record<T>) -> Self {
-        self.registrations.push(Box::new(|plugin, _, _| {
-            plugin.register(|registrar| registrar.register(plugin::Descriptor::<T::Message>::new())).map_err(Error::from)
-        }));
+        self.registrations
+            .push(Box::new(|plugin, _, _| plugin.register(|registrar| registrar.register(plugin::Descriptor::<T::Message>::new()))));
         self.records.push(record.definition);
         self
     }

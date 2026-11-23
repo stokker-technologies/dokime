@@ -68,6 +68,9 @@ use crate::{authoring, client, configuration};
 
 /* === Type Aliases === */
 
+/// Maps a Handler's Application Error to an Operation Error, or Leaves It to the Default Mapping.
+type FailureMapper = Arc<dyn Fn(&(dyn error::Error + 'static)) -> Option<Error> + Send + Sync>;
+
 type DependencyRegistration = Box<dyn FnOnce(&mut plugin::Registrar<'_>) -> ::harmos::Result<()> + Send>;
 
 /* === Structs === */
@@ -84,7 +87,7 @@ struct Assembly {
     version: String,
     label: String,
     state: Arc<dyn Any + Send + Sync>,
-    failure: Option<Arc<dyn Fn(&(dyn error::Error + 'static)) -> Option<Error> + Send + Sync>>,
+    failure: Option<FailureMapper>,
     requirements: Vec<&'static str>,
     samplers: Vec<Sampler>,
     collections: bool,
