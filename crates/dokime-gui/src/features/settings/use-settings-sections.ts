@@ -24,7 +24,6 @@ import { failureOf } from "@/lib/notification-details";
 import type { SettingsFrame } from "@generated/host/model";
 import type { Wire } from "@/lib/rpc/canonical";
 import { useSettingsFrameQuery } from "@/features/settings/settings-queries";
-import { SETTINGS_SECTIONS, type SettingsSection } from "@/features/settings/settings-sections";
 
 /* === Types === */
 
@@ -36,8 +35,6 @@ export type SettingsSectionsState = {
   /** True only while the first read is in flight. */
   loading: boolean;
   retry: () => void;
-  /** The fixed navigation; plugins contribute pages, not sections. */
-  sections: SettingsSection[];
 };
 
 /* === Public Functions === */
@@ -52,6 +49,5 @@ export function useSettingsSections(enabled = true): SettingsSectionsState {
     frame,
     loading: enabled && query.isPending,
     retry: () => void query.refetch(),
-    sections: SETTINGS_SECTIONS,
   };
 }

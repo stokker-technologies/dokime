@@ -15,15 +15,10 @@
 
 // Standard Library Imports
 
-import { MoreHorizontal } from "lucide-react";
 // Third Party Imports
 import { type ComponentProps, type ReactNode } from "react";
 // Local Imports
-import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { SvelteMount, useSvelteSlots } from "../components/SvelteMount";
-import PageHeader from "./PanelHeader.svelte";
 import { usePageChrome } from "./page-chrome";
 import { pageContentClass } from "./page-layout";
 
@@ -42,10 +37,6 @@ type PageShellProps = Omit<ComponentProps<"div">, "children" | "className" | "ti
   className?: string;
 };
 
-type PageNoticeProps = {
-  children: ReactNode;
-};
-
 /* === Components === */
 
 /**
@@ -61,8 +52,7 @@ export function PageShell({ actions, children, className, trail, ...props }: Pag
   );
 }
 
-/** One line about the page's data, at the page's own text inset. */
-export function PageNotice({ children }: PageNoticeProps) {
+export function PageNotice({ children }: { children: ReactNode }) {
   return (
     <p role="status" className="text-sm text-muted-foreground">
       {children}
@@ -70,50 +60,6 @@ export function PageNotice({ children }: PageNoticeProps) {
   );
 }
 
-/* === Hooks === */
-
-/* === Public Functions === */
-
 export function pageTitle(trail: string[]): string {
   return trail.join(" \u203a ");
-}
-
-/* === Private Functions === */
-
-export function PanelHeader({
-  title,
-  actions,
-  overflow,
-  onBack,
-}: {
-  title: string;
-  actions?: ReactNode;
-  overflow?: ReactNode;
-  onBack?: () => void;
-}) {
-  const menu = overflow ? (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button aria-label="Page Actions" size="icon" variant="ghost">
-          <MoreHorizontal />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">{overflow}</DropdownMenuContent>
-    </DropdownMenu>
-  ) : null;
-  const { rendered, portals } = useSvelteSlots({
-    actions:
-      actions || menu ? (
-        <>
-          {actions}
-          {menu}
-        </>
-      ) : null,
-  });
-  return (
-    <>
-      <SvelteMount component={PageHeader} props={{ title, onBack, ...rendered }} />
-      {portals}
-    </>
-  );
 }
