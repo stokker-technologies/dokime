@@ -26,8 +26,8 @@ use std::{
 // Third Party Imports
 use harmos_storage::execution::Execution;
 use harmos_storage::{
-    Error, Identifier, MemorySize, MutationId, MutationItem, MutationReceipt, MutationValue, ObjectCatalog, ReadLimits, StorageBatch,
-    StorageCursor, StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings,
+    BackendFailure, Error, Identifier, MemorySize, MutationId, MutationItem, MutationReceipt, MutationValue, ObjectCatalog, ReadLimits,
+    StorageBatch, StorageCursor, StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings,
     StorageSettings,
 };
 use rusqlite::Connection;
@@ -239,7 +239,14 @@ async fn keyed_replay_recovers_an_outcome_omitted_from_the_cache() -> Result<(),
         key: Identifier::new("unknown-old-window")?,
         ..mutation.clone()
     };
-    assert!(matches!(storage.mutate_once(&unknown, items.clone()).await, Err(Error::InvalidInput { field: "storage mutation", .. })));
+    // A Key From an Old Window Is Indistinguishable From an Expired One: Both Ask for a Fresh Mutation Identity.
+    assert!(matches!(
+        storage.mutate_once(&unknown, items.clone()).await,
+        Err(Error::Backend {
+            kind: BackendFailure::MutationExpired,
+            ..
+        })
+    ));
     storage.close().await?;
     Ok(())
 }
