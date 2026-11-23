@@ -63,7 +63,7 @@ try {
     const samples = await api.evidenceSamplesList(session, { scope: { executionId } });
     assert.ok(samples.samples.length);
     const records = await api.evidenceRecordsList(session, { selection: { scope: { executionId } } });
-    const door = records.records.find((record) => record.recordType === "thermal.thermal.cycle.door");
+    const door = records.records.find((record) => record.recordType === "thermal.door");
     assert.ok(door);
     assert.deepEqual([...door.payload], scenario === "complete" ? [8, 1] : []);
   }

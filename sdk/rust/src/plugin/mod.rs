@@ -324,12 +324,13 @@ impl Plugin {
         }
         let template = selected.remove(0);
         let prompts = template.prompts.clone();
-        let template = template.parts()?;
-        let needs_collection = template
-            .case
-            .streams
-            .iter()
-            .any(|stream| !template.samplers.iter().chain(&self.assembly.samplers).any(|sampler| &sampler.stream == stream));
+        let template = template.parts(&self.assembly.identifier)?;
+        let mut samplers = self.assembly.samplers;
+        for sampler in &mut samplers {
+            sampler.stream = authoring::plugin_member(&self.assembly.identifier, &sampler.stream);
+        }
+        let needs_collection =
+            template.case.streams.iter().any(|stream| !template.samplers.iter().chain(&samplers).any(|sampler| &sampler.stream == stream));
         if self.assembly.collections && needs_collection {
             return Err(Error::Invalid(
                 "Test Collection Streams: Register the Plugin With a Product Host to Use Library-Owned Windows".into(),
@@ -341,7 +342,7 @@ impl Plugin {
             prompts,
             requirements: self.assembly.requirements,
             state: self.assembly.state,
-            samplers: self.assembly.samplers,
+            samplers,
         })
     }
 
@@ -439,9 +440,10 @@ impl Plugin {
         executions.resources = Arc::new(resources);
         executions.records = Arc::new(record_bindings);
         let mut definitions = Vec::new();
+        let mut streams = HashMap::new();
         for mut suite in suites {
             for template in suite.templates {
-                let (definition, registered) = template.register(inner, executions.clone())?;
+                let (definition, registered) = template.register(&identifier, inner, executions.clone(), &mut streams)?;
                 inner = registered;
                 suite.definition.templates.push(definition);
             }
@@ -460,7 +462,7 @@ impl Plugin {
             inner = inner.register(|registrar| registrar.register(SettingsDeclarations { values: settings }))?;
         }
         for register in registrations {
-            inner = register(inner, executions.clone(), "")?;
+            inner = register(inner, executions.clone(), &identifier)?;
         }
         inner = initialize(inner, executions.clone(), &identifier)?;
         inner = finalize(inner, executions, &identifier)?;

@@ -84,10 +84,10 @@ fn main() -> Result<()> {
     let observer = Observer::new(&reading, read).every(Duration::from_secs(1));
     let plot = Plot {
         kind: PlotKind::TimeSeries as i32,
-        y: vec![FieldReference::new("execution.execution.capture.reading").field("value")],
+        y: vec![FieldReference::new("execution.reading").field("value")],
         ..Default::default()
     };
-    let heat = dokime::builders::Plot::heat_strip(FieldReference::new("execution.execution.capture.reading").field("value"))
+    let heat = dokime::builders::Plot::heat_strip(FieldReference::new("execution.reading").field("value"))
         .cells(dokime::DataExpression {
             kind: Some(dokime::data_expression::Kind::Literal(dokime::Value { kind: Some(Kind::Text("Reading".into())) })),
             ..Default::default()

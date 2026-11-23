@@ -114,12 +114,14 @@ class HostCalls:
 # === Public Functions === #
 
 
-def install() -> None:
+def install(module: str) -> None:
+    # The Plugin's Own Package Logs From INFO Unless Its Author Set a Level; Library Loggers Keep Theirs.
+    package = logging.getLogger(module.partition(".")[0])
+    if package.level == logging.NOTSET:
+        package.setLevel(logging.INFO)
     root = logging.getLogger()
-    if any(isinstance(handler, _Handler) for handler in root.handlers):
-        return
-    root.addHandler(_Handler())
-    root.setLevel(logging.DEBUG)
+    if not any(isinstance(handler, _Handler) for handler in root.handlers):
+        root.addHandler(_Handler())
 
 
 @overload

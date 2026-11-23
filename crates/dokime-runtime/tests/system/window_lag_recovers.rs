@@ -73,7 +73,7 @@ fn window_lag_recovers() -> Result<(), Box<dyn Error>> {
         assert!(!gaps.is_empty());
         for evidence in gaps {
             let gap: Value = serde_json::from_slice(&evidence.payload)?;
-            assert_eq!(gap["stream"], "execution.execution.lag.window.lag");
+            assert_eq!(gap["stream"], "execution.window.lag");
             let missed = gap["missed"].as_u64().unwrap();
             let start_ns = gap["start_ns"].as_i64().unwrap();
             let end_ns = gap["end_ns"].as_i64().unwrap();

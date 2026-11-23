@@ -84,9 +84,9 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     if (failures.Count > 0)
       throw new AggregateException("Close Plugin Resources: Resolve the Release Failures, Then Restart", failures);
   }
-  public IReadOnlyList<SuiteBinding> Suites { get; } = BindSuites(suites);
+  public IReadOnlyList<SuiteBinding> Suites { get; } = BindSuites(identifier, suites);
 
-  private static IReadOnlyList<SuiteBinding> BindSuites(SuiteBinding[] suites)
+  private static IReadOnlyList<SuiteBinding> BindSuites(string plugin, SuiteBinding[] suites)
   {
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
     var bound = new List<SuiteBinding>();
@@ -94,7 +94,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     {
       var identity = Identifiers.Build("", suite.Metadata.Identifier);
       Unique(identifiers, identity);
-      var templates = suite.Templates.Select(template => template.Bind(identity)).ToArray();
+      var templates = suite.Templates.Select(template => template.Bind(plugin, identity)).ToArray();
       var templateIdentifiers = new HashSet<string>(StringComparer.Ordinal);
       foreach (var template in templates)
         Unique(templateIdentifiers, template.Definition.Metadata.Identifier);
@@ -118,10 +118,12 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     var value = (Dokime.Operations.Settings)(Activator.CreateInstance(type)
       ?? throw new ArgumentException("Declare Settings: Supply a Public Default Constructor"));
     settings.Add(type, value);
+    // Each Declaration Joins the Library Settings Section, Not a Section of Its Own.
     transport.Register(registrar =>
     {
       foreach (var declaration in value.Declarations)
-        registrar.Register(declaration);
+        registrar.Register(declaration.Name, declaration.Default, declaration.Title, declaration.Description, declaration.Minimum,
+          declaration.Maximum, declaration.Choices, declaration.Required);
     });
     return this;
   }

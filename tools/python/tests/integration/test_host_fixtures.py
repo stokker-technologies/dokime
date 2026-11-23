@@ -206,10 +206,6 @@ class HostFixtureTests(unittest.TestCase):
             temporary = temporary_directory.name
             try:
                 root = Path(temporary)
-                (root / "Cargo.toml").write_text(
-                    '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n',
-                    encoding="utf-8",
-                )
                 fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
                 fixture.parent.mkdir(parents=True)
                 fixture.write_bytes(b"fixture source")
@@ -261,11 +257,11 @@ class HostFixtureTests(unittest.TestCase):
                     if language == "rust":
                         staged = paths.output(root, "build", "release") / "fixtures/host/python/conformance/__init__.py"
                         self.assertEqual(staged.read_bytes(), fixture.read_bytes())
+                        # The Reference Host Builds From the Library Source Cargo Resolved for the Product.
                         reference = next(command for command in commands if command[:2] == ["cargo", "install"])
-                        self.assertEqual(reference[reference.index("--git") + 1], "https://example.test/library")
-                        self.assertEqual(reference[reference.index("--rev") + 1], "fixture-revision")
+                        self.assertEqual(Path(reference[reference.index("--path") + 1]), root / "library/tools/conformance")
                         self.assertEqual(reference[reference.index("--profile") + 1], "release")
-                        self.assertNotIn("--force", reference)
+                        self.assertEqual(Path(reference[reference.index("--root") + 1]), root / "target/reference-host")
                         self.assertEqual(reference[reference.index("--target-dir") + 1], str(root / "target"))
                         consumer = commands[0]
                         selected = [consumer[index + 1] for index, value in enumerate(consumer) if value == "--bin"]
@@ -274,19 +270,6 @@ class HostFixtureTests(unittest.TestCase):
                         for command in commands:
                             if command[:3] == ["mise", "run", "build"]:
                                 self.assertEqual(command[command.index("--profile") + 1], "release")
-                        cached = Path(reference[reference.index("--root") + 1]) / "bin" / f"harmos-conformance{extension}"
-                        cached.parent.mkdir(parents=True)
-                        cached.write_bytes(b"cached reference")
-                        run.reset_mock()
-                        host_fixtures.build("release", language)
-                        self.assertFalse(any(call.args[0][:2] == ["cargo", "install"] for call in run.call_args_list))
-                        dev_product = paths.output(root, "build", "dev") / "bin"
-                        dev_product.mkdir(parents=True)
-                        for name in ("dokime-host", "plugin-obc"):
-                            (dev_product / f"{name}{extension}").write_bytes(b"dev product")
-                        run.reset_mock()
-                        host_fixtures.build("dev", language)
-                        self.assertTrue(any(call.args[0][:2] == ["cargo", "install"] for call in run.call_args_list))
             finally:
                 temporary_directory.cleanup()
 
@@ -417,9 +400,6 @@ class HostFixtureTests(unittest.TestCase):
                     for name in names:
                         (directory / f"{name}{extension}").write_bytes(compiler_profile.encode())
                     (directory / f"content_fixture{extension}").write_bytes(compiler_profile.encode())
-                (root / "Cargo.toml").write_text(
-                    '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n'
-                )
                 product = paths.output(root, "build", profile) / "bin"
                 product.mkdir(parents=True)
                 for name in ("dokime-host", "plugin-obc"):
@@ -427,9 +407,7 @@ class HostFixtureTests(unittest.TestCase):
                 report = root / "target/generated/report/report.html"
                 report.parent.mkdir(parents=True)
                 report.write_bytes(b"report")
-                reference = (
-                    root / "target/reference-host" / paths.target() / profile / "fixture-revision/bin" / f"harmos-conformance{extension}"
-                )
+                reference = root / "target/reference-host/bin" / f"harmos-conformance{extension}"
                 reference.parent.mkdir(parents=True)
                 reference.write_bytes(b"reference")
                 fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
@@ -460,7 +438,11 @@ class HostFixtureTests(unittest.TestCase):
                         self.assertEqual((output / f"{name}{extension}").read_bytes(), expected.encode())
                     commands = [call.args[0] for call in run.call_args_list if call.args[0][:2] != ["cargo", "metadata"]]
                     for command in commands:
-                        self.assertEqual(command[command.index("--profile") + 1], profile)
+                        # Cargo Install Spells the Dev Profile as --debug.
+                        if command[:2] == ["cargo", "install"] and profile == "dev":
+                            self.assertIn("--debug", command)
+                        else:
+                            self.assertEqual(command[command.index("--profile") + 1], profile)
                     self.assertEqual(run.call_args_list[0].kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target"))
                     (root / "target" / selected / f"dokime-rust-thermal{extension}").unlink()
                     self.assertRaises(FileNotFoundError, host_fixtures.build, profile, "rust")

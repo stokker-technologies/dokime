@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Mutex;
 use std::time::Duration;
 
 // Third Party Imports
@@ -87,6 +88,7 @@ struct CounterColumns {
 
 struct Bench {
     limit: f64,
+    celsius: Mutex<f64>,
 }
 
 /* === Enums === */
@@ -105,7 +107,6 @@ fn main() -> Result<()> {
     let counter = Stream::<Counter>::new("counter", "Exact Counter");
     // A 1 kHz Stream Answers Each Host Window at Once.
     let counter_observer = Observer::window(&counter, read_counter).every(Duration::from_millis(1));
-    let door = Record::<Door>::new("door", "Door Check");
     let plot = Plot {
         metadata: Some(Metadata {
             identifier: "thermal.temperature.plot".into(),
@@ -113,13 +114,12 @@ fn main() -> Result<()> {
             ..Default::default()
         }),
         kind: PlotKind::TimeSeries as i32,
-        y: vec![FieldReference::new("thermal.thermal.cycle.temperature").field("celsius")],
+        y: vec![FieldReference::new("thermal.temperature").field("celsius")],
         unit: "°C".into(),
         ..Default::default()
     };
     let template = Template::of::<CycleTestTemplate>()
         .label("Thermal Cycle")
-        .record(door)
         .parameters(Parameters { limit: 85.0 })
         .initialize(initialize)
         .step(
@@ -173,6 +173,7 @@ fn main() -> Result<()> {
     let observer = Observer::window(&burst, read_counter).every(Duration::from_millis(1)).interval_setting("thermal.load.interval");
     load = load.stream(burst).observer(observer);
     let plugin = Plugin::of::<ThermalPlugin>("1.0.0")
+        .record(Record::<Door>::new("door", "Door Check"))
         .operation(Operation::new("thermal.echo", Visibility::Public, echo))
         .setting(SettingDeclaration {
             minimum: None,
@@ -200,7 +201,10 @@ async fn load_hold(ctx: &Context) -> Result<()> {
 
 async fn initialize(ctx: &Context) -> Result<()> {
     let parameters = ctx.parameters::<Parameters>()?;
-    ctx.set(Bench { limit: parameters.limit });
+    ctx.set(Bench {
+        limit: parameters.limit,
+        celsius: Mutex::new(23.0),
+    });
     ctx.log(Severity::Info, "Initialized").await
 }
 
@@ -224,7 +228,11 @@ async fn read_counter(_: &Context, window: &Window) -> Result<CounterColumns> {
 }
 
 async fn read_temperature(ctx: &Context) -> Result<Temperature> {
-    Ok(Temperature { celsius: ctx.get::<Bench>()?.limit - 1.0 })
+    // Approach the Chamber Target on Each Granted Sample.
+    let bench = ctx.get::<Bench>()?;
+    let mut celsius = bench.celsius.lock().map_err(|_| Error::Invalid("Read Temperature: Restart the Execution".into()))?;
+    *celsius += (84.0 - *celsius) * 0.25;
+    Ok(Temperature { celsius: *celsius })
 }
 
 async fn within_limit(ctx: &Context) -> Result<bool> {

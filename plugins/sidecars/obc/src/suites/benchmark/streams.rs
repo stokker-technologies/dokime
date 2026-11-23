@@ -88,7 +88,7 @@ pub struct ModuleTelemetryColumns {
 /* === Public Functions === */
 
 pub fn stream(module: usize) -> String {
-    format!("obc.benchmark.streams.module_{:02}", module + 1)
+    format!("obc.module_{:02}", module + 1)
 }
 
 pub fn template() -> Template {

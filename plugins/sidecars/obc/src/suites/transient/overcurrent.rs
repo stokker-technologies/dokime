@@ -34,7 +34,6 @@ use dokime::{Document, Parameter, Result, Severity};
 /* === Constants === */
 
 pub const TEMPLATE: &str = "obc.transient.overcurrent";
-const SAMPLES: &str = "obc.transient.overcurrent.measurement";
 
 /* === Macros === */
 
@@ -86,7 +85,7 @@ pub fn template() -> Template {
 }
 
 pub fn document() -> Document {
-    measurement::document(SAMPLES, TEMPLATE, "Overcurrent Protection")
+    measurement::document(TEMPLATE, "Overcurrent Protection")
 }
 
 /* === Private Functions === */

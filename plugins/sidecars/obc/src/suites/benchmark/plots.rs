@@ -24,7 +24,7 @@ use std::sync::{Mutex, PoisonError};
 use crate::device::{Bench, Power};
 use crate::records::charger;
 use crate::settings;
-use crate::streams::measurement::{self, charging};
+use crate::streams::measurement::{self, SAMPLES, charging};
 use crate::suites::{self, parameters, read_supply, supply, timing};
 use dokime::builders::Plot;
 use dokime::plugin::{Criterion, Observer, Prompt, Record, Step, Stream, Template};
@@ -37,8 +37,7 @@ use dokime::{
 /* === Constants === */
 
 pub const TEMPLATE: &str = "obc.benchmark.plots";
-pub const SURVEY: &str = "obc.benchmark.plots.survey";
-const SAMPLES: &str = "obc.benchmark.plots.measurement";
+pub const SURVEY: &str = "obc.survey";
 const STARTED: &str = "obc.benchmark.plots.started";
 const COMPLETED: &str = "obc.benchmark.plots.completed";
 
@@ -328,7 +327,7 @@ pub fn document() -> Document {
         .section(distributions)
         .section(breakdown)
         .section(ac_current)
-        .section(charging(SAMPLES, TEMPLATE))
+        .section(charging(TEMPLATE))
         .section(evidence)
         .section(load)
 }

@@ -174,13 +174,12 @@ pub fn serve() -> Result<()> {
     let stream = Stream::<Reading>::new("readings", "Readings");
     let observer = Observer::new(&stream, async |context: &Context| {
         let at = context.now().await?;
-        let index =
-            if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "storage.benchmark.capture.readings")) {
-                let observed = context.get::<Observed>()?;
-                observed.count.fetch_add(1, Ordering::SeqCst)
-            } else {
-                0
-            };
+        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "storage.benchmark.readings")) {
+            let observed = context.get::<Observed>()?;
+            observed.count.fetch_add(1, Ordering::SeqCst)
+        } else {
+            0
+        };
         Ok(Reading {
             timestamp: at.to_string(),
             value: (index % 1024) as f64,
@@ -203,7 +202,7 @@ pub fn serve() -> Result<()> {
         .observer(observer);
     let pulse = Stream::<Pulse>::new("pulse", "Pulse");
     let observer = Observer::new(&pulse, async |context: &Context| {
-        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "storage.benchmark.export.pulse")) {
+        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "storage.benchmark.pulse")) {
             let observed = context.get::<Observed>()?;
             observed.count.fetch_add(1, Ordering::SeqCst)
         } else {

@@ -227,7 +227,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                     execution_id: Some(identifier.clone()),
                     ..Default::default()
                 }),
-                streams: vec!["thermal.thermal.cycle.temperature".into()],
+                streams: vec!["thermal.temperature".into()],
                 between: Some(Window {
                     start: Some(Timestamp { seconds: 1, nanos: 0 }),
                     end: Some(Timestamp { seconds: 2, nanos: 0 }),

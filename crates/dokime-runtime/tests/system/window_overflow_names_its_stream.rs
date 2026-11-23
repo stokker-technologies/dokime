@@ -70,7 +70,7 @@ fn window_overflow_names_its_stream() -> Result<(), Box<dyn Error>> {
             .map(|entry| String::from_utf8_lossy(&entry.payload).into_owned())
             .collect::<Vec<_>>();
         assert!(
-            failures.iter().any(|failure| failure.contains("execution.execution.overflow.window.overflow")),
+            failures.iter().any(|failure| failure.contains("execution.window.overflow")),
             "Overflow a Window: Name the Stream in Its Failure: {failures:?}; Outcome: {}",
             outcome.reason
         );

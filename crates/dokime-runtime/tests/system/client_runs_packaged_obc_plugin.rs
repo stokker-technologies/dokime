@@ -268,11 +268,7 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             };
             let inrush = client
                 .evidence
-                .statistics_with(
-                    "obc.transient.startup.measurement",
-                    "current_rms_a",
-                    EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() },
-                )
+                .statistics_with("obc.measurement", "current_rms_a", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() })
                 .await?
                 .statistics
                 .unwrap();
@@ -292,11 +288,7 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             };
             let register = client
                 .evidence
-                .statistics_with(
-                    "obc.benchmark.exact_values.meter",
-                    "energy_register",
-                    EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() },
-                )
+                .statistics_with("obc.meter", "energy_register", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() })
                 .await?
                 .statistics
                 .unwrap();

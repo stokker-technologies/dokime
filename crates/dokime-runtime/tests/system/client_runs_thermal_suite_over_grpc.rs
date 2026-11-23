@@ -250,7 +250,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 let hold = client
                     .evidence
                     .statistics_with(
-                        "thermal.thermal.cycle.temperature",
+                        "thermal.temperature",
                         "celsius",
                         EvidenceStatisticsOptions {
                             scope: Some(scope.clone()),
@@ -262,7 +262,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 let execution = client
                     .evidence
                     .statistics_with(
-                        "thermal.thermal.cycle.temperature",
+                        "thermal.temperature",
                         "celsius",
                         EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() },
                     )
@@ -271,7 +271,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                     .evidence
                     .records
                     .list_with(
-                        "thermal.thermal.cycle.door",
+                        "thermal.door",
                         EvidenceRecordsListOptions {
                             scope: Some(RecordScope {
                                 kind: Some(record_scope::Kind::Execution(execution_id.clone())),
@@ -321,7 +321,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                         execution_id: Some(execution_id.clone()),
                         ..Default::default()
                     },
-                    vec!["thermal.thermal.cycle.temperature".into()],
+                    vec!["thermal.temperature".into()],
                     EvidenceSamplesListOptions {
                         versions: Some(Vec::new()),
                         fields: Some(Vec::new()),
@@ -351,7 +351,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                         execution_id: Some(execution_id.clone()),
                         ..Default::default()
                     },
-                    vec!["thermal.thermal.cycle.temperature".into()],
+                    vec!["thermal.temperature".into()],
                     EvidenceSamplesListOptions {
                         between: Some(Window {
                             start: Some(Timestamp { seconds: 1, nanos: 0 }),
@@ -371,7 +371,9 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 .collect::<Vec<_>>();
             assert_eq!(times, [Some((1, 0)), Some((2, 0))], "Sample the Hold at 1 s and 2 s: {raw:?}");
             assert!(raw.iter().all(|sample| !sample.payload.is_empty()));
-            assert!(raw.iter().all(|sample| sample.values.as_ref().unwrap().values["celsius"].kind == Some(value::Kind::Number(84.0))));
+            let celsius = raw.iter().map(|sample| sample.values.as_ref().unwrap().values["celsius"].kind.clone()).collect::<Vec<_>>();
+            let expected = super::support::thermal::temperatures(raw.len()).into_iter().map(|value| Some(value::Kind::Number(value)));
+            assert_eq!(celsius, expected.collect::<Vec<_>>());
             // Ingestion Settles Before the Seal: the First Statistics Read Counts Every Sample.
             let sealed = EvidenceScope {
                 execution_id: Some(execution_id.clone()),
@@ -380,7 +382,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let statistics = client
                 .evidence
                 .statistics_with(
-                    "thermal.thermal.cycle.temperature",
+                    "thermal.temperature",
                     "celsius",
                     EvidenceStatisticsOptions {
                         scope: Some(sealed),
@@ -536,7 +538,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                             execution_id: Some(execution_id),
                             ..Default::default()
                         },
-                        vec!["thermal.thermal.cycle.temperature".into()],
+                        vec!["thermal.temperature".into()],
                         EvidenceSamplesListOptions {
                             versions: Some(Vec::new()),
                             fields: Some(Vec::new()),

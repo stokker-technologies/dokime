@@ -120,12 +120,12 @@ fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
                     snapshot
                         .samples
                         .iter()
-                        .filter(|sample| sample.stream == "thermal.thermal.cycle.temperature")
+                        .filter(|sample| sample.stream == "thermal.temperature")
                         .map(|sample| sample.source_ns)
                         .collect::<Vec<_>>(),
                     vec![1_000_000_000, 2_000_000_000]
                 );
-                assert_eq!(snapshot.records("thermal.thermal.cycle.door").len(), 1);
+                assert_eq!(snapshot.records("thermal.door").len(), 1);
                 assert!(host.streams_closed(&execution)?);
                 // csharp_frozen_record_schema_decodes_door
                 super::support::thermal::frozen_record_schema_decodes_door(&snapshot);

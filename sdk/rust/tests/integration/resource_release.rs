@@ -97,7 +97,7 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
         origin: Some(origin.clone()),
     };
     process.invoke("resources.resources.case.initialize", "retained", request).await?.finish::<ExecutionsInitializeResponse>().await?;
-    let (grants, mut samples) = process.publish("resources.resources.case.state", "retained").await?;
+    let (grants, mut samples) = process.publish("resources.state", "retained").await?;
     let window = Window {
         start: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
         period: Some(prost_types::Duration { seconds: 1, nanos: 0 }),

@@ -155,7 +155,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         case.steps.iter().map(|step| step.metadata.as_ref().unwrap().identifier.as_str()).collect::<Vec<_>>(),
         ["thermal.thermal.cycle.ramp", "thermal.thermal.cycle.hold"]
     );
-    assert_eq!(case.streams, ["thermal.thermal.cycle.temperature", "thermal.thermal.cycle.counter"]);
+    assert_eq!(case.streams, ["thermal.temperature", "thermal.counter"]);
     assert_eq!(case.criteria[0].metadata.as_ref().unwrap().identifier, "thermal.thermal.cycle.within_limit");
     attached.stop("Materialization Complete").await?;
     runtime.stop().await?;
@@ -255,7 +255,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         TimeSleepRequest::decode(sleep.payload.as_slice())?.duration,
         Some(prost_types::Duration { seconds: 2, nanos: 500_000_000 })
     );
-    let (grants, mut samples) = process.publish("thermal.thermal.cycle.temperature", "execution_a").await?;
+    let (grants, mut samples) = process.publish("thermal.temperature", "execution_a").await?;
     let period = prost_types::Duration { seconds: 1, nanos: 0 };
     let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
     let window = Window {
@@ -266,7 +266,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         capturing_executions: Vec::new(),
     };
     let columns = Process::window(&grants, &mut samples, window).await?;
-    assert_eq!(TemperatureColumns::decode(columns.as_slice())?.celsius, [84.0, 84.0]);
+    assert_eq!(TemperatureColumns::decode(columns.as_slice())?.celsius, [38.25, 49.6875]);
 
     // A Second Window Retains the Same Execution Resource and Continues the Sequence.
     let window = Window {
@@ -277,7 +277,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         capturing_executions: Vec::new(),
     };
     let columns = Process::window(&grants, &mut samples, window).await?;
-    assert_eq!(TemperatureColumns::decode(columns.as_slice())?.celsius, [84.0]);
+    assert_eq!(TemperatureColumns::decode(columns.as_slice())?.celsius, [58.265625]);
     drop(grants);
     assert!(samples.message().await?.is_none());
 
@@ -330,14 +330,14 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let records = criterion.child().await?;
-    assert_eq!(RecordsListRequest::decode(records.payload.as_slice())?.record_type, "thermal.thermal.cycle.door");
+    assert_eq!(RecordsListRequest::decode(records.payload.as_slice())?.record_type, "thermal.door");
     criterion
         .reply(
             records.call,
             RecordsListResponse {
                 count: 1,
                 last: Some(CapturedRecord {
-                    record_type: "thermal.thermal.cycle.door".into(),
+                    record_type: "thermal.door".into(),
                     payload: record.1.payload,
 
                     timestamp: Some(at),

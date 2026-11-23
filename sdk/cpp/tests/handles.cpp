@@ -152,6 +152,7 @@ public:
     value.mutable_summary()->set_case_id(wrong_case ? "wrong" : request->executions(0).case_id());
     value.mutable_admitted_suite()->set_identifier("example.capture");
     value.mutable_admitted_template()->set_identifier("example.capture.confirmation");
+    value.mutable_origin()->mutable_plugin_run()->mutable_test_case()->add_streams("example.samples");
     *response->add_executions() = value;
     return Status::OK;
   }
@@ -215,7 +216,7 @@ public:
     record->set_record_type("example.capture.confirmation.confirmation");
     record->set_message_name(google::protobuf::BoolValue::descriptor()->full_name());
     auto *stream = bindings.add_streams();
-    stream->set_stream("example.capture.confirmation.samples");
+    stream->set_stream("example.samples");
     stream->set_message_name(google::protobuf::BoolValue::descriptor()->full_name());
   }
   Status Get(ServerContext *, const dokime::host::v1::executions::SchemasGetRequest *,
@@ -529,7 +530,7 @@ TEST_CASE("Bound Readers Decode Frozen Types and Retain Evidence Cuts") {
   const auto rows = samples.collect();
   REQUIRE(rows.size() == 2);
   REQUIRE(rows.front().value);
-  REQUIRE(rows.front().stream == "example.capture.confirmation.samples");
+  REQUIRE(rows.front().stream == "example.samples");
   REQUIRE(host.schemas.reads == 1);
   REQUIRE_THROWS_AS(samples.collect(1), std::invalid_argument);
   auto wrong_type = execution.records<string>("example.capture.confirmation.confirmation");

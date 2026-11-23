@@ -14,6 +14,7 @@
 # Standard Library Imports
 import hashlib
 import json
+import shutil
 import tarfile
 from io import BytesIO
 from pathlib import Path
@@ -52,11 +53,19 @@ from .release_downloads_fixtures import SETTINGS
 
 
 class PythonPackagingTests(TestCase):
+    def setUp(self) -> None:
+        # Stage the Product Protocol Sources Where the Resolved Library Build Would, Without Cargo.
+        def stage(root: Path) -> Path:
+            output = root / "target/protocol"
+            shutil.rmtree(output, ignore_errors=True)
+            shutil.copytree(root / "proto/dokime", output / "dokime")
+            return output
+
+        staging = mock.patch.object(wheel, "inputs", side_effect=stage)
+        staging.start()
+        self.addCleanup(staging.stop)
+
     def fixture(self, root: Path) -> Path:
-        (root / "Cargo.toml").write_text('[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "pinned"\n')
-        exported = root / "target/protocol"
-        exported.mkdir(parents=True, exist_ok=True)
-        (exported / ".revision").write_text("https://example.test/library/archive/pinned.tar.gz")
         proto = root / "proto/dokime/host/v1/service.proto"
         proto.parent.mkdir(parents=True, exist_ok=True)
         proto.write_bytes(b'syntax = "proto3";')

@@ -142,7 +142,7 @@ async fn author_soaks_an_oven_without_a_host() -> Result<()> {
     );
 
     // The Sleep Grants One Window of Every Sample Due by Its End, Inside the Step.
-    let samples = report.samples::<Temperature>("oven.oven.soak.temperature")?;
+    let samples = report.samples::<Temperature>("oven.temperature")?;
     let times = samples.iter().map(|sample| (sample.at.seconds, sample.at.nanos)).collect::<Vec<_>>();
     assert_eq!(times, [(0, 500_000_000), (1, 0), (1, 500_000_000), (2, 0)]);
     assert!(samples.iter().all(|sample| sample.step == "oven.oven.soak.soak" && sample.value.celsius == 85.0));
@@ -172,7 +172,7 @@ async fn author_soaks_an_oven_without_a_host() -> Result<()> {
     assert!(!report.passed());
     assert!(report.criteria().is_empty());
     assert_eq!(report.prompts()[0].action, "cancel");
-    assert!(report.samples::<Temperature>("oven.oven.soak.temperature")?.is_empty());
+    assert!(report.samples::<Temperature>("oven.temperature")?.is_empty());
     assert_eq!(report.logs()[0].message, format!("{:?}", Some(Termination::Failed)));
     Ok(())
 }
