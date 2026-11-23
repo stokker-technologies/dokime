@@ -29,6 +29,10 @@ from typing import Any
 
 # === Constants === #
 
+SDKS = {"rust": "Rust", "python": "Python", "csharp": "C#", "cpp": "C++"}
+# CI Validates and Releases Ship Only These SDKs; C# and C++ Stay Buildable by Hand Until Their CI Is Repaired.
+SDK_LANGUAGES = ("rust", "python")
+
 CHECKS: tuple[dict[str, Any], ...] = (
     {
         "platform": "unix",

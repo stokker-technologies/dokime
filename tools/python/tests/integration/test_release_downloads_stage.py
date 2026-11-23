@@ -31,6 +31,7 @@ from unittest import mock
 import dokime_tools.package.definition
 import dokime_tools.package.verification
 from dokime_tools import policy
+from dokime_tools.ci.matrices import SDK_LANGUAGES
 from dokime_tools.docs import site
 from dokime_tools.release import (
     context,
@@ -296,6 +297,32 @@ class StageTests(unittest.TestCase):
                 finally:
                     source.close()
                 self.assertRaises(policy.ToolError, staging._documentation, root, root / context.ASSETS, "v0.2.4", channel, required=True)
+        finally:
+            directory_directory.cleanup()
+
+    def test_project_release_assets_leave_out_unshipped_sdks(self) -> None:
+        directory_directory = tempfile.TemporaryDirectory()
+        try:
+            root = Path(directory_directory.name)
+            (root / "tools").mkdir()
+            project = Path(__file__).resolve().parents[4] / "tools/project.toml"
+            (root / "tools/project.toml").write_text(project.read_text(encoding="utf-8"), encoding="utf-8")
+            settings = policy.policy(root, "release")
+            unshipped = set()
+            for definition in settings["assets"]:
+                path = definition["path"].format(
+                    profile="release", target=definition["target"], product=settings["product"], version="1.2.3"
+                )
+                if "sdk" in definition and definition["sdk"] not in SDK_LANGUAGES:
+                    unshipped.add(path)
+                    continue
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).touch()
+            with mock.patch.object(dokime_tools.package.definition, "packaged", return_value=[]):
+                for target in settings["targets"]:
+                    declared = staging.assets(root, settings, target, "v1.2.3", "release")
+                    self.assertTrue(declared)
+                    self.assertFalse(unshipped & {asset["path"] for asset in declared})
         finally:
             directory_directory.cleanup()
 

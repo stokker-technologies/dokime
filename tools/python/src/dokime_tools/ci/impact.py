@@ -28,7 +28,7 @@ from typing import Any
 
 # Local Imports
 from ..process import spawn_flags
-from .matrices import CHECKS, TESTS
+from .matrices import CHECKS, SDK_LANGUAGES, TESTS
 
 # Type Checking Imports
 
@@ -55,6 +55,8 @@ JOBS = (
 DEVELOPMENT = {"check", "build_product", "build_python", "build_docs"}
 RELEASE = {"release_dry", "release_rehearsal"}
 CLASSES = {"docs", "rust", "rust_tests", "fixtures", "python", "csharp", "cpp", "gui", "package", "all"}
+# Matrix Languages CI Runs; Rows of SDKs Outside SDK_LANGUAGES Are Never Selected.
+LANGUAGES = frozenset({"repository", "typescript", *SDK_LANGUAGES})
 # Consumers Name Every Required Artifact Producer, Including Optional Test Inputs.
 PRODUCERS = {
     "build_tests": {"build_product"},
@@ -153,18 +155,18 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
     complete_event = event in {"release", "nightly", "full"}
     unknown = "all" in classes or not classes or not classes <= CLASSES
     full = unknown or complete_event and (event == "full" or not documentation_only)
-    languages = {"rust", "python", "typescript", "csharp", "cpp"} if full else set()
+    languages = set(LANGUAGES) if full else {"repository"}
     selected: set[str] = set(JOBS) if full else set()
     if "docs" in classes:
         selected.add("build_docs")
     if "rust" in classes:
-        languages.update({"rust", "python", "typescript", "csharp", "cpp"})
+        languages.update(LANGUAGES)
         selected.update(set(JOBS) - RELEASE)
     if "rust_tests" in classes:
         languages.add("rust")
         selected.update({"check", "test", "test_host_csharp"})
     if "fixtures" in classes:
-        languages.update({"rust", "python", "typescript", "csharp", "cpp"})
+        languages.update(LANGUAGES)
         selected.update({"check", "test", "test_host_csharp"})
     if "python" in classes:
         languages.update({"python", "rust"})
@@ -181,8 +183,12 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
     if "package" in classes:
         selected.update({"check", "package"})
 
-    checks = [dict(row) for row in CHECKS if full or row["language"] in languages or row["language"] == "repository"]
-    tests = [dict(row) for row in TESTS if (full or row["language"] in languages) and (event != "nightly" or row.get("nightly", True))]
+    languages &= LANGUAGES
+    checks = [dict(row) for row in CHECKS if row["language"] in languages]
+    tests = [dict(row) for row in TESTS if row["language"] in languages and (event != "nightly" or row.get("nightly", True))]
+    # GitHub Rejects an Empty Matrix, So Changes to Unshipped SDKs Alone Select No Tests.
+    if not tests:
+        selected.discard("test")
     # Matrix Archives Are The Consumer's Artifact Contract.
     if "test" in selected:
         for row in tests:

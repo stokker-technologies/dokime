@@ -24,6 +24,7 @@ from pathlib import Path
 
 # Local Imports
 from ..build import paths
+from ..ci.matrices import SDK_LANGUAGES, SDKS
 from . import archive, execution, lanes, nextest, policy, pytest, report
 
 # Type Checking Imports
@@ -64,7 +65,10 @@ def run(
         if language == "rust":
             binaries = archive.binaries(directory, profile)
             names = sorted(set(binaries.values()))
-            expression, rest = nextest.selection(category, extra, names)
+            # Equivalence Stories of Unshipped SDKs Need Fixtures CI No Longer Builds.
+            unshipped = [f"test({sdk}_plugin_matches_rust_thermal_evidence)" for sdk in SDKS if sdk not in SDK_LANGUAGES]
+            exclusion = ["-E", f"not ({' or '.join(unshipped)})"] if unshipped else []
+            expression, rest = nextest.selection(category, [*extra, *exclusion], names)
             measured = nextest.overrides(rules, category, coverage=True, binaries=binaries)
             configuration = scratch / "nextest.toml"
             store = str(scratch / "store")

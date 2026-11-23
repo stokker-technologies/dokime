@@ -31,6 +31,7 @@ import dokime_tools.package.verification
 
 from .. import policy, temporary
 from ..build import paths, wheel
+from ..ci.matrices import SDK_LANGUAGES
 from ..docs import site
 from ..package.changelog import notes
 from . import context, contracts, layout, notices, reports, sbom
@@ -70,6 +71,8 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
         if not isinstance(signed_only, bool):
             raise policy.ToolError("Stage Release: release.assets.signed_only must be a boolean")
         if definition.get("target") != selected:
+            continue
+        if "sdk" in definition and definition["sdk"] not in SDK_LANGUAGES:
             continue
         if profile not in profiles:
             continue
