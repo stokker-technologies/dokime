@@ -113,7 +113,7 @@ fn main() -> Result<()> {
             ..Default::default()
         }),
         kind: PlotKind::TimeSeries as i32,
-        y: vec![FieldReference::new("thermal.cycle.temperature").field("celsius")],
+        y: vec![FieldReference::new("thermal.thermal.cycle.temperature").field("celsius")],
         unit: "°C".into(),
         ..Default::default()
     };

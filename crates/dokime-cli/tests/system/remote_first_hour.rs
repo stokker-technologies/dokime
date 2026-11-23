@@ -160,14 +160,14 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         assert!(!report.exists());
                         failures.push(error.to_string());
                     } else {
-                        // Read the Retained Report and Compare Its Verified Transfer Bytes
+                        // Read the Sealed Execution's Frozen Report and Compare Its Verified Transfer Bytes
                         let prepared = sdk
                             .reports
                             .get(
                                 ReportSubject {
                                     kind: Some(report_subject::Kind::Execution(execution.into())),
                                 },
-                                "prepared-report/first-hour-report",
+                                "",
                             )
                             .await?;
                         let file = prepared.file.ok_or("Read Report: Missing File Reference")?;
@@ -275,7 +275,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     super::run(&["--endpoint", &endpoint, "execution", "wait", stopped]).await?;
                     let stopped_detail: Value =
                         serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", stopped, "--json"]).await?)?;
-                    assert_eq!(stopped_detail["execution"]["outcome"]["not_evaluated"]["termination"], "TERMINATION_CANCELLED");
+                    assert_eq!(stopped_detail["execution"]["outcome"]["not_evaluated"]["termination"], "TERMINATION_STOPPED");
 
                     // Read a Rendered Report Through the Served Data Operation
                     let report = directory.path().join("completed.html");

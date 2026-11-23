@@ -30,12 +30,13 @@ use std::env::{
     consts::{EXE_SUFFIX, OS},
 };
 use std::error::Error;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::Stdio;
 
 // Third Party Imports
-use dokime_protocol::host::{PluginEntry, PluginState};
-use harmos_protocol::model::{ReadCut, StorageTransferSettings};
+use dokime_protocol::host::{PluginEntry, PluginState, ReportState};
+use harmos_protocol::model::StorageTransferSettings;
 use harmos_runtime::plugin::grpc::Launches;
 use sha2::{Digest, Sha256};
 use tokio::process::Child;
@@ -45,8 +46,8 @@ use tokio::process::Command;
 use dokime::Value;
 use dokime::{FileMetadata, FileReference, Metadata};
 use dokime_client_internal::{
-    Client, ClientSettings, ExecutionsListOptions, PlannedCase, Plugins, PluginsWatchOptions, RegisteredSelection,
-    RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues,
+    Client, ClientSettings, PlannedCase, Plugins, PluginsWatchOptions, RegisteredSelection, RegisteredSelectionParametersEntry,
+    SelectionPlan, SelectionValues,
 };
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
@@ -134,6 +135,20 @@ pub async fn plugin_state(plugins: &Plugins, mut entry: PluginEntry, expected: P
     }
 }
 
+/// Await the Report a Seal Freezes in the Background.
+pub async fn report_frozen(client: &Client, execution: &str) -> Result<(), Box<dyn Error>> {
+    let mut watching = client.executions.watch("", Default::default(), Default::default(), Default::default()).await?;
+    while let Some(frame) = watching.next().await? {
+        if frame.executions.iter().any(|detail| {
+            detail.summary.as_ref().is_some_and(|summary| summary.execution_id == execution)
+                && detail.report.as_ref().is_some_and(|report| report.state == ReportState::Ready as i32)
+        }) {
+            return Ok(());
+        }
+    }
+    Err("Await Frozen Report: Watch Closed Before the Report Was Ready".into())
+}
+
 pub async fn materialize(
     client: &Client, suite: impl Into<String>, template: impl Into<String>, parameters: HashMap<String, Vec<Value>>,
 ) -> Result<Vec<PlannedCase>, Box<dyn Error>> {
@@ -159,7 +174,7 @@ pub async fn materialize(
 }
 
 pub async fn admit(client: &Client, cases: Vec<PlannedCase>) -> Result<Vec<String>, Box<dyn Error>> {
-    // Admit Frozen Origins and Read the Executions at the Admission Receipt
+    // Admit Frozen Origins and Read the Executions the Durable Admission Created
     let origins = cases.into_iter().map(|case| case.origin.ok_or("Admit Story Cases: Missing Frozen Origin")).collect::<Result<_, _>>()?;
     let metadata = Metadata {
         label: "Story Cycle".into(),
@@ -167,12 +182,7 @@ pub async fn admit(client: &Client, cases: Vec<PlannedCase>) -> Result<Vec<Strin
     };
     let admitted = client.cycles.create(origins, metadata, true, String::new()).await?;
     let parent = admitted.cycle.ok_or("Admit Story Cases: Missing Cycle")?.cycle_id;
-    let at = admitted.receipt.and_then(|receipt| receipt.durable_at).map(|position| ReadCut {
-        positions: vec![position],
-        revisions: Vec::new(),
-    });
-    let options = ExecutionsListOptions { at, ..Default::default() };
-    let executions = client.executions.list_with(parent, Default::default(), Default::default(), Default::default(), options).await?;
+    let executions = client.executions.list(parent, Default::default(), Default::default(), Default::default()).await?;
     executions
         .executions
         .into_iter()
@@ -288,7 +298,8 @@ pub fn client_settings() -> ClientSettings {
     let bounds = settings();
     ClientSettings {
         transfer: StorageTransferSettings { chunk_bytes: Some(1024) },
-        retained_bytes: bounds.placement.message_bytes,
+        // Decoded Replies Outgrow Their Wire Bytes, So Retain as Much as the Shipped Clients.
+        retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
         message_bytes: bounds.placement.message_bytes,
         input_items: bounds.placement.stream_window,
         input_bytes: bounds.placement.message_bytes,

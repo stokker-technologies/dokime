@@ -271,6 +271,7 @@ name = "dokime-tools"
 version = "0.0.0"
 source = { editable = "tools/python" }
 dependencies = [
+    { name = "harmos-sdk" },
     { name = "harmos-tools" },
     { name = "packaging" },
 ]
@@ -284,6 +285,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "harmos-sdk", git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=ded8e21b98915d57996488018cae1c574eb4b45a" },
     { name = "harmos-tools", git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=ded8e21b98915d57996488018cae1c574eb4b45a" },
     { name = "packaging", specifier = "==26.3" },
 ]
@@ -386,6 +388,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/9b/71/f52afc810808493da02a0f5cdb1b33039ee760fba36c6f2fc76b12c487c7/grpcio_tools-1.85.1-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:1675e6e7a1a8b8f370c5503a0ee781f3670a81426d1e0d306159b51ba6e89422", size = 3463043, upload-time = "2026-10-30T16:03:32.162Z" },
     { url = "https://files.pythonhosted.org/packages/c4/cc/cdc9fc4a006edaa136bf0c4127dc08cf969bfeffa4290a5902759ed96b75/grpcio_tools-1.85.1-cp315-cp315-win32.whl", hash = "sha256:1d29248ccf8364cc16b5df1d7c9a072853d982efe660a54507adb21954f63f3e", size = 1067472, upload-time = "2026-10-30T16:03:33.744Z" },
     { url = "https://files.pythonhosted.org/packages/51/e2/11615f08007bc6ad10656d04194704fc912d41e5612803020e09afb35495/grpcio_tools-1.85.1-cp315-cp315-win_amd64.whl", hash = "sha256:fc08abe1f4070c9d61a26966b85c8bb036c97b67ffff29ea1bb93a5676724558", size = 1247469, upload-time = "2026-10-30T16:03:35.504Z" },
+]
+
+[[package]]
+name = "harmos-sdk"
+version = "0.1.14"
+source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=ded8e21b98915d57996488018cae1c574eb4b45a#ded8e21b98915d57996488018cae1c574eb4b45a" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "protobuf" },
 ]
 
 [[package]]

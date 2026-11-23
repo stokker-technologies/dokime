@@ -231,6 +231,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             }
             let terminal = terminal.expect("Watch Thermal Progress: Return the Final Sealed Frame");
             assert!(terminal.sealed);
+            super::support::report_frozen(&client, &execution_id).await?;
             let reply = client.executions.get(execution_id.clone()).await?;
             let detail = reply.execution.unwrap();
             assert_eq!(terminal.outcome, detail.outcome);

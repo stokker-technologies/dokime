@@ -21,7 +21,6 @@ use std::error::Error;
 
 // Third Party Imports
 use dokime_protocol::host::{PluginState, plugin_placement};
-use harmos_protocol::model::ReadCut;
 use tokio::time;
 use tonic::Code;
 use tonic::transport::Endpoint;
@@ -34,7 +33,6 @@ use dokime::Metadata;
 use dokime_client_internal::Client;
 use dokime_client_internal::CyclesCreateOptions;
 use dokime_client_internal::ExecutionsGetOptions;
-use dokime_client_internal::ExecutionsListOptions;
 use dokime_client_internal::ExecutionsProgressGetOptions;
 use dokime_client_internal::ExecutionsProgressWatchOptions;
 use dokime_client_internal::ExecutionsSealOptions;
@@ -112,19 +110,7 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             let admitted = Client::from_channel(channel.clone(), super::support::client_settings())?
                 .executions
                 .clone()
-                .list_with(
-                    cycle.cycle.unwrap().cycle_id,
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                    ExecutionsListOptions {
-                        at: Some(ReadCut {
-                            positions: vec![cycle.receipt.unwrap().durable_at.unwrap()],
-                            revisions: Vec::new(),
-                        }),
-                        ..Default::default()
-                    },
-                )
+                .list(cycle.cycle.unwrap().cycle_id, Default::default(), Default::default(), Default::default())
                 .await?;
             let name = admitted.executions[0].summary.as_ref().unwrap().execution_id.clone();
 

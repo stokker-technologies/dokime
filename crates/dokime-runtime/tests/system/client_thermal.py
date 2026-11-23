@@ -75,7 +75,7 @@ async def journey(phase: str, url: str, expected: Path) -> None:
 
         # Read Frozen Rows Using the Product Handles and the Fixture's Row Types.
         records = await execution.records(
-            "thermal.thermal.cycle.door", row_type=Door
+            "thermal.door", row_type=Door
         ).read()
         assert len(records) == 1
         assert (
@@ -83,17 +83,17 @@ async def journey(phase: str, url: str, expected: Path) -> None:
             == Door(closed=True).SerializeToString()
         )
         samples = await execution.samples(
-            "thermal.thermal.cycle.temperature", row_type=Temperature
+            "thermal.temperature", row_type=Temperature
         ).collect()
         assert [sample.timestamp_ns for sample in samples] == [
             1_000_000_000,
             2_000_000_000,
         ]
-        assert all(
-            sample.value.SerializeToString()
-            == Temperature(celsius=84.0).SerializeToString()
-            for sample in samples
-        )
+        # The Example Observer Approaches 84 °C From 23 °C on Each Granted Sample.
+        assert [sample.value.SerializeToString() for sample in samples] == [
+            Temperature(celsius=celsius).SerializeToString()
+            for celsius in (38.25, 49.6875)
+        ]
         retained = {
             "identifier": execution.identifier,
             "cycle": cycle.identifier,
