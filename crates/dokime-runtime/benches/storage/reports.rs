@@ -99,9 +99,9 @@ struct ReportEvent {
 }
 
 #[derive(Clone, PartialEq, Message)]
-struct Reading {
+pub(super) struct Reading {
     #[prost(double, tag = "1")]
-    value: f64,
+    pub(super) value: f64,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -625,7 +625,7 @@ async fn seal(root: &Path) {
     store.shutdown_samples().await.unwrap();
 }
 
-fn sample(stream: &str, index: usize, source_ns: i64, row: Vec<u8>) -> Sample {
+pub(super) fn sample(stream: &str, index: usize, source_ns: i64, row: Vec<u8>) -> Sample {
     Sample {
         sequence: index as u64,
         source_ns,
@@ -636,7 +636,7 @@ fn sample(stream: &str, index: usize, source_ns: i64, row: Vec<u8>) -> Sample {
     }
 }
 
-fn execution(streams: &[String], document: Document) -> Execution {
+pub(super) fn execution(streams: &[String], document: Document) -> Execution {
     let message = |name: &str, fields: &[(&str, Type)]| DescriptorProto {
         name: Some(name.into()),
         field: fields

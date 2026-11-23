@@ -779,6 +779,7 @@ fn main() {
     group.finish();
     reports::benchmark(&mut criterion, &executor, &report_times);
     live::benchmark(&mut criterion, &executor, &report_times);
+    live::ingestion(&mut criterion);
     publication::benchmark(&mut criterion, &executor);
     windows::benchmark(&mut criterion, &executor);
     criterion.final_summary();

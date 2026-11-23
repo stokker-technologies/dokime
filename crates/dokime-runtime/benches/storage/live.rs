@@ -17,12 +17,13 @@
 
 // Standard Library Imports
 use std::{
-    env,
+    env, thread,
     time::{Duration, Instant},
 };
 
 // Third Party Imports
-use criterion::{Criterion, SamplingMode};
+use criterion::{Criterion, SamplingMode, Throughput};
+use prost::Message;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
@@ -33,7 +34,7 @@ use dokime_operations::host::documents::plot;
 use dokime_operations::host::plots::snapshots::list;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::plots::PlotRequest;
-use dokime_protocol::model::{EvidenceScope, PlotKind, Termination, card::Body};
+use dokime_protocol::model::{Document, EvidenceScope, Termination, card::Body};
 use dokime_runtime::services;
 use dokime_storage::{StorageSettings, Store, storage_defaults};
 
@@ -49,6 +50,10 @@ const PENDING_SECONDS: usize = 2;
 const WINDOW_S: f64 = 300.0;
 /// The Desktop's Default Point Budget.
 const POINTS: u64 = 2000;
+/// Streams at 1 kHz Saved Together by One Flush.
+const STREAMS: usize = 128;
+/// Paced Pages Whose Start Times Give the Live Cadence.
+const PAGES: usize = 8;
 
 /* === Macros === */
 
@@ -78,12 +83,7 @@ impl Live {
             ..storage_defaults()
         };
         let store = Store::open_with(root.path(), settings).unwrap();
-        // A Report Over Every Scan Exceeds the Heat Strip's Cell Budget, So the Sealed Document Omits It.
-        let mut document = reports::document();
-        for section in &mut document.sections {
-            section.cards.retain(|card| !matches!(&card.body, Some(Body::Plot(plot)) if plot.kind == PlotKind::HeatStrip as i32));
-        }
-        reports::open(&store, document);
+        reports::open(&store, reports::document());
         Self { store, seconds: 0, root }
     }
 
@@ -132,6 +132,28 @@ impl Live {
         services::remove_credentials(delivery.root.path(), &publication::credentials()).unwrap();
     }
 
+    /// Page Starts of Watch-Paced Refreshes With Rows Always Pending: Each Starts Once the Configured Interval Since
+    /// the Previous Start Has Passed, or at Once After a Slower Page.
+    fn cadence(&mut self, executor: &Runtime, requests: &[PlotRequest], case: &str) {
+        let interval = storage_defaults().previews.refresh_interval;
+        let origin = Instant::now();
+        let mut starts = Vec::new();
+        for _ in 0..PAGES {
+            let started = Instant::now();
+            starts.push(started - origin);
+            self.refresh(executor, requests);
+            thread::sleep((started + interval).saturating_duration_since(Instant::now()));
+        }
+        let gaps = starts.windows(2).map(|pair| (pair[1] - pair[0]).as_secs_f64() * 1000.0).collect::<Vec<_>>();
+        println!(
+            "Live Cadence | {case} | mean={:.1} ms | min={:.1} ms | max={:.1} ms | interval={} ms",
+            gaps.iter().sum::<f64>() / gaps.len() as f64,
+            gaps.iter().copied().fold(f64::INFINITY, f64::min),
+            gaps.iter().copied().fold(0.0, f64::max),
+            interval.as_millis()
+        );
+    }
+
     fn refresh(&self, executor: &Runtime, requests: &[PlotRequest]) -> Duration {
         let message_bytes = publication::settings().placement.message_bytes.get();
         let started = Instant::now();
@@ -154,7 +176,7 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &r
         for (case, window_s) in [("window", Some(WINDOW_S)), ("all", None)] {
             boundary(
                 &format!("Live Plot Refresh, {minutes} min ({case})"),
-                "open execution: three 1 kHz telemetry streams, eight 10 Hz status streams, Wi-Fi scans and records saved every 5 s with 2 s pending; one Snapshots.List of the document's 15 plots at the desktop's point budget over a 300 s window, or its 14 plots other than the heat strip over all samples; 5 s more capture before each refresh, excluded",
+                "open execution: three 1 kHz telemetry streams, eight 10 Hz status streams, Wi-Fi scans and records saved every 5 s with 2 s pending; one Snapshots.List of the document's 15 plots at the desktop's point budget over a 300 s window or all samples; 5 s more capture before each refresh, excluded",
             );
             group.bench_function(format!("{case}/{minutes}min"), |b| {
                 let live = live.get_or_insert_with(Live::new);
@@ -170,6 +192,9 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &r
                     }
                     report(elapsed, iterations)
                 });
+                if minutes > 1 {
+                    live.cadence(executor, &requests, &format!("{case}, {minutes} min"));
+                }
             });
         }
     }
@@ -180,6 +205,52 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &r
         );
         executor.block_on(live.freeze(times));
     }
+    group.finish();
+}
+
+/// Flush One Second of 128 Streams at 1 kHz, the Throughput Target, With Every Field's Statistics.
+pub(super) fn ingestion(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("storage/flush");
+    group.sample_size(10);
+    group.sampling_mode(SamplingMode::Flat);
+    group.throughput(Throughput::Elements((STREAMS * 1000) as u64));
+    boundary(
+        "Flush 128 Streams at 1 kHz",
+        "one flush_samples of one second of 128 one-field streams at 1 kHz admitted without a flush; previews and statistics advanced; durable; admission excluded",
+    );
+    group.bench_function("128_streams_1khz", |b| {
+        let root = tempfile::tempdir().unwrap();
+        let settings = StorageSettings {
+            flush_interval: Duration::from_secs(86_400),
+            ..storage_defaults()
+        };
+        let store = Store::open_with(root.path(), settings).unwrap();
+        let streams = (0..STREAMS).map(|index| format!("telemetry.{index}")).collect::<Vec<_>>();
+        store.create(&reports::execution(&streams, Document::default())).unwrap();
+        store.open_streams("execution", &streams).unwrap();
+        let mut second = 0;
+        b.iter_custom(|iterations| {
+            let mut elapsed = Duration::ZERO;
+            for _ in 0..iterations {
+                for stream in &streams {
+                    let batch = (second * 1000..(second + 1) * 1000)
+                        .map(|index| {
+                            let value = reports::Reading {
+                                value: 10.0 * (index as f64 * 0.01).sin(),
+                            };
+                            reports::sample(stream, index, index as i64 * 1_000_000, value.encode_to_vec())
+                        })
+                        .collect::<Vec<_>>();
+                    store.sample_batch("execution", &batch).unwrap();
+                }
+                second += 1;
+                let started = Instant::now();
+                store.flush_samples().unwrap();
+                elapsed += started.elapsed();
+            }
+            report(elapsed, iterations)
+        });
+    });
     group.finish();
 }
 
@@ -197,8 +268,7 @@ fn requests(window_s: Option<f64>) -> Vec<PlotRequest> {
         .iter()
         .flat_map(|section| &section.cards)
         .filter_map(|card| match &card.body {
-            // A Heat Strip of Every Scan Exceeds Its Cell Budget Within Minutes, So Only Its Window Is Plotted.
-            Some(Body::Plot(declared)) if window_s.is_some() || declared.kind != PlotKind::HeatStrip as i32 => Some(PlotRequest {
+            Some(Body::Plot(declared)) => Some(PlotRequest {
                 plot_id: card.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
                 max_points: Some(POINTS),
                 window_s,
