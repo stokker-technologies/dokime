@@ -18,29 +18,31 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react-query";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { QueryClient, notifyManager } from "@tanstack/svelte-query";
+import { act, render } from "@testing-library/svelte";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { invalidateRuntimeDocuments, useScopedDocumentQuery } from "@/features/cycle/server-state";
+import type { ConnectedSession } from "@/app/native-session/session";
+import type { createScopedDocumentQuery } from "@/features/cycle/document-query.svelte";
+import { invalidateRuntimeDocuments } from "@/features/cycle/server-state";
 import { documentCard, documentView } from "@/lib/document-presentation";
 import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
+import DocumentQueryProbe from "./DocumentQueryProbe.svelte";
 
 /* === Re-Exports === */
 
 /* === Constants === */
 
 const backend = vi.hoisted(() => ({ fetch: vi.fn() }));
-vi.mock("@/app/native-session/context", () => {
-  const session = {
-    identity: { generation: 19, isCurrent: () => true },
+function connection(queryClient: QueryClient): ConnectedSession {
+  return {
+    identity: { generation: "19", isCurrent: () => true },
     own: () => () => {},
     snapshot: { connection: { backend: { epoch: "fixture.epoch" } } },
-  };
-  return { useNativeSession: () => session, useNativeSessionOptional: () => session };
-});
+    queryClient,
+  } as unknown as ConnectedSession;
+}
 vi.mock("@/lib/api/native-document-session", () => ({
   fetchNativeDocument: (...args: unknown[]) => backend.fetch(...args),
 }));
@@ -91,18 +93,15 @@ function structure() {
 
 // A Refresh Reaches The Fast Card While The Slow Card Keeps Its Original Request.
 test("Card Queries Refresh Independently", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   notifyManager.setScheduler(queueMicrotask);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const element = document.createElement("div");
-  const root = createRoot(element);
   const slow = deferred<{ card: DocumentViewCard }>();
   const slowStarted = deferred<void>();
   const fastRefreshed = deferred<void>();
   let fastReads = 0;
   let slowReads = 0;
   let cancelled = 0;
-  let latest: ReturnType<typeof useScopedDocumentQuery> | undefined;
+  let latest: ReturnType<typeof createScopedDocumentQuery> | undefined;
   backend.fetch.mockImplementation(async (_session, request, signal, _previous, publish) => {
     const input = request as { structureOnly?: boolean; cardIds?: string[] };
     if (input.structureOnly) {
@@ -136,19 +135,23 @@ test("Card Queries Refresh Independently", async () => {
       };
     }
     fastReads++;
-    if (fastReads > 1) {
-      fastRefreshed.resolve();
-    }
     return { card: card("fast", fastReads) };
   });
-  function Probe() {
-    latest = useScopedDocumentQuery({ cycleId: "fixture.cycle", executionId: "fixture.execution" }, true);
-    return null;
-  }
+  const view = render(DocumentQueryProbe, {
+    session: connection(client),
+    cycleId: "fixture.cycle",
+    executionId: "fixture.execution",
+    ready: (query) => {
+      latest = query;
+    },
+    onDocument: (document) => {
+      const fast = document?.cards.find((item) => item.card_id === "fast");
+      if (fast?.rows[0]?.cells.value === "2") {
+        fastRefreshed.resolve();
+      }
+    },
+  });
   try {
-    await act(async () => {
-      root.render(createElement(QueryClientProvider, { client }, createElement(Probe)));
-    });
     await act(async () => {
       await slowStarted.promise;
     });
@@ -174,26 +177,23 @@ test("Card Queries Refresh Independently", async () => {
     assert.equal(values().get("fast")?.rows[0]?.cells.value, "2");
     assert.equal(values().get("large")?.failure?.reason, "materialized_bytes");
   } finally {
-    await act(async () => root.unmount());
+    view.unmount();
     client.clear();
     notifyManager.setScheduler((callback) => {
       setTimeout(callback, 0);
     });
     backend.fetch.mockReset();
-    vi.unstubAllGlobals();
   }
 });
 
 test("Repeat Pages Query Their Own Cards and Return to Live", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   notifyManager.setScheduler(queueMicrotask);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const root = createRoot(document.createElement("div"));
   const first = deferred<void>();
   const second = deferred<void>();
   const requests: { id: string; page?: string }[] = [];
   let refreshed: ReturnType<typeof deferred<void>> | undefined;
-  let latest: ReturnType<typeof useScopedDocumentQuery> | undefined;
+  let latest: ReturnType<typeof createScopedDocumentQuery> | undefined;
   backend.fetch.mockImplementation(async (_session, input, _signal, _previous, publish) => {
     const request = input as { structureOnly?: boolean; cardIds?: string[]; page?: string };
     const later = request.page === "fixture.second";
@@ -216,12 +216,15 @@ test("Repeat Pages Query Their Own Cards and Return to Live", async () => {
     refreshed?.resolve();
     return { card: card(id, requests.length) };
   });
-  function Probe() {
-    latest = useScopedDocumentQuery({ cycleId: "fixture.paging", executionId: "fixture.execution" }, true);
-    return null;
-  }
+  const view = render(DocumentQueryProbe, {
+    session: connection(client),
+    cycleId: "fixture.paging",
+    executionId: "fixture.execution",
+    ready: (query) => {
+      latest = query;
+    },
+  });
   try {
-    await act(async () => root.render(createElement(QueryClientProvider, { client }, createElement(Probe))));
     await act(async () => first.promise);
     await act(async () => latest?.navigation.next());
     await act(async () => second.promise);
@@ -246,11 +249,10 @@ test("Repeat Pages Query Their Own Cards and Return to Live", async () => {
     assert.equal(requests.at(-1)?.page, "fixture.first");
     assert.equal(latest?.navigation.fixed, false);
   } finally {
-    await act(async () => root.unmount());
+    view.unmount();
     client.clear();
     notifyManager.setScheduler((callback) => setTimeout(callback, 0));
     backend.fetch.mockReset();
-    vi.unstubAllGlobals();
   }
 });
 

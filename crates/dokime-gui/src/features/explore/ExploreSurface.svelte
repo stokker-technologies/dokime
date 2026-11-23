@@ -14,14 +14,13 @@
 </script>
 
 <script lang="ts">
-  import { createMutation, createQuery } from "@tanstack/svelte-query";
+  import { createMutation } from "@tanstack/svelte-query";
   import ErrorCard from "../../components/ErrorCard.svelte";
   import { setNativeCycleArchived, setNativeExecutionArchived } from "../../lib/api/native-execution";
   import { failureOf } from "../../lib/notification-details";
   import { toast } from "../../lib/notifications";
   import { exploreEntryKey, type ExploreEntry } from "./explore-contracts";
-  import { groupExecutions } from "./explore-data-source";
-  import { exploreQueryKeys, historyCycleOptions, historyExecutionOptions } from "./explore-queries";
+  import { createHistoryQuery, exploreQueryKeys } from "./explore-queries";
   import HistoryComparisonView from "./HistoryComparisonView.svelte";
   import HistoryLibrary from "./HistoryLibrary.svelte";
 
@@ -29,15 +28,15 @@
   let archived = $state(false);
   const archive = $derived(archived ? "Archived" : "Unarchived");
   const client = () => session.queryClient;
-  const executionQuery = createQuery(() => historyExecutionOptions(session.identity, archive), client);
-  const cycleQuery = createQuery(() => historyCycleOptions(session.identity, archive), client);
-  const cycles = $derived(groupExecutions(executionQuery.data ?? [], cycleQuery.data ?? []));
-  const selected = $derived(cycles.filter((cycle) => selectedIds.has(exploreEntryKey(cycle.target))));
-  const coverage = $derived(executionQuery.data?.at(-1));
-  const loading = $derived(executionQuery.isPending || cycleQuery.isPending);
-  const failure = $derived(
-    executionQuery.isError || cycleQuery.isError ? failureOf(executionQuery.error ?? cycleQuery.error, "Cycles Unavailable") : undefined,
+  const query = createHistoryQuery(
+    () => session,
+    () => archive,
   );
+  const cycles = $derived(query.data);
+  const selected = $derived(cycles.filter((cycle) => selectedIds.has(exploreEntryKey(cycle.target))));
+  const coverage = $derived(query.coverage);
+  const loading = $derived(query.isPending);
+  const failure = $derived(query.isError ? failureOf(query.error, "Cycles Unavailable") : undefined);
   const reasons = $derived.by(() => {
     if (!coverage) {
       return [];

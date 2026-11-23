@@ -5,7 +5,7 @@
   import { cn } from "../../lib/utils";
   import { buttonVariants } from "./button-variants";
 
-  let { children, class: style, ...attributes }: DialogContentProps = $props();
+  let { children, class: style, showCloseButton = true, ...attributes }: DialogContentProps & { showCloseButton?: boolean } = $props();
 </script>
 
 <Dialog.Portal>
@@ -22,12 +22,14 @@
     {...attributes}
   >
     {@render children?.()}
-    <Dialog.Close
-      data-slot="dialog-close"
-      class={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "absolute top-2 right-2")}
-      aria-label="Close"
-    >
-      <XIcon />
-    </Dialog.Close>
+    {#if showCloseButton}
+      <Dialog.Close
+        data-slot="dialog-close"
+        class={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "absolute top-2 right-2")}
+        aria-label="Close"
+      >
+        <XIcon />
+      </Dialog.Close>
+    {/if}
   </Dialog.Content>
 </Dialog.Portal>

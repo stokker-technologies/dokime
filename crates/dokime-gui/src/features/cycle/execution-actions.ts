@@ -9,7 +9,7 @@
 
 /* The execution page's Control card and the lifecycle actions it offers.
  *
- * `useExecutionActions` decides once, from the runtime's own statement of the
+ * `executionActions` decides once, from the runtime's own statement of the
  * execution (`executionControlState`), what the card says and which actions
  * it offers; the card and the page bar's primary action both read that one
  * decision, so they never disagree. The host admits Start for an unstarted
@@ -20,13 +20,13 @@
  * only while live: a file has nothing to command.
  */
 
-import { useExecutionProgress } from "@/app/live/use-execution-progress";
+import type { LiveExecutionProgress } from "@/app/live/execution-progress";
 import { failureOf } from "@/lib/notification-details";
 import { toast } from "@/lib/notifications";
 import type { PromptRequest, TestExecution } from "@/lib/types";
 import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
-import { useCycleCommands, useRerunCase } from "./cycle-queries";
-import { type CycleExecutionRow, caseActionTooltip, isUnstartedExecution } from "./cycle-workspace-model";
+import type { createCycleCommands } from "./cycle-queries";
+import { type CycleExecutionRow, caseActionTooltip } from "./cycle-workspace-model";
 
 const REPORTS: Record<ExecutionAction, { done: string; failed: string }> = {
   Cancel: { done: "Execution Cancelled", failed: "Execution Could Not Be Cancelled" },
@@ -47,28 +47,21 @@ export type ExecutionActions = {
   refusal?: string;
 };
 
-/** The one decision both the Control card and the page bar read. */
-export function useExecutionActions({
-  cycleActive,
-  cycleId,
-  execution,
-  onSelectExecution,
-  prompts,
-  pluginAvailable,
-  row,
-}: {
+type ExecutionActionInput = {
   cycleActive: boolean;
-  cycleId: string;
-  /** `null` in a file, or for a case that never ran: nothing to command. */
   execution: TestExecution | null;
   onSelectExecution: (executionId: string) => void;
   prompts: readonly PromptRequest[];
   pluginAvailable?: boolean;
   row: CycleExecutionRow;
-}): ExecutionActions | null {
-  const commands = useCycleCommands(cycleId);
-  const rerunCase = useRerunCase(cycleId);
-  const live = useExecutionProgress(execution && !isUnstartedExecution(execution.status) ? execution.test_execution_id : null);
+};
+
+/** One Action Policy For the Control Card and the Page Bar. */
+export function executionActions(
+  { cycleActive, execution, onSelectExecution, prompts, pluginAvailable, row }: ExecutionActionInput,
+  commands: ReturnType<typeof createCycleCommands>,
+  live: LiveExecutionProgress | null,
+): ExecutionActions | null {
   if (!execution) {
     return null;
   }
@@ -103,9 +96,9 @@ export function useExecutionActions({
         return { pending: commands.stopExecution.isPending, run: () => commands.stopExecution.mutateAsync(id) };
       case "Re-Run":
         return {
-          pending: rerunCase.pending,
+          pending: commands.appendAttempt.isPending,
           run: async () => {
-            const created = await rerunCase.rerun(execution.case_id);
+            const created = await commands.appendAttempt.mutateAsync(execution.case_id);
             if (created) {
               onSelectExecution(created);
             }

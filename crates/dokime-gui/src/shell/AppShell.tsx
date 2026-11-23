@@ -92,6 +92,7 @@ function DesktopPanelHeader() {
   const router = useRouter();
   return (
     <PanelHeader
+      focused={focused}
       title={presentation.heading ? chrome.title : ""}
       actions={presentation.actions ? chrome.actions : null}
       overflow={chrome.overflow}

@@ -1,7 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { ArchiveScope, ExecutionOrderKey } from "@generated/host/model";
-import { useQuery } from "@tanstack/react-query";
-import { useNativeSession } from "@/app/native-session/context";
+import { createQuery } from "@tanstack/svelte-query";
+import type { ConnectedSession } from "@/app/native-session/session";
 import { fetchNativeCyclePage, type NativeCycleContinuation, type NativeExecutionSelection } from "@/lib/api/native-checkpoints";
 import { NATIVE_MAX_PAGES, NativeApiLimitError } from "@/lib/api/native-values";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -68,15 +68,26 @@ export function historyCycleOptions(identity: SessionIdentity, archive: HistoryA
   };
 }
 
-export function useExploreHistoryQuery(archive: HistoryArchiveView) {
-  const { identity } = useNativeSession();
-  const executions = useQuery(historyExecutionOptions(identity, archive));
-  const cycles = useQuery(historyCycleOptions(identity, archive));
+export function createHistoryQuery(session: () => ConnectedSession, archive: () => HistoryArchiveView) {
+  const client = () => session().queryClient;
+  const executions = createQuery(() => historyExecutionOptions(session().identity, archive()), client);
+  const cycles = createQuery(() => historyCycleOptions(session().identity, archive()), client);
+
   return {
-    data: executions.data || cycles.data ? groupExecutions(executions.data ?? [], cycles.data ?? []) : undefined,
-    isPending: executions.isPending || cycles.isPending,
-    isError: executions.isError || cycles.isError,
-    error: executions.error ?? cycles.error,
-    coverage: executions.data?.at(-1),
+    get data() {
+      return groupExecutions(executions.data ?? [], cycles.data ?? []);
+    },
+    get isPending() {
+      return executions.isPending || cycles.isPending;
+    },
+    get isError() {
+      return executions.isError || cycles.isError;
+    },
+    get error() {
+      return executions.error ?? cycles.error;
+    },
+    get coverage() {
+      return executions.data?.at(-1);
+    },
   };
 }

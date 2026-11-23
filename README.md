@@ -39,11 +39,11 @@ operator questions, retries, cancellation, cleanup and report publication.
 
 The native desktop is back in the Cargo workspace and uses the execution host.
 Its product includes native installers and self-contained HTML reports.
-The desktop and report build entries live in `crates/dokime-gui` and share Svelte components for document layout and evidence, including plots, tables, media, artifacts, and traceability. The desktop opens live plot streams and submits operator notes from Svelte.
+The desktop and report build entries live in `crates/dokime-gui` and share Svelte components for document layout and evidence, including plots, tables, media, artifacts, and traceability. The desktop cycle workspace uses Svelte for lifecycle controls, live document reads, plot streams, and operator notes.
 Captured document tables show all rows. The connected desktop provides plot settings and live viewport measurements.
 The Svelte report entry renders captured data locally and can open without a backend connection.
 
-The desktop uses plain Svelte tables for cycle lists, saved backends, and history comparisons. The lists keep their sort controls and display all loaded rows.
+The desktop uses plain Svelte tables for cycles, backends, history, templates, plugins, secrets, and storage sources. History follows backend continuations and displays all loaded rows in one table.
 See [GUI Guidance](docs/guides/gui.md) for host connections and controls.
 
 #### Examples

@@ -12,7 +12,8 @@
   import Badge from "../components/ui/Badge.svelte";
   import Button from "../components/ui/Button.svelte";
   import { buttonVariants } from "../components/ui/button-variants";
-  import { STATUS_PILL_CLASS } from "../features/cycle/cycle-workspace-model";
+  import CycleSidebarCases from "../features/cycle/CycleSidebarCases.svelte";
+  import { type CycleSelection, STATUS_PILL_CLASS } from "../features/cycle/cycle-workspace-model";
   import { highestPromptLevel, pendingPromptCountLabel } from "../features/cycle/prompt-banner-model";
   import { cycleRows } from "../features/cycles-home/cycles-model";
   import { cyclesQueryOptions, pendingPromptsQueryOptions } from "../features/cycles-home/cycles-query-options";
@@ -31,13 +32,16 @@
     sidebar: SidebarState;
     pathname: string;
     cycleId: string | null;
-    cycleCases?: Snippet;
+    selection: CycleSelection;
+    selectCycleMember: (cycleId: string, next: CycleSelection) => void;
+    addCases: (cycleId: string) => void;
     navigate: (destination: ShellDestination) => void;
     openCycle: (cycleId: string) => void;
     openSettings: (section: string) => void;
   };
 
-  let { brand, session, sidebar, pathname, cycleId, cycleCases, navigate, openCycle, openSettings }: Props = $props();
+  let { brand, session, sidebar, pathname, cycleId, selection, selectCycleMember, addCases, navigate, openCycle, openSettings }: Props =
+    $props();
   const destinations: readonly { to: ShellDestination; label: string; icon: typeof Bell }[] = [
     { icon: ListChecks, label: "Cycles", to: "/cycles" },
     { icon: Library, label: "Library", to: "/library" },
@@ -202,7 +206,13 @@
         >
           {#each listedCycles as cycle (cycle.cycleId)}
             {#if cycle.current}
-              {@render cycleCases?.()}
+              <CycleSidebarCases
+                {session}
+                {selection}
+                cycleId={cycle.cycleId}
+                select={(next) => selectCycleMember(cycle.cycleId, next)}
+                addCases={() => addCases(cycle.cycleId)}
+              />
             {:else}
               {@render row(cycle.label, "overview", false, () => {
                 drawer = false;

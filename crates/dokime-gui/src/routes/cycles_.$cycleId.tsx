@@ -10,14 +10,19 @@
 /* === External Imports === */
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { useCallback, useContext } from "react";
 import { z } from "zod";
 
 /* === Local Imports === */
 
-import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
+import { useNativeSession } from "@/app/native-session/context";
+import { SvelteMount } from "@/components/SvelteMount";
+import { TraceabilitySaveContext } from "@/components/traceability/TraceabilityJsonDialog";
+import CycleWorkspace from "@/features/cycle/CycleWorkspace.svelte";
+import { useReportDefaults } from "@/lib/application-settings";
+import { usePlotPalette } from "@/plots/use-plot-palette";
 import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
-import { focusSearchSchema } from "@/shell/focus-mode";
+import { focusSearchSchema, useFocusMode } from "@/shell/focus-mode";
 
 /* === Constants === */
 
@@ -54,6 +59,11 @@ function CycleWorkspaceRoute() {
   const { cycleId } = Route.useParams();
   const { caseId, executionId, focus, view } = Route.useSearch();
   const navigate = useNavigate();
+  const focusMode = useFocusMode();
+  const session = useNativeSession();
+  const plotPalette = usePlotPalette();
+  const reportDefaults = useReportDefaults();
+  const traceabilitySave = useContext(TraceabilitySaveContext);
 
   const selectionChanged = useCallback(
     (next: CycleSelection) => {
@@ -68,13 +78,18 @@ function CycleWorkspaceRoute() {
   );
 
   return (
-    <CycleWorkspace
-      caseId={caseId}
-      cycleId={cycleId}
-      executionId={executionId}
+    <SvelteMount
       key={cycleId}
-      view={view}
-      onSelectionChange={selectionChanged}
+      component={CycleWorkspace}
+      props={{
+        cycleId,
+        context: { session, plotPalette, reportDefaults, traceabilitySave },
+        focus: focusMode,
+        selection: { caseId, executionId, view },
+        onSelectionChange: selectionChanged,
+        openCycle: (id) => void navigate({ to: "/cycles/$cycleId", params: { cycleId: id } }),
+        addCases: (id) => void navigate({ to: "/library", search: { appendTo: id } }),
+      }}
     />
   );
 }

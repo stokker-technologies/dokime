@@ -31,10 +31,6 @@ function HistoryExecutionDetailRoute() {
   const search = Route.useSearch();
   const navigate = useNavigate();
 
-  const back = useCallback(() => {
-    void navigate({ search: searchFromSelectedIds(selectedIdsFromSearch(search)), to: "/history" });
-  }, [navigate, search]);
-
   const openCycle = useCallback(
     (cycleId: string) => {
       void navigate({
@@ -46,5 +42,5 @@ function HistoryExecutionDetailRoute() {
     [navigate, search],
   );
 
-  return <HistoryDetailSurface key={executionId} onBack={back} onOpenCycle={openCycle} target={{ id: executionId, kind: "execution" }} />;
+  return <HistoryDetailSurface key={executionId} onOpenCycle={openCycle} target={{ id: executionId, kind: "execution" }} />;
 }

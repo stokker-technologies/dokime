@@ -20,6 +20,7 @@ import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state
 import { appendNativeTestCycle, previewNativeTestCycle } from "@/lib/api/native-planning";
 import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 import { fetchNativeSuites } from "../../lib/host/suite-session";
+import type { SessionIdentity } from "../../lib/rpc/transport";
 
 /* === Query Keys === */
 
@@ -32,10 +33,14 @@ export const suiteQueryKeys = {
 
 export function useTestSuitesQuery() {
   const session = useNativeSession();
-  return useQuery({
-    queryFn: () => fetchNativeSuites(session.identity),
-    queryKey: [...suiteQueryKeys.suites(), session.identity.generation],
-  });
+  return useQuery(testSuitesQueryOptions(session.identity));
+}
+
+export function testSuitesQueryOptions(identity: SessionIdentity) {
+  return {
+    queryFn: () => fetchNativeSuites(identity),
+    queryKey: [...suiteQueryKeys.suites(), identity.generation],
+  };
 }
 
 export function usePreviewTestCycleMutation() {

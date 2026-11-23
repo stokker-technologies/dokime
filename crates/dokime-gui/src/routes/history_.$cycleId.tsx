@@ -31,10 +31,6 @@ function HistoryCycleDetailRoute() {
   const search = Route.useSearch();
   const navigate = useNavigate();
 
-  const back = useCallback(() => {
-    void navigate({ search: searchFromSelectedIds(selectedIdsFromSearch(search)), to: "/history" });
-  }, [navigate, search]);
-
   const openCycle = useCallback(
     (cycleId: string) => {
       void navigate({
@@ -46,5 +42,5 @@ function HistoryCycleDetailRoute() {
     [navigate, search],
   );
 
-  return <HistoryDetailSurface key={cycleId} onBack={back} onOpenCycle={openCycle} target={{ id: cycleId, kind: "cycle" }} />;
+  return <HistoryDetailSurface key={cycleId} onOpenCycle={openCycle} target={{ id: cycleId, kind: "cycle" }} />;
 }

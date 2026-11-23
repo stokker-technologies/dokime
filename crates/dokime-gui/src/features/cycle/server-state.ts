@@ -11,8 +11,8 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
-import { useQueries, useQuery, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 
 /* === Local Imports === */
 
@@ -20,7 +20,7 @@ import { createRuntimeProjectionRefreshCoordinator, type RuntimeProjectionRefres
 import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
 import { fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
 import { fetchNativeExecutionFiles } from "@/lib/api/native-content";
-import { mapNativeDocument, mapNativeDocumentCard, nativeDocumentCardKey, type CompletedDocument } from "@/lib/api/native-documents";
+import { mapNativeDocument } from "@/lib/api/native-documents";
 import {
   RECORD_TAIL,
   appendRecordTail,
@@ -29,17 +29,10 @@ import {
   type NativeEvidenceSession,
   type RecordTail,
 } from "@/lib/api/native-evidence";
-import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
-import { failureOf } from "@/lib/notification-details";
 import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
-import {
-  fetchNativeDocument,
-  type NativeDocumentCapture,
-  type NativeDocumentRequest,
-  type NativeDocumentSession,
-} from "../../lib/api/native-document-session";
-import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "@/features/cycle/document-query-model";
+import type { NativeDocumentCapture } from "../../lib/api/native-document-session";
+import { mergeDocumentProgress } from "@/features/cycle/document-query-model";
 import { workflowQueryKeys } from "./workflow-query-keys";
 
 /* === Constants === */
@@ -50,13 +43,13 @@ const GUI_RECONNECT_MS = 1_000;
 
 /* === Types === */
 
-type RootDocument = {
+export type RootDocument = {
   completed?: NativeDocumentCapture;
   current: NativeDocumentCapture;
   mapped: DocumentViewPayload;
 };
 
-type CardRead = { document: NativeDocumentCapture; card: DocumentViewCard };
+export type CardRead = { document: NativeDocumentCapture; card: DocumentViewCard };
 
 /* === Private Functions === */
 
@@ -145,15 +138,6 @@ export function useTraceabilityQuery(enabled: boolean, scope: Wire<EvidenceScope
   });
 }
 
-export function useExecutionDetailQuery(executionId: string | null, enabled: boolean) {
-  const session = useNativeSessionOptional();
-  return useQuery({
-    enabled: Boolean(executionId) && enabled && session !== null,
-    queryFn: () => fetchNativeTestExecutionDetail(identityOf(session), executionId ?? ""),
-    queryKey: [...workflowQueryKeys.executionDetail(executionId), generationOf(session)],
-  });
-}
-
 export function useExecutionFilesQuery(executionId: string | null, enabled: boolean) {
   const session = useNativeSessionOptional();
   // Runtime Changes Refresh Files Alongside Documents Through The Shared Throttle.
@@ -163,54 +147,6 @@ export function useExecutionFilesQuery(executionId: string | null, enabled: bool
     queryKey: [...workflowQueryKeys.executionFiles(executionId), generationOf(session)],
     staleTime: Infinity,
   });
-}
-
-/** Read the host-composed document for a cycle or one of its executions. */
-export function useScopedDocumentQuery({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }, enabled: boolean) {
-  const queryClient = useQueryClient();
-  const session = useNativeSessionOptional();
-  const cardKey = [...workflowQueryKeys.executionDocument({ cycleId, executionId }), generationOf(session)];
-  const navigation = useDocumentNavigation(JSON.stringify(cardKey));
-  const captureKey = [...cardKey, "pages", navigation.token ?? ""];
-  const request = {
-    cycleId: cycleId ?? "",
-    executionId: executionId ?? "",
-    documentId: "default",
-    epoch: session ? nativeEpoch(session) : "",
-  };
-  const query = useQuery({
-    enabled: Boolean(cycleId) && enabled && session !== null,
-    queryFn: ({ queryKey, signal }) =>
-      capturedDocument(queryClient, queryKey, (previous, publish) =>
-        fetchNativeDocument(
-          nativeDocumentSession(requireSession(session)),
-          {
-            ...request,
-            structureOnly: true,
-            page: navigation.token,
-          },
-          signal,
-          previous,
-          publish,
-        ),
-      ),
-    select: selectDocument,
-    structuralSharing: false,
-    queryKey: captureKey,
-    gcTime: GUI_EVIDENCE_GC_MS,
-    retry: documentRetry,
-    retryDelay: documentRetryDelay,
-  });
-  const cards = useDocumentCards({
-    document: query.data,
-    cardKey: [...cardKey, "view", navigation.revision],
-    queryKey: captureKey,
-    request,
-    session: session ? nativeDocumentSession(session) : null,
-    retryRoot: () => query.refetch(),
-    enabled: Boolean(cycleId) && enabled,
-  });
-  return { ...query, data: cards.data, retryCard: cards.retryCard, navigation: navigation.controls(cards.page, query.isFetching) };
 }
 
 /* === Invalidation === */
@@ -279,7 +215,7 @@ export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
   ]);
 }
 
-function nativeEpoch(session: ReturnType<typeof useNativeSession>): string {
+export function nativeEpoch(session: ReturnType<typeof useNativeSession>): string {
   const epoch = session.snapshot.connection.backend?.epoch;
   if (!epoch) {
     throw new Error("The connected native backend has no process epoch.");
@@ -287,7 +223,7 @@ function nativeEpoch(session: ReturnType<typeof useNativeSession>): string {
   return epoch;
 }
 
-function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
+export function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
   return { ...session.identity, own: session.own };
 }
 
@@ -295,12 +231,12 @@ function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
 
 const documentRefreshes = new WeakMap<Query, RuntimeProjectionRefreshCoordinator>();
 
-function selectDocument(document: RootDocument): DocumentViewPayload {
+export function selectDocument(document: RootDocument): DocumentViewPayload {
   return document.mapped;
 }
 
 /** Root query data owns native captures and their stable display projection. */
-async function capturedDocument(
+export async function capturedDocument(
   queryClient: QueryClient,
   queryKey: readonly unknown[],
   capture: (previous: NativeDocumentCapture | null, publish: (document: NativeDocumentCapture) => void) => Promise<NativeDocumentCapture>,
@@ -319,120 +255,10 @@ async function capturedDocument(
 
 /* === Record Tails === */
 
-function useDocumentNavigation(owner: string) {
-  const [state, setState] = useState<{ owner: string; token?: string; previous: string[]; revision: number }>({
-    owner,
-    previous: [],
-    revision: 0,
-  });
-  const current = state.owner === owner ? state : { owner, previous: [] as string[], token: undefined, revision: 0 };
-  return {
-    token: current.token,
-    revision: current.revision,
-    controls: (page: CompletedDocument["page"], busy: boolean) => ({
-      hasPrevious: current.previous.length > 0,
-      hasNext: Boolean(page?.next),
-      fixed: Boolean(current.token),
-      busy,
-      previous: () => {
-        const previous = [...current.previous];
-        const token = previous.pop();
-        setState({ ...current, token, previous });
-      },
-      next: () => {
-        if (page?.next) {
-          setState({ ...current, token: page.next, previous: [...current.previous, page.current] });
-        }
-      },
-      latest: () => setState({ owner, previous: [], revision: current.revision + 1 }),
-    }),
-  };
-}
-
-function useDocumentCards({
-  document,
-  queryKey,
-  cardKey,
-  request,
-  session,
-  retryRoot,
-  enabled,
-}: {
-  document: DocumentViewPayload | undefined;
-  queryKey: readonly unknown[];
-  cardKey: readonly unknown[];
-  request: NativeDocumentRequest;
-  session: NativeDocumentSession | null;
-  retryRoot: () => Promise<unknown>;
-  enabled: boolean;
-}) {
-  const queryClient = useQueryClient();
-  const held = queryClient.getQueryData<RootDocument>(queryKey);
-  const candidates = (document?.cards ?? []).flatMap((card) => {
-    const source = held?.current.bindings.has(card.card_id) ? held.current : held?.completed;
-    if (source?.bindings.get(card.card_id)?.result?.kind.case !== "pending") {
-      return [];
-    }
-    const key = [...cardKey, "cards", card.card_id, nativeDocumentCardKey(source, card.card_id)];
-    return [{ id: card.card_id, key, page: source.page?.current }];
-  });
-  const results = useQueries({
-    queries: candidates.map(({ id, key, page }) => ({
-      queryKey: key,
-      enabled: enabled && session !== null,
-      gcTime: GUI_EVIDENCE_GC_MS,
-      retry: documentRetry,
-      retryDelay: documentRetryDelay,
-      queryFn: async ({ signal }: { signal: AbortSignal }): Promise<CardRead> => {
-        if (!session) {
-          throw new Error("Connect to a backend before reading cycle evidence.");
-        }
-        const latest = queryClient.getQueryData<RootDocument>(queryKey);
-        const source = latest?.current.bindings.has(id) ? latest.current : latest?.completed;
-        const previous = queryClient.getQueryData<CardRead>(key);
-        const captured = await fetchNativeDocument(
-          session,
-          { ...request, cardIds: [id], at: source?.resolvedAt, page },
-          signal,
-          previous?.document,
-        );
-        if (previous && captured === previous.document) {
-          return previous;
-        }
-        return { document: captured, card: mapNativeDocumentCard(captured, id) };
-      },
-    })),
-  });
-  const cards = new Map(document?.cards.map((card) => [card.card_id, card]));
-  const values = new Map(
-    results.map((query, index) => {
-      const id = candidates[index]?.id;
-      const original = id === undefined ? undefined : cards.get(id);
-      if (!original) {
-        return [id, undefined] as const;
-      }
-      if (query.error)
-        return [id, { ...(query.data?.card ?? original), loading: false, failure: failureOf(query.error, original.title) }] as const;
-      return [id, query.data?.card] as const;
-    }),
-  );
-  const data = document ? { ...document, cards: document.cards.map((card) => values.get(card.card_id) ?? card) } : undefined;
-  const retryCard = async (id?: string) => {
-    const index = id ? candidates.findIndex((card) => card.id === id) : -1;
-    if (index >= 0) {
-      await results[index]?.refetch();
-      return;
-    }
-    await retryRoot();
-    await Promise.all(results.filter((query) => query.error || query.data?.card.failure).map((query) => query.refetch()));
-  };
-  return { data, retryCard, page: held?.current.page };
-}
-
 /** One live record stream per scope, shared by every holder of that scope. */
 const recordTails = new Map<string, { holders: number; stop: () => void }>();
 
-function selectRecords(tail: RecordTail) {
+export function selectRecords(tail: RecordTail) {
   return tail.records;
 }
 
@@ -440,7 +266,7 @@ function selectRecords(tail: RecordTail) {
  * Keep one scope's tail appended from its record stream while anything holds
  * it. Returns the release; the last release cancels the stream.
  */
-function holdRecordTail(
+export function holdRecordTail(
   queryClient: QueryClient,
   session: NativeEvidenceSession,
   queryKey: readonly unknown[],
