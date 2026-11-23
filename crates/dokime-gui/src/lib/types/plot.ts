@@ -57,7 +57,8 @@ export type PlotCartesianMode = "aligned" | "faceted";
 
 export type PlotCartesianFrame = Pick<Wire<model.PlotFrame>, "signature"> & {
   mode: PlotCartesianMode;
-  series: { x: number[]; y: (number | null)[] }[];
+  /** A faceted column keeps each row's source instant when the host sends one per row. */
+  series: { x: number[]; y: (number | null)[]; instants?: string[] }[];
   point_count: number;
   x_domain?: Wire<PlotDomain> | null;
   y_domain?: Wire<PlotDomain> | null;
