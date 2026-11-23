@@ -64,6 +64,7 @@ const ACTIVE_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set(
 const TERMINAL_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set([
   "passed",
   "failed",
+  "completed",
   "skipped",
   "not_run",
   "stopped",
@@ -452,6 +453,8 @@ export function executionStatusLabel(status: TestExecution["status"]): string {
       return "Passed";
     case "failed":
       return "Failed";
+    case "completed":
+      return "Completed";
     case "not_run":
       return "Not Run";
     case "skipped":
@@ -483,6 +486,7 @@ export function executionStatusVariant(
     case "disconnected":
     case "invalidated":
       return "warning";
+    case "completed":
     case "stopped":
     case "interrupted":
     case "not_run":

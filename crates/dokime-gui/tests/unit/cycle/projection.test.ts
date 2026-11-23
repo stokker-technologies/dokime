@@ -138,7 +138,7 @@ test("A Settled Run Refreshes Its Documents at Once", () => {
 test("Durable Execution State Is Independent of Its Cycle", () => {
   const outcome = create(ExecutionOutcomeSchema, { attribution: { case: "notEvaluated", value: { termination: Termination.COMPLETED } } });
   assert.equal(projectExecutionStatus(ExecutionState.OPEN), "planned");
-  assert.equal(projectExecutionStatus(ExecutionState.SEALED, outcome), "skipped");
+  assert.equal(projectExecutionStatus(ExecutionState.SEALED, outcome), "completed");
   const attempt = create(ExecutionSummarySchema, { executionId: "unstarted", caseId: "case", ordinal: 1n, state: ExecutionState.OPEN });
   const cycle = create(CycleSummarySchema, { cycleId: "cycle", sealed: true });
   const projected = mapNativeExecutionSummary(attempt, [], cycle);
