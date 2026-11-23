@@ -541,6 +541,7 @@ impl Connection {
         let result = Session::connect(&endpoint, None, &self.settings).await;
         match result {
             Ok(session) => {
+                crate::app::logging::attach_host_status(server.status().layer());
                 self.server = Some(server);
                 self.session = Some(session.clone());
                 // Request failures are recorded by execute; observation is background work.
