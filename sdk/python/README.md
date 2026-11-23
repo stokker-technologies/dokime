@@ -274,6 +274,9 @@ host's catalog, and `client.cases.materialize(template.identifier, suite=templat
 materializes one entry. [`examples/remote/rehearse.py`](examples/remote/rehearse.py)
 runs one execution through a `.pair` file and saves its report and evidence:
 `python rehearse.py lab.pair example.capture.confirmation --answer Yes`.
+`await client.operation("example.echo", {"text": "Hello"})` calls any client-visible
+operation by identifier with a dict in proto field names and returns its reply as a
+dict; failures raise `OperationError`.
 
 `execution.start()` and `execution.watch()` also remain available separately.
 Closing a client stops its listeners, retains their host entries and closes its connection.
