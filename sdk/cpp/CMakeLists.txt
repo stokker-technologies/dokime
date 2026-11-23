@@ -19,8 +19,6 @@ if(DOKIME_SDK_PACKAGE)
   list(PREPEND CMAKE_PREFIX_PATH "${DOKIME_SDK_PACKAGE}")
   find_package(Dokime CONFIG REQUIRED)
 else()
-  # Integration Only: Build the Sibling Library Main Checkout.
-  set(FETCHCONTENT_SOURCE_DIR_HARMOS "${CMAKE_CURRENT_SOURCE_DIR}/../../../harmos" CACHE PATH "Local Integration Library Checkout")
   include(cmake/Protocol.cmake)
   include(cmake/Dependencies.cmake)
   include(cmake/Library.cmake)

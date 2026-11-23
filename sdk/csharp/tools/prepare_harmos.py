@@ -6,13 +6,13 @@
 #
 # ***
 
-"""Stage the Local Library Main Checkout for Integration Only."""
+"""Stage the Library C# SDK Cargo Resolved for the Product Build: Its Pin or a Local Patch."""
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
-import os
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -42,9 +42,12 @@ parser.add_argument("--refresh-lock", action="store_true")
 arguments = parser.parse_args()
 
 root = Path(__file__).resolve().parents[1]
-# Integration Only: Stage Current Sources Without Writing in the Library Checkout.
-source = Path(os.environ.get("HARMOS_SOURCE") or root / "../../../harmos").resolve()
-revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--format-version", "1"], cwd=root.parents[1], text=True))
+library = next(package for package in metadata["packages"] if package["name"] == "harmos")
+# The Crate Lives at crates/harmos; a Pinned Source Names Its Commit, a Local Patch Reports Its Checkout Head.
+source = Path(library["manifest_path"]).parents[2]
+revision = (library["source"] or "").partition("#")[2]
+revision = revision or subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
 version = f"0.1.0-dev.{revision[:12]}"
 feed = root / "../../target/cs/feed"
 feed.mkdir(parents=True, exist_ok=True)
