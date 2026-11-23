@@ -41,13 +41,10 @@ JOBS = (
     "check",
     "build_product",
     "build_tests",
-    "build_sdk_cpp",
     "build_python",
     "build_docs",
     "check_generated",
     "test",
-    "build_host_fixtures_csharp",
-    "test_host_csharp",
     "package",
     "release_dry",
     "release_rehearsal",
@@ -60,9 +57,8 @@ LANGUAGES = frozenset({"repository", "typescript", *SDK_LANGUAGES})
 # Consumers Name Every Required Artifact Producer, Including Optional Test Inputs.
 PRODUCERS = {
     "build_tests": {"build_product"},
-    "test_host_csharp": {"build_tests", "build_host_fixtures_csharp"},
     "check_generated": {"build_python"},
-    "package": {"build_product", "build_python", "build_sdk_cpp"},
+    "package": {"build_product", "build_python"},
     "release_dry": {"package"},
     "release_rehearsal": {"package", "build_docs"},
 }
@@ -164,21 +160,18 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
         selected.update(set(JOBS) - RELEASE)
     if "rust_tests" in classes:
         languages.add("rust")
-        selected.update({"check", "test", "test_host_csharp"})
+        selected.update({"check", "test"})
     if "fixtures" in classes:
         languages.update(LANGUAGES)
-        selected.update({"check", "test", "test_host_csharp"})
+        selected.update({"check", "test"})
     if "python" in classes:
         languages.update({"python", "rust"})
         selected.update({"check", "build_python", "check_generated", "test", "build_docs", "package"})
     if "gui" in classes:
         languages.update({"typescript", "rust"})
         selected.update({"check", "build_product", "test", "build_docs", "package"})
-    if "csharp" in classes:
-        languages.add("csharp")
-        selected.update({"check", "test", "test_host_csharp", "build_docs"})
-    if "cpp" in classes:
-        languages.add("cpp")
+    for language in classes & {"csharp", "cpp"}:
+        languages.add(language)
         selected.update({"check", "test", "build_docs"})
     if "package" in classes:
         selected.update({"check", "package"})
@@ -192,8 +185,6 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
     # Matrix Archives Are The Consumer's Artifact Contract.
     if "test" in selected:
         for row in tests:
-            if row["language"] == "cpp":
-                selected.add("build_sdk_cpp")
             for archive in json.loads(row["archives"]):
                 if "build-tests-" in archive:
                     selected.add("build_tests")

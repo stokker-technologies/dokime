@@ -57,7 +57,7 @@ env:
   GIT_CONFIG_VALUE_0: 'true'
 jobs:
   test:
-    name: ${{ startsWith(inputs.command, 'bench ') && 'Bench' || 'Test' }} / ${{ inputs.work == 'C++ / SDK' && 'SDK / C++' || inputs.work }} (${{ inputs.platform }})
+    name: ${{ startsWith(inputs.command, 'bench ') && 'Bench' || 'Test' }} / ${{ inputs.work }} (${{ inputs.platform }})
     runs-on: ${{ inputs.runner }}
     timeout-minutes: ${{ inputs.minutes }}
     steps:
@@ -95,22 +95,10 @@ jobs:
         path: target/ci
       if: contains(fromJSON(inputs.archives), 'target/ci/build-clients-{profile}-{platform}.tar.zst')
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      if: contains(inputs.archives, 'build-host-')
-      with:
-        pattern: build-host-*-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/ci
-        merge-multiple: true
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       if: contains(inputs.archives, 'build-bench-')
       with:
         name: build-bench-${{ inputs.platform }}
         path: target/ci
-    - name: Download the Built C++ SDK
-      if: inputs.work == 'C++ / SDK'
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-sdk-cpp-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/sdk-cpp
     - run: mise run ${{ inputs.command }} --profile ${{ env.PROFILE }}
     - name: Save Benchmark Baselines
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -130,11 +118,7 @@ jobs:
 
           target/benchmarks/
 
-          target/coverage/
-
-          target/cp/**/*.log
-
-          target/cp/**/junit.xml'
+          target/coverage/'
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -166,7 +150,7 @@ jobs:
       CI_BENCH: ${{ startsWith(inputs.command, 'bench ') && 'true' || 'false' }}
       CI_BENCH_LAYER: ${{ inputs.suite }}
       CI_TRANSPORT: 'true'
-      MISE_ENABLE_TOOLS: cmake,dotnet,ninja,pipx:clang-format,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,uv
+      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,uv
       CI_PROFILE: ${{ inputs.profile }}
       CI_PLATFORM: ${{ inputs.platform }}
       CI_INPUT_ARCHIVES: ${{ inputs.archives }}

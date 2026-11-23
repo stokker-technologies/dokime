@@ -50,13 +50,10 @@ jobs:
       check: ${{ steps.impact.outputs.check }}
       build_product: ${{ steps.impact.outputs.build_product }}
       build_tests: ${{ steps.impact.outputs.build_tests }}
-      build_sdk_cpp: ${{ steps.impact.outputs.build_sdk_cpp }}
-      build_host_fixtures_csharp: ${{ steps.impact.outputs.build_host_fixtures_csharp }}
       build_python: ${{ steps.impact.outputs.build_python }}
       build_docs: ${{ steps.impact.outputs.build_docs }}
       check_generated: ${{ steps.impact.outputs.check_generated }}
       test: ${{ steps.impact.outputs.test }}
-      test_host_csharp: ${{ steps.impact.outputs.test_host_csharp }}
       package: ${{ steps.impact.outputs.package }}
       release_dry: ${{ steps.impact.outputs.release_dry }}
       release_rehearsal: ${{ steps.impact.outputs.release_rehearsal }}
@@ -93,26 +90,6 @@ jobs:
     needs:
     - impact
     - build_product
-  build_sdk_cpp:
-    name: Build / SDK / C++
-    uses: ./.github/workflows/validate-build-tests.yml
-    with:
-      channel: ci
-      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-      fixture-language: cpp
-    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_sdk_cpp == 'true'
-    needs:
-    - impact
-  build_host_fixtures_csharp:
-    name: Build / SDK / C# / Fixtures
-    uses: ./.github/workflows/validate-build-tests.yml
-    with:
-      channel: ci
-      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-      fixture-language: csharp
-    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_host_fixtures_csharp == 'true'
-    needs:
-    - impact
   build_python:
     name: Build / SDK / Python
     uses: ./.github/workflows/validate-build-python.yml
@@ -160,38 +137,10 @@ jobs:
     - build_product
     - build_tests
     - build_python
-    - build_sdk_cpp
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.test == 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.impact.outputs.test_matrix) }}
-  test_host_csharp:
-    name: Test / SDK / Equivalence / C# (${{ matrix.platform }})
-    uses: ./.github/workflows/validate-test.yml
-    needs:
-    - impact
-    - build_tests
-    - build_host_fixtures_csharp
-    if: always() && needs.impact.result == 'success' && needs.impact.outputs.test_host_csharp == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-latest
-        - platform: windows
-          runner: windows-latest
-    with:
-      channel: ci
-      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-      platform: ${{ matrix.platform }}
-      runner: ${{ matrix.runner }}
-      work: SDK / Equivalence / C#
-      command: test -- --artifact tests --package dokime-runtime --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)"
-      bootstrap: ${{ matrix.platform == 'unix' && '["mise run ci:prerequisites -- --gui-runtime"]' || '[]' }}
-      archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst"]'
-      minutes: 120
-      suite: execution-host-csharp
   package:
     name: Package / Product
     uses: ./.github/workflows/validate-package.yml
@@ -202,7 +151,6 @@ jobs:
     - impact
     - build_product
     - build_python
-    - build_sdk_cpp
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.package == 'true'
   release_dry:
     name: Release / Dry
@@ -249,12 +197,6 @@ jobs:
       with:
         name: build-docs-${{ env.PROFILE }}-any
         path: target/docs
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: package-${{ env.PROFILE }}-cpp-*
-        path: target/ci
-        merge-multiple: true
         github-token: ${{ github.token }}
     - run: mise run release:rehearse -- --profile ${{ env.PROFILE }} --target all
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -305,9 +247,6 @@ jobs:
     - build_docs
     - check_generated
     - test
-    - build_sdk_cpp
-    - build_host_fixtures_csharp
-    - test_host_csharp
     - package
     - release_dry
     - release_rehearsal
