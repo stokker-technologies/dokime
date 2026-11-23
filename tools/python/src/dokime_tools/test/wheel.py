@@ -54,7 +54,9 @@ def main() -> None:
     root = Path.cwd()
     if options.stubs:
         inputs(root)
-    stub_requirements = tomllib.loads((root / "sdk/python/pyproject.toml").read_text(encoding="utf-8"))["dependency-groups"]["stubs"]
+    sdk = root / "sdk/python"
+    manifest = tomllib.loads((sdk / "pyproject.toml").read_text(encoding="utf-8"))
+    stub_requirements = manifest["dependency-groups"]["stubs"]
     wheels = list((paths.output(root, "build", options.profile, "any") / "python").glob("*.whl"))
     if len(wheels) != 1:
         raise ValueError("Run Wheel Tests: build:python must export exactly one Python wheel")
@@ -67,12 +69,29 @@ def main() -> None:
     environment.pop("VIRTUAL_ENV", None)
     install = Path(mkdtemp(prefix="dokime-wheel-"))
     try:
+        # Use the Same Declared Library Source as the SDK's Development Environment.
+        overrides = []
+        for name, source in manifest.get("tool", {}).get("uv", {}).get("sources", {}).items():
+            if isinstance(source, dict) and "path" in source:
+                overrides.append(f"{name} @ {(sdk / source['path']).resolve().as_uri()}")
+        override = install / "overrides.txt"
+        override.write_text("\n".join(overrides) + "\n", encoding="utf-8")
         python = install / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         example = install / "test"
         shutil.copytree(root / "sdk/python/examples/starter", example, ignore=shutil.ignore_patterns(".venv", "__pycache__"))
         commands = [
             ["uv", "venv", "--python", sys.executable, str(install / ".venv")],
-            ["uv", "pip", "install", "--python", str(python), str(wheels[0]), *(stub_requirements if options.stubs else [])],
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(python),
+                "--override",
+                str(override),
+                str(wheels[0]),
+                *(stub_requirements if options.stubs else []),
+            ],
             [
                 str(python),
                 "-I",
