@@ -11,11 +11,8 @@
 
 /* === External Imports === */
 
-import { useQuery } from "@tanstack/react-query";
-
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import { appendNativeTestCycle, previewNativeTestCycle } from "@/lib/api/native-planning";
@@ -31,11 +28,6 @@ export const suiteQueryKeys = {
 };
 
 /* === Hooks === */
-
-export function useTestSuitesQuery() {
-  const session = useNativeSession();
-  return useQuery(testSuitesQueryOptions(session.identity));
-}
 
 export function testSuitesQueryOptions(identity: SessionIdentity) {
   return {

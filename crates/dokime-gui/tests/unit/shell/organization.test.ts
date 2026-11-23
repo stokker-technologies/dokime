@@ -23,7 +23,7 @@ import { afterEach, test, vi } from "vitest";
 import { brandFromLogos, selectLogo, type Brand } from "@/lib/brand";
 import { loadAppearance } from "@/lib/rpc/appearance";
 import { LogoVariant } from "@generated/host/model";
-import type { RuntimeThemeFamily } from "@/lib/appearance";
+import type { RuntimeThemeFamily } from "@/lib/types/appearance";
 import { applyBrandFavicon } from "@/lib/favicon";
 import { materializeThemeFamilyVariables } from "@/lib/theme-family";
 import { applyReportAppearance } from "@/report/report-appearance";

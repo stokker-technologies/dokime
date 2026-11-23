@@ -11,25 +11,20 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
-import { useQuery, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import type { Query, QueryClient } from "@tanstack/svelte-query";
 
 /* === Local Imports === */
 
 import { createRuntimeProjectionRefreshCoordinator, type RuntimeProjectionRefreshCoordinator } from "@/app/live/runtime-refresh";
-import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
-import { fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
-import { fetchNativeExecutionFiles } from "@/lib/api/native-content";
+import type { ConnectedSession } from "@/app/native-session/session";
 import { mapNativeDocument } from "@/lib/api/native-documents";
 import {
   RECORD_TAIL,
   appendRecordTail,
-  fetchNativeRecordTail,
   openNativeRecordStream,
   type NativeEvidenceSession,
   type RecordTail,
 } from "@/lib/api/native-evidence";
-import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 import type { NativeDocumentCapture } from "../../lib/api/native-document-session";
 import { mergeDocumentProgress } from "@/features/cycle/document-query-model";
@@ -37,8 +32,6 @@ import { workflowQueryKeys } from "./workflow-query-keys";
 
 /* === Constants === */
 
-/** How Long an Unobserved Evidence Read Stays Cached; Records and Documents Are Large. */
-const GUI_EVIDENCE_GC_MS = 30_000;
 const GUI_RECONNECT_MS = 1_000;
 
 /* === Types === */
@@ -50,104 +43,6 @@ export type RootDocument = {
 };
 
 export type CardRead = { document: NativeDocumentCapture; card: DocumentViewCard };
-
-/* === Private Functions === */
-
-/** The connection a live read needs. */
-function requireSession(session: ReturnType<typeof useNativeSessionOptional>) {
-  if (!session) {
-    throw new Error("Connect to a backend before reading cycle evidence.");
-  }
-  return session;
-}
-
-/** The identity a live read needs. */
-function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
-  return requireSession(session).identity;
-}
-
-/** Keys stay generation-scoped live, and constant while nothing is fetched. */
-function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
-  return session?.identity.generation ?? "disconnected";
-}
-
-/* === Query Hooks === */
-
-/**
- * A scope's latest records: the tail read once, then appended from the
- * scope's record stream.
- *
- * The runtime stream no longer invalidates records, so an open cycle never
- * replays its history on a cursor. Every holder of one scope shares one
- * record stream (`holdRecordTail`); a stream that fails re-reads the tail and
- * continues from its new cursor.
- */
-export function useRecordsQuery(enabled: boolean, scope: Wire<EvidenceScope> | null) {
-  const session = useNativeSessionOptional();
-  const queryClient = useQueryClient();
-  /* Callers build their scope inline, so the key and the stream follow its
-     content rather than its identity. */
-  const scopeKey = JSON.stringify(scope);
-  const generation = generationOf(session);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `scopeKey` is `scope`'s content; the scope follows it, not the object.
-  const stableScope = useMemo(() => scope, [scopeKey]);
-  const queryKey = useMemo(() => [...workflowQueryKeys.records(), generation, stableScope] as const, [generation, stableScope]);
-  const query = useQuery({
-    enabled: enabled && session !== null,
-    queryFn: () => fetchNativeRecordTail(identityOf(session), stableScope),
-    queryKey,
-    gcTime: GUI_EVIDENCE_GC_MS,
-    select: selectRecords,
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-  const loaded = query.isSuccess;
-  useEffect(() => {
-    if (!enabled || !session || !loaded) {
-      return;
-    }
-    return holdRecordTail(queryClient, { ...session.identity, own: session.own }, queryKey, stableScope);
-  }, [enabled, loaded, queryClient, queryKey, session, stableScope]);
-  return query;
-}
-
-export function useNotesQuery(enabled: boolean, scope: Wire<EvidenceScope>) {
-  const session = useNativeSessionOptional();
-  return useQuery({
-    enabled: enabled && session !== null && !!scope.cycleId,
-    queryFn: () => fetchNativeNotes(identityOf(session), scope),
-    queryKey: [...workflowQueryKeys.notes(), generationOf(session), scope],
-  });
-}
-
-export function useHealthQuery(enabled: boolean, scope: Wire<EvidenceScope>) {
-  const session = useNativeSessionOptional();
-  return useQuery({
-    enabled: enabled && session !== null && !!scope.cycleId,
-    queryFn: () => fetchNativeHealth(identityOf(session), scope),
-    queryKey: [...workflowQueryKeys.health(), generationOf(session), scope],
-  });
-}
-
-export function useTraceabilityQuery(enabled: boolean, scope: Wire<EvidenceScope> | null) {
-  const session = useNativeSessionOptional();
-  return useQuery({
-    enabled: enabled && session !== null,
-    queryFn: () => fetchNativeTraceability(identityOf(session), scope),
-    queryKey: [...workflowQueryKeys.traceability(scope), generationOf(session)],
-    gcTime: GUI_EVIDENCE_GC_MS,
-  });
-}
-
-export function useExecutionFilesQuery(executionId: string | null, enabled: boolean) {
-  const session = useNativeSessionOptional();
-  // Runtime Changes Refresh Files Alongside Documents Through The Shared Throttle.
-  return useQuery({
-    enabled: Boolean(executionId) && enabled && session !== null,
-    queryFn: () => fetchNativeExecutionFiles(identityOf(session), executionId ?? ""),
-    queryKey: [...workflowQueryKeys.executionFiles(executionId), generationOf(session)],
-    staleTime: Infinity,
-  });
-}
 
 /* === Invalidation === */
 
@@ -215,7 +110,7 @@ export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
   ]);
 }
 
-export function nativeEpoch(session: ReturnType<typeof useNativeSession>): string {
+export function nativeEpoch(session: ConnectedSession): string {
   const epoch = session.snapshot.connection.backend?.epoch;
   if (!epoch) {
     throw new Error("The connected native backend has no process epoch.");
@@ -223,7 +118,7 @@ export function nativeEpoch(session: ReturnType<typeof useNativeSession>): strin
   return epoch;
 }
 
-export function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
+export function nativeDocumentSession(session: ConnectedSession) {
   return { ...session.identity, own: session.own };
 }
 
@@ -266,11 +161,17 @@ export function selectRecords(tail: RecordTail) {
  * Keep one scope's tail appended from its record stream while anything holds
  * it. Returns the release; the last release cancels the stream.
  */
+export type RecordTailDelivery = {
+  openStream?: typeof openNativeRecordStream;
+  schedule?: (publish: () => void) => number | null;
+};
+
 export function holdRecordTail(
   queryClient: QueryClient,
   session: NativeEvidenceSession,
   queryKey: readonly unknown[],
   scope: Wire<EvidenceScope> | null,
+  { openStream = openNativeRecordStream, schedule = (publish) => window.requestAnimationFrame(publish) }: RecordTailDelivery = {},
 ): () => void {
   const key = JSON.stringify(queryKey);
   const held = recordTails.get(key);
@@ -299,7 +200,7 @@ export function holdRecordTail(
     while (!stopped && session.isCurrent()) {
       const tail = queryClient.getQueryData<RecordTail>(queryKey);
       try {
-        stream = await openNativeRecordStream(session, scope, cursor ?? tail?.cursor);
+        stream = await openStream(session, scope, cursor ?? tail?.cursor);
         if (stopped) {
           await stream.cancel();
           return;
@@ -317,7 +218,7 @@ export function holdRecordTail(
           }
           cursor = page.cursor ?? cursor;
           if (pending.size > 0) {
-            frame ??= window.requestAnimationFrame(flush);
+            frame ??= schedule(flush);
           }
         }
       } catch {

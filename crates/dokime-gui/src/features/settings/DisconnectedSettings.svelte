@@ -8,7 +8,7 @@
   import { buttonVariants } from "../../components/ui/button-variants";
   import PanelHeader from "../../shell/PanelHeader.svelte";
   import { storeState } from "../../stores/store-state";
-  import { useUiStore } from "../../stores/ui-store";
+  import { uiStore } from "../../stores/ui-store";
   import ApplicationPreferences from "./ApplicationPreferences.svelte";
   import BackendsTable from "./BackendsTable.svelte";
   import SettingsAdvancedSwitch from "./SettingsAdvancedSwitch.svelte";
@@ -16,7 +16,7 @@
 
   let { owner, close, queryClient }: { owner: NativeSession; close: () => void; queryClient: QueryClient } = $props();
   let section = $state(DEFAULT_SETTINGS_SECTION);
-  const advanced = storeState(useUiStore, (state) => state.showAdvancedSettings);
+  const advanced = storeState(uiStore, (state) => state.showAdvancedSettings);
   const sections = SETTINGS_SECTIONS.filter((item) => item.id === "backends" || item.id === "appearance");
 </script>
 

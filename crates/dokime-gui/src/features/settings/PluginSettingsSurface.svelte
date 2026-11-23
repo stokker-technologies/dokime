@@ -6,7 +6,7 @@
   import Button from "../../components/ui/Button.svelte";
   import { failureOf } from "../../lib/notification-details";
   import { publishPageChrome } from "../../shell/page-chrome.svelte";
-  import { useHubStore } from "../../stores/hub-store";
+  import { hubStore } from "../../stores/hub-store";
   import { storeState } from "../../stores/store-state";
   import InstalledPluginDetail from "./installed-plugins/InstalledPluginDetail.svelte";
   import {
@@ -55,7 +55,7 @@
     () => client,
   );
 
-  const operations = storeState(useHubStore, (state) => state.operations.map((operation) => `${operation.id}:${operation.status}`).join());
+  const operations = storeState(hubStore, (state) => state.operations.map((operation) => `${operation.id}:${operation.status}`).join());
   let observedOperations: string | undefined;
   $effect(() => {
     const current = operations();

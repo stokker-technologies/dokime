@@ -14,8 +14,6 @@ import { fileURLToPath, URL } from "node:url";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { svelteTesting } from "@testing-library/svelte/vite";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { defineConfig } from "vitest/config";
 import workspace from "../../tools/config/vite.base.ts";
@@ -39,7 +37,7 @@ export default defineConfig(({ mode }) => ({
   plugins: {
     test: [svelte(), svelteTesting({ autoCleanup: false })],
     report: [svelte(), tailwindcss(), viteSingleFile()],
-  }[mode] ?? [tanstackRouter({ target: "react", autoCodeSplitting: true }), svelte(), react(), tailwindcss()],
+  }[mode] ?? [svelte(), tailwindcss()],
   resolve: {
     dedupe: workspace.resolve?.dedupe,
     alias: {
@@ -80,7 +78,6 @@ export default defineConfig(({ mode }) => ({
                 groups: [
                   { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
                   { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
-                  { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
                   {
                     name: "document-surface",
                     test: /\/src\/(?:components\/document|plots)\//,

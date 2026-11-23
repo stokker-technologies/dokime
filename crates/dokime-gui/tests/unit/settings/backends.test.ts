@@ -22,7 +22,7 @@ import { fireEvent, render } from "@testing-library/svelte";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { AppRoot } from "@/app/AppRoot";
+import { launchDesktopSession } from "@/app/native-session/launch";
 import { NativeSession } from "@/app/native-session/session";
 import ConnectionScreen from "@/app/native-session/ConnectionScreen.svelte";
 import type { SessionOwner } from "@/app/native-session/session-state.svelte";
@@ -45,9 +45,6 @@ const fixture = vi.hoisted(() => ({
   invalidate: vi.fn(),
   restart: vi.fn(),
   select: vi.fn(),
-  states: [] as unknown[],
-  phase: "disconnected",
-  effects: [] as (() => () => void)[],
 }));
 
 /* === Types === */
@@ -98,27 +95,6 @@ function connected(generation = "8"): DesktopSessionSnapshot {
 
 /* === Entry Point === */
 
-vi.mock("react", async (original) => ({
-  ...(await original<typeof import("react")>()),
-  useCallback: (callback: unknown) => callback,
-  useMemo: (factory: () => unknown) => factory(),
-  useState: (initial: unknown) => [
-    fixture.states.length ? fixture.states.shift() : typeof initial === "function" ? initial() : initial,
-    vi.fn(),
-  ],
-  useRef: (initial: unknown) => ({ current: initial }),
-  useSyncExternalStore: () => ({ phase: fixture.phase }),
-  useEffect: (effect: () => () => void) => {
-    fixture.effects.push(effect);
-  },
-}));
-vi.mock("@/app/native-session/context", () => ({
-  useNativeSessionController: () => ({ select: fixture.select }),
-  useNativeSessionOptional: () => null,
-}));
-vi.mock("@/app/router", () => ({ router: {} }));
-vi.mock("@/app/AppProviders", () => ({ AppProviders: "fixture-providers" }));
-vi.mock("@/app/native-session/NativeSessionProvider", () => ({ NativeSessionProvider: "fixture-session" }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
 vi.mock("@/lib/host/client", () => ({ statusGet: fixture.identity, backendOverviewGet: fixture.cycles }));
 vi.mock("@/lib/api/native-plugins", () => ({ restartNativePlugin: fixture.restart }));
@@ -128,9 +104,6 @@ vi.mock("@/app/query-client", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fixture.effects.length = 0;
-  fixture.states.length = 0;
-  fixture.phase = "disconnected";
   fixture.cycles.mockResolvedValue({ overview: { sessionId: "epoch" } });
   fixture.identity.mockResolvedValue({ status: { identity: { hostId: "fixture" } }, resolvedAt: { history: { epoch: "epoch" } } });
   fixture.invoke.mockImplementation(async (command: string) => {
@@ -273,15 +246,17 @@ test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
     }
     throw new Error(`Unexpected Command: ${command}`);
   });
-  AppRoot();
-  const cleanup = fixture.effects[0]();
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  const owner = new NativeSession();
+  const select = vi.spyOn(owner, "select");
+  const published = vi.fn();
+  await launchDesktopSession(owner, () => true, published);
   assert.deepEqual(
     fixture.invoke.mock.calls.map(([command]) => command),
     ["desktop_session_launch", "desktop_session_status"],
   );
-  assert.equal(fixture.select.mock.calls.length, 0);
-  cleanup();
+  assert.equal(published.mock.calls.length, 1);
+  assert.equal(select.mock.calls.length, 0);
+  assert.equal(owner.snapshot().phase, "disconnected");
 });
 
 const launch = { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };

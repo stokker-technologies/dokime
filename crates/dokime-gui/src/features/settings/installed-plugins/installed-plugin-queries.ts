@@ -11,18 +11,15 @@
 
 /* === External Imports === */
 
-import { useQuery } from "@tanstack/react-query";
-
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import type { SettingValues } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { settingsQueryKeys } from "@/features/settings/settings-queries";
 import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
 import { updateNativePluginSettings } from "@/lib/api/native-settings";
-import { appearanceQueryKey } from "@/lib/appearance";
+import { appearanceQueryKey } from "@/app/desktop-appearance";
 
 /* === Query Keys === */
 
@@ -37,10 +34,6 @@ export const pluginQueryKeys = {
 };
 
 /* === Hooks === */
-
-export function useInstalledPluginsQuery() {
-  return useQuery(installedPluginsListOptions(useNativeSession()));
-}
 
 export function installedPluginsListOptions(session: ConnectedSession) {
   return {

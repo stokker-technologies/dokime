@@ -19,8 +19,8 @@ import { test, vi } from "vitest";
 import {
   PARAMETER_OVERRIDES_STORAGE_KEY,
   readPersistedParameterOverrides,
-  useParameterOverridesStatus,
-  useParameterOverridesStore,
+  parameterOverridesStatus,
+  parameterOverridesStore,
 } from "@/stores/parameter-overrides-store";
 
 /* === Constants === */
@@ -61,9 +61,9 @@ test("Unified Desktop Settings Supply Remembered Parameters", async () => {
   fixture.read.mockResolvedValue(saved);
   fixture.values.set(PARAMETER_OVERRIDES_STORAGE_KEY, "retired-browser-value");
   fixture.write.mockClear();
-  await useParameterOverridesStore.persist.rehydrate();
-  assert.equal(useParameterOverridesStatus.getState().ready, true);
-  assert.deepEqual(useParameterOverridesStore.getState().overrides, parameters);
+  await parameterOverridesStore.persist.rehydrate();
+  assert.equal(parameterOverridesStatus.getState().ready, true);
+  assert.deepEqual(parameterOverridesStore.getState().overrides, parameters);
   assert.equal(fixture.values.get(PARAMETER_OVERRIDES_STORAGE_KEY), "retired-browser-value");
   assert.equal(fixture.write.mock.calls.length, 0);
 });

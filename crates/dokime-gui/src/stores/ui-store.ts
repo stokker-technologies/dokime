@@ -10,7 +10,7 @@
 /* === External Imports === */
 
 import { z } from "zod";
-import { create } from "zustand";
+import { createStore } from "zustand/vanilla";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 /* === Local Imports === */
@@ -153,7 +153,7 @@ function storageKey(name: string): string {
 
 /* === Public Functions === */
 
-export const useUiStore = create<UiStore>()(
+export const uiStore = createStore<UiStore>()(
   persist(
     (set) => ({
       ...initialUiStoreState,

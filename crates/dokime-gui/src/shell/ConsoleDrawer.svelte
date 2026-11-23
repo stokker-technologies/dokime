@@ -2,14 +2,14 @@
 <script lang="ts">
   import type { SessionIdentity } from "../lib/rpc/transport";
   import { storeState } from "../stores/store-state";
-  import { useUiStore } from "../stores/ui-store";
+  import { uiStore } from "../stores/ui-store";
   import { consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
   import { observeConsoleRecords } from "./console-records";
   import { resolvedConsoleScope } from "./console-view-model";
   import ConsoleDrawerView from "./ConsoleDrawerView.svelte";
 
   let { identity, cycleId, executionId }: { identity: SessionIdentity; cycleId: string | null; executionId: string | null } = $props();
-  const readDrawer = storeState(useUiStore, (state) => state.console);
+  const readDrawer = storeState(uiStore, (state) => state.console);
   const drawer = $derived(readDrawer());
   const scope = $derived(resolvedConsoleScope(drawer.scope, cycleId, executionId));
   const scopedCycle = $derived(scope === "instance" ? null : cycleId);
@@ -20,7 +20,7 @@
   const readBuffers = storeState(consoleRecordsStore, (state) => state.buffers);
   const readFilter = storeState(consoleRecordsStore, (state) => state.filter);
   const buffer = $derived(readBuffers().get(key) ?? EMPTY_CONSOLE_BUFFER);
-  const { setConsoleState } = useUiStore.getState();
+  const { setConsoleState } = uiStore.getState();
   const { setFilter, clear, bindSession } = consoleRecordsStore.getState();
 
   $effect(() => {

@@ -1,45 +1,14 @@
-/* ***
- *
- * Dokime
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
-
-/** Repeatable High-Rate Records And Many-Plot Browser Workload. */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Profiler, useState } from "react";
-import { createRoot } from "react-dom/client";
-
-// Local Imports
-import { Connection } from "@/app/native-session/context";
+// Dokime — SPDX-License-Identifier: Apache-2.0
+import { QueryClient } from "@tanstack/svelte-query";
+import { mount, unmount } from "svelte";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
-import { RecordTimeline } from "@/components/document/RecordTimeline";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ExecutionStepsCriteria } from "@/features/cycle/ExecutionStepsCriteria";
-import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
-import { usePlotWindow } from "@/features/cycle/use-plot-window";
-import { useDocumentView } from "@/features/cycle/use-document-view";
-import type { DocumentViewOptions } from "@/features/cycle/document-view-model";
-import { documentSurface } from "@/features/cycle/document-view-model";
-import type { DocumentViewPlot, PlotPayload, StepExecutionRecord, TestExecution } from "@/lib/types";
-import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
-import { appendPage, detailReads } from "./responsiveness-source";
+import type { DocumentSurfaceOptions } from "@/features/cycle/document-view-model";
 import type { RecordTail } from "@/lib/api/native-evidence";
+import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
+import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import ResponsivenessWorkload from "./ResponsivenessWorkload.svelte";
+import { appendPage, detailReads } from "./responsiveness-source";
 import "../../../src/desktop.css";
-
-/* === Re-Exports === */
-
-/* === Constants === */
 
 const plots: DocumentViewPlot[] = Array.from({ length: 24 }, (_, index) => ({
   plot_id: `plot-${index}`,
@@ -54,44 +23,27 @@ const plots: DocumentViewPlot[] = Array.from({ length: 24 }, (_, index) => ({
   display_points: 2_000,
   fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
 }));
-const options: DocumentViewOptions = {
+const options: Omit<DocumentSurfaceOptions, "plotWindow"> = {
   document: {
     cards: [
       { card_id: "plots", kind: "plots", plots },
       { card_id: "records", kind: "records" },
     ],
     layout: { nodes: ["plots", "records"].map((card_id) => ({ type: "card", card_id, layout: { order: 0 } })) },
-  } as DocumentViewOptions["document"],
+  } as DocumentSurfaceOptions["document"],
   execution: null,
-  liveSnapshot: null,
+  snapshot: null,
   noteElapsedStart: null,
   scope: { cycleId: "cycle" },
   live: true,
   parameters: { case: null, execution: null },
 };
-const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
-const steps = [
-  {
-    record_type: "step",
-    step_id: "capture",
-    order: 0,
-    label: "Capture",
-    status: "running",
-    metadata: { label: "Capture" },
-    started_at: new Date().toISOString(),
-    result: { details: {} },
-  },
-] as unknown as StepExecutionRecord[];
-const counts: Record<string, number> = {};
-const durations: Record<string, number> = {};
-let setStates: (states: LivePlotStateMap) => void;
-let setModal: (open: boolean) => void;
-let setTicks: (ticks: boolean) => void;
-let viewRenders = 0;
-let latestView: ReturnType<typeof useDocumentView>;
 const client = new QueryClient();
-
-/* === Types === */
+const session = {
+  identity: { generation: "1", isCurrent: () => true },
+  own: () => () => {},
+  queryClient: client,
+} as unknown as ConnectedSession;
 
 declare global {
   interface Window {
@@ -102,100 +54,6 @@ declare global {
       scroll: () => Promise<Record<string, unknown>>;
     };
   }
-}
-
-/* === Components === */
-
-function Workload() {
-  const view = useDocumentView(options);
-  latestView = view;
-  viewRenders += 1;
-  const [states, updateStates] = useState(frame(0));
-  const [modal, updateModal] = useState(false);
-  const [ticks, updateTicks] = useState(false);
-  setStates = updateStates;
-  setModal = updateModal;
-  setTicks = updateTicks;
-  if (ticks) {
-    return <TickWorkload view={view} states={states} />;
-  }
-  return (
-    <>
-      <Profiler id="steps" onRender={profile}>
-        <ExecutionStepsCriteria steps={steps} criteria={[]} />
-      </Profiler>
-      <div style={{ height: 180, overflow: "auto" }}>
-        <Profiler id="records" onRender={profile}>
-          <RecordTimeline records={view.records} />
-        </Profiler>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Profiler id="plots" onRender={profile}>
-          <LivePlotGroupGrid
-            documentPlots={plots}
-            liveStates={states}
-            records={view.records}
-            title="Measurements"
-            showGroupHeaders={false}
-          />
-        </Profiler>
-      </div>
-      <Button id="transition-probe" style={{ position: "fixed", right: 0, bottom: 0 }}>
-        Refresh
-      </Button>
-      <Dialog open={modal} onOpenChange={updateModal}>
-        <DialogContent>
-          <DialogTitle>Measurements</DialogTitle>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-function TickWorkload({ view, states }: { view: ReturnType<typeof useDocumentView>; states: LivePlotStateMap }) {
-  const plotWindow = usePlotWindow();
-  const execution = { status: "running", started_at: steps[0].started_at, finished_at: null, steps } as TestExecution;
-  const surface = documentSurface({ ...options, snapshot: null, plotWindow: plotWindow.option }, view, false);
-  return (
-    <Profiler id="page" onRender={profile}>
-      <ExecutionSectionsView
-        plan={null}
-        row={{
-          key: "execution",
-          case: { caseId: "case", templateId: "template" } as never,
-          execution,
-          ordinal: 1,
-          rerunOf: null,
-          newest: true,
-        }}
-        live
-        label="Measurement"
-        titlePrefix=""
-        trail={["Cycle", "Measurement"]}
-        onRename={null}
-        started={execution}
-        surface={surface}
-        pane={{ kind: "document", staleReason: null }}
-        plotWindow={plotWindow}
-        documentView={() => (
-          <Profiler id="plots" onRender={profile}>
-            <LivePlotGroupGrid documentPlots={plots} liveStates={states} records={view.records} title="Measurements" />
-          </Profiler>
-        )}
-      />
-    </Profiler>
-  );
-}
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-function profile(id: string, _phase: string, duration: number) {
-  counts[id] = (counts[id] ?? 0) + 1;
-  durations[id] = (durations[id] ?? 0) + duration;
 }
 
 function frame(revision: number): LivePlotStateMap {
@@ -220,9 +78,9 @@ async function settled() {
 }
 
 async function burst(pages = 20) {
-  setTicks(false);
+  workload.setTicks(false);
   await settled();
-  const previous = latestView;
+  const previous = workload.currentView();
   let updates = 0;
   const unsubscribe = client.getQueryCache().subscribe((event) => {
     if (event.type === "updated" && event.action.type === "success" && event.query.queryKey.includes("records")) updates += 1;
@@ -234,6 +92,7 @@ async function burst(pages = 20) {
     .getQueryCache()
     .findAll()
     .find((query) => query.queryKey.includes("records"))?.state.data as RecordTail;
+  const latestView = workload.currentView();
   return {
     updates,
     expected,
@@ -254,13 +113,13 @@ async function cancelPending() {
   const previous = query?.state.data;
   appendPage();
   for (let index = 0; index < 20; index += 1) await Promise.resolve();
-  reactRoot.unmount();
+  await unmount(workload);
   await settled();
   return query?.state.data === previous;
 }
 
 async function scroll() {
-  setModal(false);
+  workload.setModal(false);
   await settled();
   const target = document.querySelector<HTMLElement>(`[data-plot-viewport="${plots.at(-1)?.plot_id}"]`);
   if (!target) {
@@ -271,14 +130,14 @@ async function scroll() {
   const top = target.getBoundingClientRect().top;
   const height = document.documentElement.scrollHeight;
   const mounted = Boolean(target.querySelector("[data-live-mounted]"));
-  setStates(frame(999));
+  workload.setStates(frame(999));
   await settled();
   return { mounted, top, nextTop: target.getBoundingClientRect().top, height, nextHeight: document.documentElement.scrollHeight };
 }
 
 async function run(mode: string) {
-  setTicks(mode === "ticks");
-  setModal(mode.endsWith("modal"));
+  workload.setTicks(mode === "ticks");
+  workload.setModal(mode.endsWith("modal"));
   await settled();
   const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]');
   if (overlay) overlay.style.backdropFilter = mode === "blur-modal" ? "blur(4px)" : "";
@@ -295,11 +154,6 @@ async function run(mode: string) {
   setter?.call(input, mode === "search" ? "absent*payload" : "");
   input.dispatchEvent(new Event("input", { bubbles: true }));
   await settled();
-  for (const key of Object.keys(counts)) {
-    counts[key] = 0;
-    durations[key] = 0;
-  }
-  viewRenders = 0;
   const frames: number[] = [];
   const longTasks: number[] = [];
   const observer = new PerformanceObserver((list) => {
@@ -329,7 +183,7 @@ async function run(mode: string) {
     mode === "ticks"
       ? undefined
       : window.setInterval(() => {
-          setStates(frame(++revision));
+          workload.setStates(frame(++revision));
         }, 100);
   const transitionTimer = mode.includes("transitions")
     ? window.setInterval(() => {
@@ -353,28 +207,19 @@ async function run(mode: string) {
     longTasksPerSecond: longTasks.length / seconds,
     frameP95: frames[Math.floor(frames.length * 0.95)],
     frameMean: frames.reduce((a, b) => a + b, 0) / frames.length,
-    viewRendersPerRecord: viewRenders / records,
     detailReads: detailReads - readsBefore,
-    counts: { ...counts },
-    renderMs: { ...durations },
     canvases: document.querySelectorAll("canvas").length,
     plotCount: plots.length,
     scrollHeight: document.documentElement.scrollHeight,
   };
 }
 
-/* === Entry Point === */
-
 const root = document.getElementById("root");
 if (!root) {
   throw new Error("Responsiveness root is missing");
 }
-const reactRoot = createRoot(root);
-reactRoot.render(
-  <QueryClientProvider client={client}>
-    <Connection.Provider value={session}>
-      <Workload />
-    </Connection.Provider>
-  </QueryClientProvider>,
-);
+const workload = mount(ResponsivenessWorkload, {
+  target: root,
+  props: { session, plots, options, initialFrames: frame(0), synchronous: new URL(location.href).searchParams.has("synchronous") },
+});
 window.responsiveness = { run, burst, cancelPending, scroll };

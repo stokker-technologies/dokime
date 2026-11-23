@@ -3,7 +3,7 @@
   import type { Snippet } from "svelte";
   import type { ConnectedSession } from "../app/native-session/session";
   import type { CycleSelection } from "../features/cycle/cycle-workspace-model";
-  import type { ActiveCycleState } from "../features/library/use-active-cycle";
+  import type { ActiveCycleState } from "../features/library/active-cycle-model";
   import type { Brand } from "../lib/brand";
   import type { DensityPreference, ThemeModePreference } from "../lib/theme";
   import type { BackendStatus } from "./backend-status";
@@ -12,7 +12,7 @@
   import type { ShellDestination } from "./Sidebar.svelte";
   import type { BackendOperation } from "./status-bar-operations";
   import type { AttentionEntry } from "./StatusBar.svelte";
-  import type { SidebarState } from "./use-sidebar-state";
+  import type { SidebarState } from "./navigation-model";
 
   export type DesktopShellProps = {
     session: ConnectedSession;
@@ -57,7 +57,7 @@
   import { failureOf } from "../lib/notification-details";
   import { toast } from "../lib/notifications";
   import { storeState } from "../stores/store-state";
-  import { useUiStore } from "../stores/ui-store";
+  import { uiStore } from "../stores/ui-store";
   import AppShellLayout from "./AppShellLayout.svelte";
   import ConsoleDrawer from "./ConsoleDrawer.svelte";
   import { consoleAttentionCount } from "./console-view-model";
@@ -78,9 +78,9 @@
     () => session,
     () => ({ enabled: Boolean(cycleId), scope: cycleId ? { cycleId } : null }),
   );
-  const readDrawer = storeState(useUiStore, (state) => state.console);
-  const readDensity = storeState(useUiStore, (state) => state.density);
-  const { setConsoleState } = useUiStore.getState();
+  const readDrawer = storeState(uiStore, (state) => state.console);
+  const readDensity = storeState(uiStore, (state) => state.density);
+  const { setConsoleState } = uiStore.getState();
   const drawer = $derived(readDrawer());
   const unseen = $derived(cycleId ? consoleAttentionCount(records.data ?? [], drawer.lastOpenedAt) : 0);
 
@@ -96,6 +96,7 @@
 
   function leaveFocus(event: KeyboardEvent) {
     if (props.focus.focused && event.key === "Escape" && !event.defaultPrevented) {
+      event.preventDefault();
       props.focus.setFocused(false);
     }
   }

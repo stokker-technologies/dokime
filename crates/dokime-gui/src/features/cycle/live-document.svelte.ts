@@ -9,13 +9,20 @@ import { fetchNativeRecordTail } from "../../lib/api/native-evidence";
 import { fetchNativeTraceability } from "../../lib/api/native-observation";
 import { orderedDocumentSections } from "../../lib/document-layout";
 import type { Wire } from "../../lib/rpc/canonical";
+import { scopeVisibleIn } from "../../lib/scope";
 import { documentSurface, documentView, type DocumentSurfaceOptions } from "./document-view-model";
-import { holdRecordTail, selectRecords } from "./server-state";
+import { holdRecordTail, type RecordTailDelivery, selectRecords } from "./server-state";
 import { workflowQueryKeys } from "./workflow-query-keys";
 
 const GUI_EVIDENCE_GC_MS = 30_000;
 
-export function createRecordsQuery(session: () => ConnectedSession, read: () => { enabled: boolean; scope: Wire<EvidenceScope> | null }) {
+type RecordTailSource = RecordTailDelivery & { fetch?: typeof fetchNativeRecordTail };
+
+export function createRecordsQuery(
+  session: () => ConnectedSession,
+  read: () => { enabled: boolean; scope: Wire<EvidenceScope> | null },
+  source?: RecordTailSource,
+) {
   // A New Object With the Same Scope Keeps Its Stream.
   const scopeKey = $derived(JSON.stringify(read().scope));
   const scope = $derived(JSON.parse(scopeKey) as Wire<EvidenceScope> | null);
@@ -28,7 +35,7 @@ export function createRecordsQuery(session: () => ConnectedSession, read: () => 
     return {
       enabled,
       queryKey,
-      queryFn: () => fetchNativeRecordTail(identity, held),
+      queryFn: () => (source?.fetch ?? fetchNativeRecordTail)(identity, held),
       gcTime: GUI_EVIDENCE_GC_MS,
       select: selectRecords,
       staleTime: Number.POSITIVE_INFINITY,
@@ -38,13 +45,13 @@ export function createRecordsQuery(session: () => ConnectedSession, read: () => 
   $effect(() => {
     if (enabled && loaded) {
       const { identity, own } = session();
-      return holdRecordTail(client(), { ...identity, own }, queryKey, scope);
+      return holdRecordTail(client(), { ...identity, own }, queryKey, scope, source);
     }
   });
   return query;
 }
 
-export function createLiveDocumentSurface(session: () => ConnectedSession, read: () => DocumentSurfaceOptions) {
+export function createLiveDocumentSurface(session: () => ConnectedSession, read: () => DocumentSurfaceOptions, source?: RecordTailSource) {
   const options = $derived(read());
   const scope = $derived(options.scope);
   const executionId = $derived(scope.executionId ?? null);
@@ -92,23 +99,36 @@ export function createLiveDocumentSurface(session: () => ConnectedSession, read:
       gcTime: GUI_EVIDENCE_GC_MS,
     };
   }, client);
-  const records = createRecordsQuery(session, () => ({
-    enabled: kinds.has("records") || kinds.has("plots"),
-    scope,
-  }));
-  const view = $derived(
-    documentView(
-      { ...options, document: options.document ?? null, liveSnapshot: options.snapshot },
-      {
-        artifacts: files.data ?? [],
-        notes: notes.data ?? [],
-        health: health.data ?? [],
-        records: records.data ?? [],
-        traceability: traceability.data ?? null,
-        reportPayloads: null,
-      },
+  const records = createRecordsQuery(
+    session,
+    () => ({
+      enabled: kinds.has("records") || kinds.has("plots"),
+      scope,
+    }),
+    source,
+  );
+  const base = $derived(
+    documentSurface(
+      options,
+      documentView(
+        { ...options, document: options.document ?? null, liveSnapshot: options.snapshot },
+        {
+          artifacts: files.data ?? [],
+          notes: notes.data ?? [],
+          health: health.data ?? [],
+          records: [],
+          traceability: traceability.data ?? null,
+          reportPayloads: null,
+        },
+      ),
+      true,
     ),
   );
-  const surface = $derived(documentSurface(options, view, true));
+  const visibleRecords = $derived((records.data ?? []).filter((record) => scopeVisibleIn(record.scope, scope)));
+  const surface = $derived({
+    ...base,
+    view: { ...base.view, records: visibleRecords },
+    shared: { ...base.shared, records: visibleRecords },
+  });
   return () => surface;
 }

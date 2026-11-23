@@ -15,8 +15,6 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
 import { cleanup, fireEvent, render, type SvelteComponentOptions } from "@testing-library/svelte";
 import { type Component, tick } from "svelte";
@@ -43,8 +41,7 @@ import { createPlotWindow } from "@/features/cycle/plot-window-state";
 import { plotWindowOptions, plotWindows, type PlotWindowState } from "@/features/cycle/plot-window";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
-import type { RuntimeThemeFamily, useAppearance } from "@/lib/appearance";
-import { ApplicationThemeProvider } from "@/lib/application-theme";
+import type { RuntimeAppearanceFrame, RuntimeThemeFamily } from "@/lib/types/appearance";
 import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
 import { jsonToNativeValue } from "@/lib/host/values";
 import {
@@ -97,7 +94,8 @@ import PlaybackFixture from "./PlaybackFixture.svelte";
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { m4Indices, windowIndices } from "@/plots/reduce";
-import { usePlotPalette } from "@/plots/desktop-plot-palette";
+import { materializeThemeFamilyVariables } from "@/lib/theme-family";
+import { desktopPlotPalette } from "@/plots/desktop-plot-palette";
 import { heldViewport } from "@/plots/viewport";
 import { applyReportAppearance } from "@/report/report-appearance";
 import { summaryWindowStore } from "@/stores/summary-window-store";
@@ -1231,7 +1229,7 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     light: { variables: {}, plot_palette: light },
     dark: { variables: {}, plot_palette: dark },
   };
-  const frame: ReturnType<typeof useAppearance> = {
+  const frame: RuntimeAppearanceFrame = {
     app_name: "Plot Test",
     logos: [],
     themes: [family],
@@ -1241,16 +1239,8 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     mode_locked: false,
     source_plugin_id: null,
   };
-  const readAppearance = vi.spyOn(await import("@/lib/appearance"), "useAppearance").mockReturnValue(frame);
-  onTestFinished(() => readAppearance.mockRestore());
-  function Palette() {
-    return createElement("output", null, JSON.stringify(usePlotPalette()));
-  }
   for (const mode of ["light", "dark"] as const) {
-    const html = renderToStaticMarkup(
-      createElement(ApplicationThemeProvider, { value: { resolvedTheme: mode, setTheme() {} } }, createElement(Palette)),
-    );
-    assert.equal(html, renderToStaticMarkup(createElement("output", null, JSON.stringify(family[mode].plot_palette))));
+    assert.deepEqual(desktopPlotPalette(materializeThemeFamilyVariables(family, mode)), family[mode].plot_palette);
   }
 
   // Frozen Reports Read the Palette Already Applied for Their Displayed Mode.
@@ -1264,13 +1254,11 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     document.title = originalTitle;
     vi.unstubAllGlobals();
   });
-  readAppearance.mockReturnValue({ ...frame, themes: [], active_theme: null });
   for (const mode of ["light", "dark"] as const) {
     vi.stubGlobal("matchMedia", () => ({ matches: mode === "dark" }));
     applyReportAppearance(frame);
     assert.equal(document.documentElement.style.colorScheme, mode);
-    const html = renderToStaticMarkup(createElement(Palette));
-    assert.equal(html, renderToStaticMarkup(createElement("output", null, JSON.stringify(family[mode].plot_palette))));
+    assert.deepEqual(desktopPlotPalette(null), family[mode].plot_palette);
   }
 });
 

@@ -3,7 +3,7 @@
   import { createMutation, createQuery } from "@tanstack/svelte-query";
   import type { ConnectedSession } from "../../app/native-session/session";
   import { storeState } from "../../stores/store-state";
-  import { useSelectionStore } from "../../stores/selection-store";
+  import { selectionStore } from "../../stores/selection-store";
   import { appendCaseAttemptOptions, cycleDetailQueryOptions, cyclePromptQueryOptions } from "./cycle-queries";
   import type { CycleSelection } from "./cycle-workspace-model";
   import CycleSidebarCasesView from "./CycleSidebarCasesView.svelte";
@@ -28,7 +28,7 @@
     const { identity, queryClient } = session;
     return appendCaseAttemptOptions(() => identity, queryClient, cycleId);
   }, client);
-  const follow = storeState(useSelectionStore, (state) => state.followActive);
+  const follow = storeState(selectionStore, (state) => state.followActive);
   const inputNeeded = $derived(
     new Set((prompts.data ?? []).flatMap((prompt) => (prompt.scope?.executionId ? [prompt.scope.executionId] : []))),
   );

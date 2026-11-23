@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
 import { CycleSummarySchema, ExecutionOutcomeSchema, ExecutionState, ExecutionSummarySchema, Termination } from "@generated/host/model";
-import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { QueryClient, QueryObserver } from "@tanstack/svelte-query";
 import { test, vi } from "vitest";
 
 // Local Imports

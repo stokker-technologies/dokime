@@ -12,13 +12,9 @@
 import { cutKey } from "@/lib/rpc/canonical";
 import { nativeFailure } from "@/lib/rpc/failure-details";
 import { failureOf } from "@/lib/notification-details";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSession } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import type { InstallPluginProgress, PluginSource } from "@/lib/api/native-plugins";
 import {
@@ -29,7 +25,7 @@ import {
   setNativePluginEnabled,
 } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
-import { clearPluginNotifications, toast } from "@/lib/notifications";
+import { toast } from "@/lib/notifications";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Query Keys === */
@@ -41,39 +37,6 @@ export const pluginQueryKeys = {
 };
 
 /* === Hooks === */
-
-export function PluginStartNotifications() {
-  const session = useNativeSession();
-  const query = usePluginsQuery();
-  const navigate = useNavigate();
-  const seen = useRef(new Set<string>());
-  useEffect(() => {
-    if (!query.data || !session.identity.isCurrent()) return;
-    for (const entry of query.data) {
-      const title = startNotification(entry);
-      if (!title || !entry.failure) continue;
-      const failure = pluginStartFailure(entry, session.identity.generation);
-      const key = failure.id;
-      if (seen.current.has(key)) continue;
-      seen.current.add(key);
-      toast.error(failure, {
-        context: "background",
-        description: entry.failure.message,
-        source: entry.description?.id || entry.name,
-        pluginSettings: entry.name,
-        action: {
-          label: "Open Plugin Settings",
-          onClick: () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: entry.name } }),
-        },
-      });
-    }
-    const installations = new Set(query.data.map((entry) => entry.name));
-    void clearPluginNotifications(session.identity.generation, installations).catch((error: unknown) =>
-      toast.error(failureOf(error, "Notification History Unavailable"), { context: "background" }),
-    );
-  }, [query.data, session.identity.generation, session.identity.isCurrent, navigate]);
-  return null;
-}
 
 export function pluginStartFailure(entry: ManagedPlugin, generation: string) {
   if (!entry.failure) throw new Error("Read Plugin Failure: Plugin Has No Reported Failure");
@@ -87,10 +50,6 @@ export function pluginStartFailure(entry: ManagedPlugin, generation: string) {
 
 export function startNotification(entry: ManagedPlugin): string | null {
   return entry.failure ? "Plugin Unavailable" : null;
-}
-
-export function usePluginsQuery() {
-  return useQuery(pluginsListQueryOptions(useNativeSession()));
 }
 
 export function pluginsListQueryOptions(session: ConnectedSession) {

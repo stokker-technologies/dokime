@@ -57,11 +57,11 @@ vi.mock("@/lib/notifications", async (importOriginal) => {
   return { ...actual, toast: { ...actual.toast, success: vi.fn() } };
 });
 vi.mock("@/stores/parameter-overrides-store", () => ({
-  useParameterOverridesStatus: {
+  parameterOverridesStatus: {
     getState: () => ({ ready: true, error: null }),
     subscribe: () => () => {},
   },
-  useParameterOverridesStore: {
+  parameterOverridesStore: {
     getState: () => ({
       overrides: {},
       setParameterOverride: vi.fn(),

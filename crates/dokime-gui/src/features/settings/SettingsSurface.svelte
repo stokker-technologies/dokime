@@ -7,7 +7,7 @@
   import type { NavigationMode } from "../../shell/navigation-model";
   import { publishPageChrome } from "../../shell/page-chrome.svelte";
   import { storeState } from "../../stores/store-state";
-  import { useUiStore } from "../../stores/ui-store";
+  import { uiStore } from "../../stores/ui-store";
   import ApplicationPreferences from "./ApplicationPreferences.svelte";
   import BackendsTable from "./BackendsTable.svelte";
   import AboutSection from "./sections/AboutSection.svelte";
@@ -42,7 +42,7 @@
     openPluginSettings: (id: string) => void;
   } = $props();
   const section = $derived(selected ?? DEFAULT_SETTINGS_SECTION);
-  const advanced = storeState(useUiStore, (state) => state.showAdvancedSettings);
+  const advanced = storeState(uiStore, (state) => state.showAdvancedSettings);
   const showNavigation = $derived(mode !== "phone" || !selected);
   const showSection = $derived(mode !== "phone" || Boolean(selected));
   publishPageChrome(() => ({

@@ -12,7 +12,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import type { QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/svelte-query";
 
 // Local Imports
 import { createDokimeQueryClient } from "@/app/query-client";

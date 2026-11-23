@@ -25,7 +25,7 @@
   import { failureOf } from "../../lib/notification-details";
   import { toast } from "../../lib/notifications";
   import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, TestSuiteEntry } from "../../lib/types";
-  import { useParameterOverridesStatus, useParameterOverridesStore } from "../../stores/parameter-overrides-store";
+  import { parameterOverridesStatus, parameterOverridesStore } from "../../stores/parameter-overrides-store";
   import { storeState } from "../../stores/store-state";
   import ActiveCycleInline from "./ActiveCycleInline.svelte";
   import type { OpenCycle } from "./active-cycle-model";
@@ -56,9 +56,9 @@
     template: SuiteTemplateEntry;
   } = $props();
   const title = $derived(titleCaseIdentifier(template.name));
-  const parameters = storeState(useParameterOverridesStatus, (state) => state);
-  const overrides = storeState(useParameterOverridesStore, (state) => state.overrides);
-  const { setParameterOverride, resetParameterOverride, clearTemplateOverrides } = useParameterOverridesStore.getState();
+  const parameters = storeState(parameterOverridesStatus, (state) => state);
+  const overrides = storeState(parameterOverridesStore, (state) => state.overrides);
+  const { setParameterOverride, resetParameterOverride, clearTemplateOverrides } = parameterOverridesStore.getState();
   const previewMutation = createMutation(
     () => previewTestCycleOptions(session.identity),
     () => session.queryClient,
@@ -305,7 +305,7 @@
             <div role="status">
               {#if failure}
                 <ErrorCard {failure} />
-                <Button variant="ghost" onclick={() => void useParameterOverridesStore.persist.rehydrate()}>Retry</Button>
+                <Button variant="ghost" onclick={() => void parameterOverridesStore.persist.rehydrate()}>Retry</Button>
               {:else}
                 <p class="text-sm text-muted-foreground">Loading Remembered Parameters…</p>
               {/if}

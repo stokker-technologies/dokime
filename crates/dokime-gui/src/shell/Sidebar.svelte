@@ -24,7 +24,7 @@
   import { cn } from "../lib/utils";
   import SidebarFrame from "./SidebarFrame.svelte";
   import { sidebarCycles } from "./sidebar-cycles";
-  import type { SidebarState } from "./use-sidebar-state";
+  import type { SidebarState } from "./navigation-model";
 
   type Props = {
     brand: Brand;

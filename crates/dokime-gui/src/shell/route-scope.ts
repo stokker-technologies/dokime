@@ -22,5 +22,10 @@ const CYCLE_ROUTE = /^\/cycles\/([^/]+)/;
 /* === Public Functions === */
 
 export function cycleIdOfPathname(pathname: string): string | null {
-  return CYCLE_ROUTE.exec(pathname)?.[1] ?? null;
+  const segment = CYCLE_ROUTE.exec(pathname)?.[1];
+  try {
+    return segment ? decodeURIComponent(segment) : null;
+  } catch {
+    return null;
+  }
 }

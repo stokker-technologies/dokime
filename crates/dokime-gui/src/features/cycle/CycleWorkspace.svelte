@@ -25,8 +25,8 @@
   import DialogContent from "../../components/ui/DialogContent.svelte";
   import { failureOf } from "../../lib/notification-details";
   import { toast } from "../../lib/notifications";
-  import { useRerunNoticeStore } from "../../stores/rerun-notice-store";
-  import { useSelectionStore } from "../../stores/selection-store";
+  import { rerunNoticeStore } from "../../stores/rerun-notice-store";
+  import { selectionStore } from "../../stores/selection-store";
   import { storeState } from "../../stores/store-state";
   import ControlCard from "./ControlCard.svelte";
   import { cycleControlState, inputNeededLabel, rerunNoticeLines } from "./control-model";
@@ -102,8 +102,8 @@
   const runtime = createQuery(() => cycleRuntimeQueryOptions(session().identity, cycleId), client);
   const pendingPrompts = createQuery(() => cyclePromptQueryOptions(session().identity, cycleId), client);
   const commands = createCycleCommands(session, () => cycleId);
-  const follow = storeState(useSelectionStore, (state) => state.followActive);
-  const notices = storeState(useRerunNoticeStore, (state) => state.notices);
+  const follow = storeState(selectionStore, (state) => state.followActive);
+  const notices = storeState(rerunNoticeStore, (state) => state.notices);
   const plan = $derived(detail.data?.plan ?? null);
   const executions = $derived(detail.data?.executions ?? []);
   const cases = $derived(buildCycleCases(plan));
@@ -252,13 +252,13 @@
     onRerunCycle: () =>
       run({ done: "Cycle Rerun Planned", failed: "The Cycle Could Not Be Rerun" }, async () => {
         const response = await commands.rerunCycle.mutateAsync();
-        useRerunNoticeStore.getState().setRerunNotices(response.cycleId, response);
+        rerunNoticeStore.getState().setRerunNotices(response.cycleId, response);
         openCycle(response.cycleId);
       }),
     onSettings: () => {
       settingsOpen = true;
     },
-    onToggleFollowActive: () => useSelectionStore.getState().setSelectionState({ followActive: !follow() }),
+    onToggleFollowActive: () => selectionStore.getState().setSelectionState({ followActive: !follow() }),
     onSeal:
       !runningRow && (phase === "active" || phase === "seal_failed")
         ? () => {

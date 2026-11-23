@@ -19,7 +19,6 @@ import { spawn } from "node:child_process";
 import { on, once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -55,7 +54,7 @@ type Reply = {
 
 test("Live Document Responsiveness", async () => {
   if (process.platform === "win32") assert.ok(existsSync(browserPath), "Chromium is available for canvas proof");
-  const scratch = await mkdtemp(join(tmpdir(), "dokime-responsiveness-"));
+  const scratch = await mkdtemp(resolve("../../target/gui-responsiveness-"));
   let child: ReturnType<typeof spawn> | undefined;
   let socket: WebSocket | undefined;
   try {
@@ -63,39 +62,13 @@ test("Live Document Responsiveness", async () => {
       configFile: resolve("vite.config.ts"),
       mode: "report",
       logLevel: "error",
-      resolve: {
-        alias: [
-          { find: "react-dom/client", replacement: "react-dom/profiling" },
-          { find: "@", replacement: resolve("src") },
-        ],
-      },
       plugins: [
-        {
-          name: "fixture-record-transport",
-          transform(source, id) {
-            if (
-              process.env.DOKIME_GUI_PERF_SYNC_RECORDS === "1" &&
-              id.replaceAll("\\", "/").endsWith("/src/features/cycle/server-state.ts")
-            ) {
-              return source.replace("frame ??= window.requestAnimationFrame(flush);", "flush();");
-            }
-            if (!id.replaceAll("\\", "/").endsWith("/src/lib/api/native-evidence.ts")) return;
-            return (
-              source
-                .replace("export async function fetchNativeRecordTail", "async function originalFetchNativeRecordTail")
-                .replace("export async function openNativeRecordStream", "async function originalOpenNativeRecordStream") +
-              '\nexport { fetchNativeRecordTail, openNativeRecordStream } from "' +
-              resolve("tests/integration/execution/responsiveness-source.ts").replaceAll("\\", "/") +
-              '";'
-            );
-          },
-        },
         {
           name: "responsiveness-fixture",
           transformIndexHtml: {
             order: "pre",
             handler: () =>
-              '<!doctype html><html><body><div id="root" style="width:1200px"></div><script type="module" src="/tests/integration/execution/responsiveness-fixture.tsx"></script></body></html>',
+              '<!doctype html><html><body><div id="root" style="width:1200px"></div><script type="module" src="/tests/integration/execution/responsiveness-fixture.ts"></script></body></html>',
           },
         },
       ],
@@ -172,7 +145,11 @@ test("Live Document Responsiveness", async () => {
     const events = on(connection, "message", { signal: AbortSignal.timeout(30_000) });
     await command("Page.enable", {});
     await command("Page.setLifecycleEventsEnabled", { enabled: true });
-    const navigation = await command("Page.navigate", { url: pathToFileURL(join(scratch, "frozen/report.html")).href });
+    const fixture = pathToFileURL(join(scratch, "frozen/report.html"));
+    if (process.env.DOKIME_GUI_PERF_SYNC_RECORDS === "1") {
+      fixture.searchParams.set("synchronous", "1");
+    }
+    const navigation = await command("Page.navigate", { url: fixture.href });
     assert.ok(navigation?.loaderId && !navigation.errorText, JSON.stringify(navigation));
     for await (const [event] of events) {
       const message = JSON.parse(event.data);

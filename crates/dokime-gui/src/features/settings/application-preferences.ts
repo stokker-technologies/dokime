@@ -14,12 +14,11 @@
 /* === Imports === */
 
 import type { ApplicationSettings, SettingsScope } from "@generated/typescript/application-settings";
-import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNativeSessionOptional } from "@/app/native-session/context";
+import type { QueryClient } from "@tanstack/svelte-query";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { withNativeListener, saveNativeListenerPreferences, type ScopedPreferencesSnapshot } from "@/lib/api/native-remote";
-import { useUiStore } from "@/stores/ui-store";
+import { uiStore } from "@/stores/ui-store";
 
 // Standard Library Imports
 
@@ -41,10 +40,6 @@ export function preferencesKey(scope: SettingsScope, generation?: string) {
   return ["settings", "preferences", scope, scope === "local" ? "local" : (generation ?? "offline")] as const;
 }
 
-export function usePreferences(scope: SettingsScope) {
-  return useQuery(preferencesQuery(scope, useNativeSessionOptional()));
-}
-
 export function preferencesQuery(scope: SettingsScope, session: ConnectedSession | null) {
   return {
     queryKey: preferencesKey(scope, session?.identity.generation),
@@ -54,12 +49,6 @@ export function preferencesQuery(scope: SettingsScope, session: ConnectedSession
     },
     retry: false,
   };
-}
-
-export function useSavePreferences(scope: SettingsScope) {
-  const session = useNativeSessionOptional();
-  const client = useQueryClient();
-  return useMutation(preferencesMutation(scope, session, client));
 }
 
 export function preferencesMutation(scope: SettingsScope, session: ConnectedSession | null, client: QueryClient) {
@@ -74,7 +63,7 @@ export function preferencesMutation(scope: SettingsScope, session: ConnectedSess
       client.setQueryData(preferencesKey(scope, session?.identity.generation), snapshot);
       if (scope === "local") {
         const appearance = snapshot.settings.appearance;
-        useUiStore.getState().setUiState({ density: appearance.density, themeFamily: appearance.theme_family });
+        uiStore.getState().setUiState({ density: appearance.density, themeFamily: appearance.theme_family });
       }
       void client.invalidateQueries({ queryKey: ["settings", "application"] });
       void client.invalidateQueries({ queryKey: ["settings", "remote-listener"] });

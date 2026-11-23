@@ -29,7 +29,7 @@ import {
   Severity,
   StreamMatchOperator,
 } from "@generated/host/model";
-import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { QueryClient, QueryObserver } from "@tanstack/svelte-query";
 import { createRawSnippet } from "svelte";
 import { beforeEach, onTestFinished, test, vi } from "vitest";
 

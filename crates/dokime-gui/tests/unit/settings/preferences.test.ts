@@ -98,7 +98,7 @@ vi.mock("@/lib/desktop/settings", () => ({
     desktopSettingsUpdate: fixture.update,
   },
 }));
-vi.mock("@/stores/ui-store", () => ({ useUiStore: { getState: () => ({ setUiState: fixture.appearance }) } }));
+vi.mock("@/stores/ui-store", () => ({ uiStore: { getState: () => ({ setUiState: fixture.appearance }) } }));
 beforeEach(() => {
   vi.resetAllMocks();
   fixture.read.mockImplementation(async () => snapshot());
@@ -296,18 +296,18 @@ test("Advanced View Persists per Viewer in Desktop and Browser Storage", async (
           removeItem: (key: string) => storage.delete(key),
         },
       });
-      const { useUiStore } = await vi.importActual<typeof import("@/stores/ui-store")>("@/stores/ui-store");
-      useUiStore.getState().setUiState({ showAdvancedSettings: true });
+      const { uiStore } = await vi.importActual<typeof import("@/stores/ui-store")>("@/stores/ui-store");
+      uiStore.getState().setUiState({ showAdvancedSettings: true });
       const key = desktop ? "dokime-test-hub.ui.sidebar" : "dokime-test-hub.ui";
       const saved = storage.get(key);
       assert.ok(saved);
       assert.equal(JSON.parse(saved).state.showAdvancedSettings, true);
-      useUiStore.getState().setUiState({ showAdvancedSettings: false });
+      uiStore.getState().setUiState({ showAdvancedSettings: false });
       storage.set(key, saved);
-      await useUiStore.persist.rehydrate();
-      assert.equal(useUiStore.getState().showAdvancedSettings, true);
-      useUiStore.getState().resetUiStore();
-      assert.equal(useUiStore.getState().showAdvancedSettings, true);
+      await uiStore.persist.rehydrate();
+      assert.equal(uiStore.getState().showAdvancedSettings, true);
+      uiStore.getState().resetUiStore();
+      assert.equal(uiStore.getState().showAdvancedSettings, true);
     }
   } finally {
     vi.unstubAllGlobals();

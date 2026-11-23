@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { create } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 /* === Local Imports === */
 
@@ -52,7 +52,7 @@ const initialHubStoreState: HubStoreState = {
 
 /* === Public Functions === */
 
-export const useHubStore = create<HubStore>((set) => ({
+export const hubStore = createStore<HubStore>((set) => ({
   ...initialHubStoreState,
   resetHubStore: () => set(initialHubStoreState),
   setHubState: (patch) => set((state) => ({ ...state, ...patch })),

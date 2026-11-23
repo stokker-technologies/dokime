@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/svelte-query";
 
 const GUI_QUERY_FRESH_MS = 1_000;
 const GUI_QUERY_RETRIES = 1;

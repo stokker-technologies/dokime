@@ -33,7 +33,7 @@ exclude = ["crates/dokime-gui/node_modules"]
 roots = ["crates", "plugins", "sdk/rust"]
 
 [languages.typescript]
-exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
+exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri"]
 generated = ["target/generated/typescript", "crates/dokime-gui/src/lib/rpc/generated", "crates/dokime-gui/src/generated/organization"]
 roots = ["crates/dokime-gui", "docs"]
 

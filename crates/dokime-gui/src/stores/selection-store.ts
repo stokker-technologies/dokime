@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { create } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 /* === Types === */
 
@@ -36,7 +36,7 @@ const initialSelectionStoreState: SelectionStoreState = {
 
 /* === Public Functions === */
 
-export const useSelectionStore = create<SelectionStore>()((set) => ({
+export const selectionStore = createStore<SelectionStore>()((set) => ({
   ...initialSelectionStoreState,
   resetSelectionStore: () => set(initialSelectionStoreState),
   setSelectionState: (patch) => set((state) => ({ ...state, ...patch })),

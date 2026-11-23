@@ -21,7 +21,7 @@ import { workflowQueryKeys } from "@/features/cycle/workflow-query-keys";
 import { cyclesHomeQueryKeys } from "@/features/cycles-home/cycles-query-options";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
-import { type BackendOperationsPatch, useHubStore } from "@/stores/hub-store";
+import { type BackendOperationsPatch, hubStore } from "@/stores/hub-store";
 import {
   createEvidenceRefresh,
   createRuntimeProjectionRefreshCoordinator,
@@ -47,7 +47,7 @@ const EMPTY_OPERATIONS: NonNullable<BackendOperationsPatch["operations"]> = [];
 
 export function observeRuntime(session: ConnectedSession): () => void {
   const { queryClient } = session;
-  const { setHubState } = useHubStore.getState();
+  const { setHubState } = hubStore.getState();
   let active = true;
   let stream: Awaited<ReturnType<typeof openNativeRuntimeStream>> | undefined;
   let retry: number | undefined;

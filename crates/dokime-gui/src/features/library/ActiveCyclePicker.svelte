@@ -4,14 +4,14 @@
   import type { ConnectedSession } from "../../app/native-session/session";
   import DialogContent from "../../components/ui/DialogContent.svelte";
   import { storeState } from "../../stores/store-state";
-  import { useUiStore } from "../../stores/ui-store";
+  import { uiStore } from "../../stores/ui-store";
   import NewCycleDialog from "../cycles-home/NewCycleDialog.svelte";
   import ActiveCyclePickerList from "./ActiveCyclePickerList.svelte";
-  import type { ActiveCycleState } from "./use-active-cycle";
+  import type { ActiveCycleState } from "./active-cycle-model";
 
   let { session, active }: { session: ConnectedSession; active: ActiveCycleState } = $props();
-  const readOpen = storeState(useUiStore, (state) => state.activeCyclePickerOpen);
-  const { setUiState } = useUiStore.getState();
+  const readOpen = storeState(uiStore, (state) => state.activeCyclePickerOpen);
+  const { setUiState } = uiStore.getState();
   let search = $state("");
   let creating = $state(false);
 
