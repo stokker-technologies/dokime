@@ -65,8 +65,8 @@ const APPLICATION_ID: i32 = 0x444b4e58;
 /* === Type Aliases === */
 
 type StatisticsCache = HashMap<(String, String, String, u64), (u64, StatisticsRead)>;
-/// Sealed Fields' Exact Full-Range Ranks by Execution, Stream and Field.
-pub(crate) type RankCache = HashMap<String, Vec<u8>>;
+/// Sealed Fields' Exact Full-Range Ranks by Execution, Stream and Field; a Field's Readers Share One Ranking.
+pub(crate) type RankCache = HashMap<String, Arc<Mutex<Option<Vec<u8>>>>>;
 
 /* === Structs === */
 

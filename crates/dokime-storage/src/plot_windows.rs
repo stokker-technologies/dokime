@@ -231,41 +231,43 @@ impl Store {
     }
     /// A Sealed Field's Exact Full-Range Ranks, Ranked Once; None While Its Execution Is Open.
     fn sealed_ranks(&self, window: NumericWindow<'_>) -> Result<Option<Ranks>> {
-        let connection = self.lock()?;
-        let sealed = connection.query_row("SELECT state=2 FROM executions WHERE id=?1", [window.execution], |row| row.get(0)).optional()?;
+        let sealed =
+            self.lock()?.query_row("SELECT state=2 FROM executions WHERE id=?1", [window.execution], |row| row.get(0)).optional()?;
         if sealed != Some(true) {
             return Ok(None);
         }
         let key =
             format!("{}{}:{}/{}:{}", ranks_prefix(window.execution), window.stream.len(), window.stream, window.field.len(), window.field);
-        let ranks = || self.ranks.lock().map_err(|_| Error::Data("restart after the field rank cache failed"));
-        let saved = match ranks()?.get(&key).cloned() {
-            Some(saved) => Some(saved),
-            None => connection.query_row("SELECT payload FROM administration WHERE id=?1", [&key], |row| row.get(0)).optional()?,
-        };
-        drop(connection);
-        let payload = match saved {
-            Some(payload) => payload,
-            None => {
-                let (median, percentiles) = self.numeric_order_statistics(window, &[5, 95, 99])?;
-                postcard::to_allocvec(&Ranks { median, percentiles })?
-            }
-        };
-        let decoded = postcard::from_bytes(&payload)?;
-        ranks()?.insert(key, payload);
-        Ok(Some(decoded))
+        let failed = || Error::Data("restart after the field rank cache failed");
+        let shared = self.ranks.lock().map_err(|_| failed())?.entry(key.clone()).or_default().clone();
+        // A Field Ranked by Another Reader Is Awaited, Never Ranked Twice; the Store Lock Is Not Held Meanwhile.
+        let mut ranked = shared.lock().map_err(|_| failed())?;
+        if ranked.is_none() {
+            *ranked = self.lock()?.query_row("SELECT payload FROM administration WHERE id=?1", [&key], |row| row.get(0)).optional()?;
+        }
+        if ranked.is_none() {
+            // One Pass Over the Whole Field Gains Nothing From Retaining Its Source Blocks for Later Readers.
+            let mut reader = self.clone();
+            reader.sample_reads = None;
+            let (median, percentiles) = reader.numeric_order_statistics(window, &[5, 95, 99])?;
+            *ranked = Some(postcard::to_allocvec(&Ranks { median, percentiles })?);
+        }
+        Ok(Some(postcard::from_bytes(ranked.as_deref().unwrap_or_default())?))
     }
     /// Retain a Sealed Execution's Ranked Fields So Reads After a Restart Need Not Rank Them Again.
     pub fn retain_ranks(&self, execution: &str) -> Result<()> {
         let prefix = ranks_prefix(execution);
-        let ranks = self.ranks.lock().map_err(|_| Error::Data("restart after the field rank cache failed"))?.clone();
+        let failed = || Error::Data("restart after the field rank cache failed");
+        let ranks = self.ranks.lock().map_err(|_| failed())?.clone();
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
-        for (key, payload) in ranks.iter().filter(|(key, _)| key.starts_with(&prefix)) {
-            transaction.execute(
-                "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-                params![key, payload],
-            )?;
+        for (key, ranked) in ranks.iter().filter(|(key, _)| key.starts_with(&prefix)) {
+            if let Some(payload) = ranked.lock().map_err(|_| failed())?.as_ref() {
+                transaction.execute(
+                    "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                    params![key, payload],
+                )?;
+            }
         }
         transaction.commit()?;
         Ok(())

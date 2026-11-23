@@ -87,6 +87,9 @@ pub(crate) struct Numeric<'a> {
 pub(crate) struct Ranked {
     accumulator: Accumulator,
     position: u64,
+    /// Finite Floats Selected Directly While Every Value Is One and They Fit the Budget; Others Go to the Library.
+    floats: Option<Vec<f64>>,
+    capacity: usize,
 }
 
 /// Stored Envelopes Advanced During File Publication; One of an Earlier Layout Is Left As Saved.
@@ -119,11 +122,25 @@ impl Ranked {
         Self {
             accumulator: Accumulator::with_settings(Agg::Of(Aggregate::Median), QueryAccumulatorSettings { memory_bytes }),
             position: 0,
+            floats: Some(Vec::new()),
+            capacity: memory_bytes / size_of::<f64>(),
         }
     }
 
     pub(crate) fn push(&mut self, value: &ScalarValue) -> Result<()> {
         self.position += 1;
+        if let (Some(floats), ScalarValue::Float(number)) = (&mut self.floats, value)
+            && floats.len() < self.capacity
+        {
+            // A Nonfinite Sample Is a Missing Measurement, as in the Library.
+            if number.is_finite() {
+                floats.push(*number);
+            }
+            return Ok(());
+        }
+        for (position, number) in self.floats.take().into_iter().flatten().enumerate() {
+            self.accumulator.push(position as u64 + 1, &ScalarValue::Float(number))?;
+        }
         Ok(self.accumulator.push(self.position, value)?)
     }
 
@@ -136,15 +153,50 @@ impl Ranked {
             Values::Unsigned(values) => {
                 (0..values.len()).filter(|row| valid(*row)).try_for_each(|row| self.push(&ScalarValue::Unsigned(values[row])))
             }
-            Values::Float(values) => {
-                (0..values.len()).filter(|row| valid(*row)).try_for_each(|row| self.push(&ScalarValue::Float(values[row])))
-            }
+            Values::Float(values) => match &mut self.floats {
+                Some(floats) if floats.len() + values.len() <= self.capacity => {
+                    self.position += values.len() as u64;
+                    floats.extend((0..values.len()).filter(|row| valid(*row) && values[*row].is_finite()).map(|row| values[row]));
+                    Ok(())
+                }
+                _ => (0..values.len()).filter(|row| valid(*row)).try_for_each(|row| self.push(&ScalarValue::Float(values[row]))),
+            },
         }
     }
 
+    /// The Library's Exact Ranks; Floats Are Selected in Linear Time With the Library's Interpolation.
     pub(crate) fn finish(self, statistics: &[Aggregate]) -> Result<Vec<ScalarValue>> {
         let _completion = info_span!("plot.order_statistics.finish").entered();
-        Ok(self.accumulator.finish_ranks(statistics, &mut || Ok(()))?)
+        let Some(mut floats) = self.floats else {
+            return Ok(self.accumulator.finish_ranks(statistics, &mut || Ok(()))?);
+        };
+        statistics
+            .iter()
+            .map(|statistic| {
+                let rank = match statistic {
+                    Aggregate::Median => 50,
+                    Aggregate::Percentile(rank @ 0..=100) => *rank,
+                    _ => return Err(Error::Data("select median or percentile ranks in 0..=100")),
+                };
+                if floats.is_empty() {
+                    return Ok(ScalarValue::Missing);
+                }
+                let numerator = (floats.len() - 1) as u128 * u128::from(rank);
+                let lower = (numerator / 100) as usize;
+                let (_, low, above) = floats.select_nth_unstable_by(lower, f64::total_cmp);
+                let low = *low;
+                let high = if numerator % 100 == 0 { low } else { above.iter().copied().min_by(f64::total_cmp).unwrap_or(low) };
+                let fraction = (numerator % 100) as f64 / 100.0;
+                let answer = if low == high {
+                    low
+                } else if low.signum() == high.signum() {
+                    low + (high - low) * fraction
+                } else {
+                    low * (1.0 - fraction) + high * fraction
+                };
+                Ok(ScalarValue::Float(answer))
+            })
+            .collect()
     }
 }
 
@@ -309,3 +361,36 @@ fn scalar_fields(fields: &Fields, prefix: &str, output: &mut Vec<String>) {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::Ranked;
+    use crate::scalar::ScalarValue;
+    use harmos_query::Aggregate;
+
+    #[test]
+    fn selected_float_ranks_equal_the_library_ranks() {
+        let statistics = [Aggregate::Median, Aggregate::Percentile(5), Aggregate::Percentile(95), Aggregate::Percentile(99)];
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        for count in [1usize, 2, 7, 64, 1001] {
+            let values = (0..count)
+                .map(|index| {
+                    state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+                    match index % 9 {
+                        0 => f64::NAN,
+                        1 => 0.0,
+                        _ => ((state >> 11) as f64 / (1u64 << 53) as f64 - 0.4) * 1e3,
+                    }
+                })
+                .collect::<Vec<_>>();
+            // A Budget of No Floats Ranks Every Value Through the Library.
+            let (mut selected, mut library) = (Ranked::new(1 << 20), Ranked::new(0));
+            for value in &values {
+                selected.push(&ScalarValue::Float(*value)).unwrap();
+                library.push(&ScalarValue::Float(*value)).unwrap();
+            }
+            assert!(selected.floats.is_some() && library.floats.is_none());
+            assert_eq!(selected.finish(&statistics).unwrap(), library.finish(&statistics).unwrap(), "{count} Values");
+        }
+    }
+}
