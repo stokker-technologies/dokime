@@ -43,17 +43,44 @@ use dokime_storage::persisted::View;
 
 /* === Structs === */
 
+/// A Current Read's Encoded View, Retained Only When a Continuation or an `at` Read Must Find It at Its Cut.
+pub(crate) struct Unretained {
+    scope: Identifier,
+    key: String,
+    payload: Vec<u8>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl Unretained {
+    /// Retain the View, So Its Cut Serves Continuations and `at` Reads.
+    pub(crate) async fn retain(self, context: &Context) -> Result<()> {
+        retain(context, &self.scope, self.key, self.payload).await?;
+        Ok(())
+    }
+}
+
 /* === Public Functions === */
 
 pub(crate) async fn read<T: Message + Default>(
     context: &Context, scope: Identifier, resource: &str, at: Option<&ReadCut>, current: impl Future<Output = Result<T>>,
 ) -> Result<(T, ReadCut)> {
+    let (value, cut, view) = resolve(context, scope, resource, at, current).await?;
+    if let Some(view) = view {
+        view.retain(context).await?;
+    }
+    Ok((value, cut))
+}
+
+/// The View Retained at `at`, or the Current Value With the Cut Naming It and Its View, Not Yet Retained; a Cut Whose
+/// View Was Never Retained Asks Its `at` Read to Resynchronize.
+pub(crate) async fn resolve<T: Message + Default>(
+    context: &Context, scope: Identifier, resource: &str, at: Option<&ReadCut>, current: impl Future<Output = Result<T>>,
+) -> Result<(T, ReadCut, Option<Unretained>)> {
     let store = context.host.store();
     let name = format!("{}/{}:{scope}/{resource}", store.identity(), scope.as_str().len());
     if let Some(at) = at {
@@ -70,7 +97,7 @@ pub(crate) async fn read<T: Message + Default>(
         let Some(saved) = retained(context, &format!("view:{name}:{revision}")).await? else {
             return Err(Error::Precondition(format!("Read {resource}: Retained View Is Unavailable; Resynchronize")));
         };
-        return Ok((T::decode(saved.as_slice())?, at.clone()));
+        return Ok((T::decode(saved.as_slice())?, at.clone(), None));
     }
     let position = store.evidence_position(None)?;
     let value = current.await?;
@@ -80,15 +107,16 @@ pub(crate) async fn read<T: Message + Default>(
         value.encode_to_vec()
     };
     let revision = Sha256::digest(&payload).to_vec();
-    retain(context, &scope, format!("view:{name}:{}", hex(&revision)), payload).await?;
-
-    Ok((
-        value,
-        ReadCut {
-            positions: vec![position],
-            revisions: vec![ResourceRevision { name, revision }],
-        },
-    ))
+    let view = Unretained {
+        key: format!("view:{name}:{}", hex(&revision)),
+        scope,
+        payload,
+    };
+    let cut = ReadCut {
+        positions: vec![position],
+        revisions: vec![ResourceRevision { name, revision }],
+    };
+    Ok((value, cut, Some(view)))
 }
 
 pub(crate) fn hex(bytes: &[u8]) -> String {

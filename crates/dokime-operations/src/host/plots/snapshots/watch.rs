@@ -150,7 +150,7 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
         };
         let mut pacer = Pacer::start(context.host.store().storage_settings()?.previews.refresh_interval);
         // Keep the Query State off the Watch's Inline Future and Poll Stack.
-        let first = Box::pin(list::handle(context, selection.clone())).await?;
+        let first = Box::pin(list::watched(context, selection.clone())).await?;
         let context = context.clone();
         let (sender, output) = mpsc::channel(context.settings.stream_buffer);
         tokio::spawn(async move {
@@ -213,7 +213,7 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                         selection.page.get_or_insert_default().page_token.clear();
                     }
                     let query = time::Instant::now();
-                    page = match Box::pin(list::handle(&context, selection.clone())).await {
+                    page = match Box::pin(list::watched(&context, selection.clone())).await {
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender

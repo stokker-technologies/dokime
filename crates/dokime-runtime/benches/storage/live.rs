@@ -17,7 +17,10 @@
 
 // Standard Library Imports
 use std::{
-    env, thread,
+    env,
+    ops::Range,
+    path::Path,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -26,15 +29,18 @@ use criterion::{Criterion, SamplingMode, Throughput};
 use prost::Message;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
+use tokio::task::JoinSet;
 
 // Local Imports
 use super::{boundary, publication, report, reports};
 use dokime_client_internal::ExecutionOutcome;
 use dokime_operations::host::documents::plot;
 use dokime_operations::host::plots::snapshots::list;
+use dokime_protocol::builders::Plot;
 use dokime_protocol::host::ReportsCreateRequest;
-use dokime_protocol::host::plots::PlotRequest;
-use dokime_protocol::model::{Document, EvidenceScope, Termination, card::Body};
+use dokime_protocol::host::plots::snapshots_client::SnapshotsClient;
+use dokime_protocol::host::plots::{PlotRequest, SnapshotsListRequest, SnapshotsWatchRequest};
+use dokime_protocol::model::{Document, EvidenceScope, FieldReference, Termination, card::Body};
 use dokime_runtime::services;
 use dokime_storage::{StorageSettings, Store, storage_defaults};
 
@@ -54,6 +60,17 @@ const POINTS: u64 = 2000;
 const STREAMS: usize = 128;
 /// Paced Pages Whose Start Times Give the Live Cadence.
 const PAGES: usize = 8;
+/// Signal Rates in Hz, Cycled Over the Signals.
+const RATES_HZ: [usize; 4] = [1, 2, 5, 10];
+/// Seconds of Signals Captured, So the Live Window Cuts the Oldest Rows.
+const SIGNAL_SECONDS: usize = 360;
+/// Signals, One Plot Each.
+const SIGNALS: usize = 16;
+/// Plots per Measured Refresh.
+const PLOTS: [usize; 3] = [1, 4, SIGNALS];
+/// Refreshes Averaged per Stage Row.
+const REFRESHES: usize = 20;
+const BASE_NS: i64 = 1_788_220_800_000_000_000;
 
 /* === Macros === */
 
@@ -167,6 +184,69 @@ impl Live {
 
 /* === Public Functions === */
 
+/// The Refresh Stage Table Runs Alone, Selected by Its Name.
+pub(super) fn selected() -> bool {
+    env::args().any(|argument| argument == "refresh")
+}
+
+/// One Refresh of 1, 4 and 16 Live Plots, Opened as a Watch or Read as a List, and of Overlapping Watches, Stage by Stage.
+pub(super) fn stages(executor: &Runtime, times: &reports::Times) {
+    boundary(
+        "Live Plot Refresh Stages",
+        "open execution of sixteen signals at 1, 2, 5 and 10 Hz over six minutes, flushed, served by a restarted host; one Snapshots.Watch to its first page, or one Snapshots.List, of 1, 4 or 16 time series over a 300 s window at the desktop's point budget, then sixteen one-plot watches opened at once as the desktop's plot groups overlap; each refresh asks a distinct budget, so each reply is new as advancing rows make it live; wall is the mean page latency, stages are milliseconds per page, plot.query summed over parallel plots",
+    );
+    let root = tempfile::tempdir().unwrap();
+    executor.block_on(signals(root.path()));
+    executor.block_on(async {
+        let server = reports::host(root.path()).await;
+        let snapshots = SnapshotsClient::connect(format!("http://{}", server.endpoint())).await.unwrap();
+        let mut refresh = 0;
+        let cases = PLOTS.into_iter().flat_map(|plots| [("watch", 1, plots), ("list", 1, plots)]).chain([("watches", SIGNALS, 1)]);
+        for (case, watches, plots) in cases {
+            let before = views(root.path());
+            times.0.lock().unwrap().clear();
+            let mut elapsed = Duration::ZERO;
+            for _ in 0..REFRESHES {
+                let mut pages = JoinSet::new();
+                for watch in 0..watches {
+                    refresh += 1;
+                    let requests = signal_plots(watch * plots..(watch + 1) * plots, refresh);
+                    let mut snapshots = snapshots.clone();
+                    pages.spawn(async move {
+                        let started = Instant::now();
+                        let served = if case == "list" {
+                            let request = SnapshotsListRequest { requests, ..Default::default() };
+                            snapshots.list(request).await.unwrap().into_inner().envelopes.len()
+                        } else {
+                            let request = SnapshotsWatchRequest { requests, ..Default::default() };
+                            let mut frames = snapshots.watch(request).await.unwrap().into_inner();
+                            frames.message().await.unwrap().unwrap().updates.len()
+                        };
+                        assert_eq!(served, plots, "Refresh Live Plots: Return Every Plot");
+                        started.elapsed()
+                    });
+                }
+                while let Some(latency) = pages.join_next().await {
+                    elapsed += latency.unwrap();
+                }
+            }
+            let pages = (REFRESHES * watches) as f64;
+            let line = std::mem::take(&mut *times.0.lock().unwrap())
+                .iter()
+                .map(|(phase, values)| format!("{phase}={:.3}", values.iter().sum::<f64>() / pages))
+                .collect::<Vec<_>>()
+                .join(" | ");
+            println!(
+                "Refresh Stages | {case} | {watches} x {plots} plots | wall={:.3} ms | {line} | views +{}",
+                elapsed.as_secs_f64() * 1000.0 / pages,
+                views(root.path()) - before
+            );
+        }
+        server.close().await.unwrap();
+    });
+    services::remove_credentials(root.path(), &publication::credentials()).unwrap();
+}
+
 pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &reports::Times) {
     let mut group = criterion.benchmark_group("plots/live");
     group.sample_size(10);
@@ -255,6 +335,52 @@ pub(super) fn ingestion(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
+
+/// Write an Open Execution of 1-10 Hz Signals Into a Fresh Storage Root and Flush It.
+async fn signals(root: &Path) {
+    let store = Store::open(root).unwrap();
+    let streams = (0..SIGNALS).map(|index| format!("signal.{index}")).collect::<Vec<_>>();
+    store.create(&reports::execution(&streams, Document::default())).unwrap();
+    store.open_streams("execution", &streams).unwrap();
+    for (index, stream) in streams.iter().enumerate() {
+        let rate = RATES_HZ[index % RATES_HZ.len()];
+        let batch = (0..SIGNAL_SECONDS * rate)
+            .map(|ordinal| {
+                let value = reports::Reading { value: (ordinal as f64 * 0.1).sin() };
+                reports::sample(stream, ordinal, BASE_NS + ordinal as i64 * 1_000_000_000 / rate as i64, value.encode_to_vec())
+            })
+            .collect::<Vec<_>>();
+        store.sample_batch("execution", &batch).unwrap();
+    }
+    store.flush_samples().unwrap();
+    store.shutdown_samples().await.unwrap();
+}
+
+/// Live Time Series of the Selected Signals; a Distinct Point Budget per Refresh Gives Each Refresh Its Own Reply.
+fn signal_plots(signals: Range<usize>, refresh: usize) -> Vec<PlotRequest> {
+    let scope = EvidenceScope {
+        execution_id: Some("execution".into()),
+        cycle_id: Some("cycle".into()),
+        ..Default::default()
+    };
+    signals
+        .map(|index| {
+            let declared = Plot::time_series(FieldReference::new(format!("signal.{index}")).field("value")).message;
+            PlotRequest {
+                plot_id: Some(format!("signal.{index}")),
+                max_points: Some(POINTS + refresh as u64),
+                window_s: Some(WINDOW_S),
+                ..plot::request(&declared, scope.clone()).unwrap()
+            }
+        })
+        .collect()
+}
+
+/// Retained View Files in the Root.
+fn views(root: &Path) -> i64 {
+    let database = rusqlite::Connection::open(root.join("storage.sqlite3")).unwrap();
+    database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'view/%'", [], |row| row.get(0)).unwrap()
+}
 
 /// The Document's Plots as the Desktop Requests Them While an Execution Runs.
 fn requests(window_s: Option<f64>) -> Vec<PlotRequest> {

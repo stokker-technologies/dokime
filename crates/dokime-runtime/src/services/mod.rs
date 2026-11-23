@@ -15,6 +15,8 @@ mod access_credentials;
 mod clock;
 pub(crate) mod composition;
 #[cfg(test)]
+mod plot_views;
+#[cfg(test)]
 mod record_fanout;
 mod root_claim;
 #[cfg(test)]

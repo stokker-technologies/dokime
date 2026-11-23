@@ -29,21 +29,16 @@ use tonic::transport::Channel;
 // Local Imports
 use super::{aggregate, boundary, publication, reports};
 use dokime_client_internal::ExecutionOutcome;
-use dokime_operations::host::documents::plot;
 use dokime_protocol::builders::Plot;
 use dokime_protocol::host::cycles_client::CyclesClient;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
-use dokime_protocol::host::plots::snapshots_client::SnapshotsClient;
-use dokime_protocol::host::plots::{PlotRequest, SnapshotsListRequest};
 use dokime_protocol::host::reports_client::ReportsClient;
 use dokime_protocol::host::{
     ArchiveScope, CycleFilter, CyclePhase, CycleSelection, CyclesSealRequest, CyclesWatchRequest, EvidenceArchiveRequest, EvidenceSubject,
     ReportSubject, ReportsCreateRequest, evidence_subject, report_subject,
 };
-use dokime_protocol::model::{
-    Aggregate, Document, EvidenceCard, EvidenceScope, FieldReference, Metadata, Summary, SummaryTile, Termination, card::Body,
-};
+use dokime_protocol::model::{Aggregate, Document, EvidenceCard, FieldReference, Metadata, Summary, SummaryTile, Termination, card::Body};
 use dokime_runtime::services;
 use dokime_storage::{Evidence, Store};
 
@@ -61,8 +56,6 @@ const POSITION_HZ: usize = 10;
 const BANDS: usize = 16;
 /// One Event Record Every Ten Seconds.
 const EVENT_SECONDS: usize = 10;
-/// Seconds of a Run per Distinct Live Plot Page the Desktop Retains While Watching It.
-const PAGE_SECONDS: usize = 4;
 const BATCH_ROWS: usize = 4096;
 const BASE_NS: i64 = 1_788_220_800_000_000_000;
 
@@ -101,7 +94,6 @@ struct Clients {
     server: services::Server,
     reports: ReportsClient<Channel>,
     evidence: EvidenceClient<Channel>,
-    snapshots: SnapshotsClient<Channel>,
     cycles: CyclesClient<Channel>,
 }
 
@@ -122,7 +114,7 @@ pub(super) fn selected() -> bool {
 pub(super) fn measure(executor: &Runtime, times: &reports::Times) {
     boundary(
         "Seal-Time Freeze, Growing Store",
-        "runs of 1 s, 3 min and 30 min sealed one after another into one store: six 10 Hz signals, four 1 Hz levels, a 10 Hz position, sixteen spectrum bands per second, an event record every 10 s; a 29-plot document of time series, event-conditioned histograms, XY plots and heat strips; the desktop's live watch retains one distinct plot page per 4 s of each run; after each seal the host restarts, Reports.Create freezes the report, Evidence.Archive the archive, then Cycles.Seal seals the run's cycle; printed once per run",
+        "runs of 1 s, 3 min and 30 min sealed one after another into one store: six 10 Hz signals, four 1 Hz levels, a 10 Hz position, sixteen spectrum bands per second, an event record every 10 s; a 29-plot document of time series, event-conditioned histograms, XY plots and heat strips; after each seal the host restarts, Reports.Create freezes the report, Evidence.Archive the archive, then Cycles.Seal seals the run's cycle; printed once per run",
     );
     let root = tempfile::tempdir().unwrap();
     for (index, seconds) in RUNS.into_iter().enumerate() {
@@ -220,11 +212,10 @@ async fn seal(root: &TempDir, index: usize, seconds: usize) -> usize {
     count
 }
 
-/// Restart the Host, Replay the Desktop's Retained Live Pages, Then Freeze the Report and Archive and Seal the Cycle.
+/// Restart the Host, Then Freeze the Report and Archive and Seal the Cycle.
 async fn freeze(root: &TempDir, index: usize, seconds: usize, samples: usize, times: &reports::Times) {
     let execution = identifier(index);
     let mut clients = serve(root).await;
-    watch(&mut clients, &execution, seconds).await;
     times.0.lock().unwrap().clear();
     let started = Instant::now();
     let request = ReportsCreateRequest {
@@ -273,29 +264,8 @@ async fn serve(root: &TempDir) -> Clients {
     Clients {
         reports: ReportsClient::connect(endpoint.clone()).await.unwrap(),
         evidence: EvidenceClient::connect(endpoint.clone()).await.unwrap(),
-        snapshots: SnapshotsClient::connect(endpoint.clone()).await.unwrap(),
         cycles: CyclesClient::connect(endpoint).await.unwrap(),
         server,
-    }
-}
-
-/// Retain the Distinct Live Plot Pages the Desktop Read While the Run Was Watched.
-async fn watch(clients: &mut Clients, execution: &str, seconds: usize) {
-    let scope = EvidenceScope {
-        execution_id: Some(execution.into()),
-        ..Default::default()
-    };
-    let declared = Plot::time_series(FieldReference::new("level.0").field("value")).message;
-    let request = plot::request(&declared, scope).unwrap();
-    for page in 0..seconds.div_ceil(PAGE_SECONDS) {
-        let request = SnapshotsListRequest {
-            requests: vec![PlotRequest {
-                panel_width: Some(320 + page as u32),
-                ..request.clone()
-            }],
-            ..Default::default()
-        };
-        clients.snapshots.list(request).await.unwrap();
     }
 }
 
