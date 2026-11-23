@@ -228,7 +228,6 @@ impl ChannelPlan {
         let fallback = if self.saw_6ghz { &fallback[..] } else { &fallback[..2] };
         let bands = report.capabilities.as_ref().map(|capabilities| capabilities.bands.as_slice()).unwrap_or(fallback);
         let channel_14_allowed = report.capabilities.as_ref().is_some_and(|capabilities| capabilities.channel_14_allowed);
-        let per_channel = channel_counts(&report.networks);
         let mut rows = Vec::new();
         for frequency_band in [WifiBand::Ghz24, WifiBand::Ghz5, WifiBand::Ghz6] {
             if !bands.contains(&frequency_band) {
@@ -240,14 +239,12 @@ impl ChannelPlan {
                 WifiBand::Ghz6 => (1_001..=1_233).step_by(4).collect(),
             };
             for channel in channels {
-                let network_count = per_channel.get(&channel).copied().unwrap_or_default();
-                let occupancy = report.networks.iter().map(|network| channel_overlap(channel, network)).sum();
+                let occupancy = report.networks.iter().filter(|network| occupies(channel, network)).count();
                 rows.push(WifiChannels {
                     sample_index: index(sample_index),
                     wifi_band: band(channel).expect("Channel Plan Contains Known Bands"),
                     wifi_channel: i64::from(if frequency_band == WifiBand::Ghz6 { channel - 1_000 } else { channel }),
-                    network_count: i64::from(network_count),
-                    occupancy,
+                    occupancy: i64::try_from(occupancy).unwrap_or(i64::MAX),
                 });
             }
         }
@@ -446,19 +443,19 @@ fn channel_counts(networks: &[ScannedNetwork]) -> BTreeMap<u32, u32> {
     per_channel
 }
 
-fn channel_overlap(channel: u32, network: &ScannedNetwork) -> f64 {
+/// Whether a Network Occupies a Channel: Its Primary Channel, or a 20 MHz Cell of Its Bonded 5 or 6 GHz Span.
+fn occupies(channel: u32, network: &ScannedNetwork) -> bool {
     let Some(primary) = network.channel else {
-        return 0.0;
+        return false;
     };
     if matches!(channel, 1..=14) || band(channel) != band(primary) {
-        return overlap_weight(channel, primary);
+        return channel == primary;
     }
-    if let (Some(width), Some(center)) = (network.channel_width_mhz, network.center_channel) {
+    match (network.channel_width_mhz, network.center_channel) {
         // Channel Numbers Are Spaced 5 MHz; a Bonded Span Covers Its 20 MHz Cell Centers.
-        let distance_mhz = channel.abs_diff(center) * 5;
-        return if width >= 20 && distance_mhz < width / 2 { 1.0 } else { 0.0 };
+        (Some(width), Some(center)) if width >= 20 => channel.abs_diff(center) * 5 < width / 2,
+        _ => channel == primary,
     }
-    overlap_weight(channel, primary)
 }
 
 /* === Tests === */
