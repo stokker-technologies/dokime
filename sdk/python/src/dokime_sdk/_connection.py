@@ -14,7 +14,6 @@
 import json
 from asyncio import wait_for
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from dataclasses import replace
 from math import isfinite
 from pathlib import Path
 from typing import TypedDict
@@ -34,13 +33,15 @@ from grpc.aio import (
     insecure_channel,
     secure_channel,
 )
-
-import dokime_sdk._generated.client
+from harmos import CLASSIFICATION_REFUSED, CLASSIFICATION_TIMED_OUT, CLASSIFICATION_TRANSIENT, OperationError
+from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
+import dokime_sdk._generated.client
+
 from ._client import Client
 from ._configuration import load, resolve
-from ._errors import Failure, SdkError, chain, transport_error
+from ._transport import chain, transport_error
 
 # Type Checking Imports
 
@@ -138,30 +139,31 @@ async def connect(
         try:
             return await _connect_endpoint(selected, connect_timeout, certificate_pem, access_key, expected_backend_id)
         except AioRpcError as error:
-            failure = transport_error("connect", error).failure
-            failures.append(replace(failure, details={**failure.details, "connection_endpoint": selected}))
+            failure = transport_error("connect", error).value
+            failure.details["connection_endpoint"] = selected
+            failures.append(failure)
         except (TimeoutError, ValueError) as error:
             reason = str(error) or type(error).__name__
             failures.append(
                 Failure(
-                    "Timed Out" if isinstance(error, TimeoutError) else "Refused",
-                    type(error).__name__,
-                    reason,
-                    "Check the Host Listener or Export a New Pairing",
-                    "connect",
+                    classification=CLASSIFICATION_TIMED_OUT if isinstance(error, TimeoutError) else CLASSIFICATION_REFUSED,
+                    code=type(error).__name__,
+                    message=reason,
+                    action="Check the Host Listener or Export a New Pairing",
+                    operation="connect",
                     details={"connection_endpoint": selected},
                 )
             )
     message = "; ".join(f"{failure.details['connection_endpoint']}: {failure.message}" for failure in failures)
     classifications = {failure.classification for failure in failures}
-    classification = failures[0].classification if len(classifications) == 1 else "Transient"
-    raise SdkError(
+    classification = failures[0].classification if len(classifications) == 1 else CLASSIFICATION_TRANSIENT
+    raise OperationError(
         Failure(
-            classification,
-            "connection_failed",
-            message,
-            "Check the Host Listener or Export a New Pairing",
-            "connect",
+            classification=classification,
+            code="connection_failed",
+            message=message,
+            action="Check the Host Listener or Export a New Pairing",
+            operation="connect",
             cause=chain(failures),
         )
     )

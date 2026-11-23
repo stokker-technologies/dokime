@@ -32,15 +32,14 @@ from dokime_sdk.operations import OperationPolicy, RetryPolicy, Visibility, oper
 from dokime_sdk.templates import (
     Document,
     Materialization,
+    Observer,
     Section,
     TestTemplate,
     criterion,
     materialize,
-    Observer,
     prompt,
     record,
     step,
-    stream,
 )
 
 # Type Checking Imports
@@ -56,7 +55,7 @@ from dokime_sdk.templates import (
 
 
 class ConfirmationTestTemplate(TestTemplate):
-    confirmation = record(bool, label="Confirmation", identifier='confirmation')
+    confirmation = record(bool, label="Confirmation", identifier="confirmation")
 
     @step("Confirm")
     async def confirm(self, ctx: dokime_sdk.templates.Context) -> None:
@@ -115,14 +114,13 @@ class AuthoringStory(unittest.TestCase):
         async def read(ctx: dokime_sdk.operations.Context, request: int) -> int:
             return request
 
-        class TrackingTestTemplateStatus(Observer):
+        class TrackingTestTemplateStatus(Observer[int]):
             identifier = "example.status"
             label = "Status"
             row = int
 
             async def sample(self, ctx: dokime_sdk.templates.Context) -> int:
                 return 1
-
 
         class TrackingTestTemplate(TestTemplate):
             uses_streams = (TrackingTestTemplateStatus,)
@@ -135,7 +133,6 @@ class AuthoringStory(unittest.TestCase):
             async def take(self, ctx: dokime_sdk.templates.Context) -> None:
                 pass
 
-
             @materialize
             def materialize(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
                 case.step("Read", self.take, identifier="example.channel")
@@ -144,14 +141,13 @@ class AuthoringStory(unittest.TestCase):
             identifier = "example.layout"
             templates = (TrackingTestTemplate,)
 
-        class QualifiedPluginSystem(Observer):
+        class QualifiedPluginSystem(Observer[int]):
             identifier = "example.system"
             label = "System"
             row = int
 
             async def sample(self, ctx: dokime_sdk.operations.Context) -> int:
                 return 1
-
 
         class QualifiedPlugin(Plugin):
             identifier = "example"
@@ -160,7 +156,6 @@ class AuthoringStory(unittest.TestCase):
             records = (TrackingTestTemplate.reading,)
             operations = (measure, read)
             observers = (TrackingTestTemplateStatus, QualifiedPluginSystem)
-
 
         plugin = QualifiedPlugin()
         template = plugin._suites[0].templates[0]
@@ -323,9 +318,13 @@ class AuthoringStory(unittest.TestCase):
             declaration = type("InvalidSuite", (CaptureSuite,), {"identifier": identity})
             plugin = type("InvalidPlugin", (ExamplePlugin,), {"suites": [declaration]})
             self.assertRaises(ValueError, plugin)
+
         class DuplicatePlugin(ExamplePlugin):
             suites: ClassVar[list[type[Suite]]] = [CaptureSuite, CaptureSuite]
-            records = (ConfirmationTestTemplate.confirmation, ConfirmationTestTemplate.confirmation,)
+            records = (
+                ConfirmationTestTemplate.confirmation,
+                ConfirmationTestTemplate.confirmation,
+            )
 
         self.assertRaises(ValueError, DuplicatePlugin)
 

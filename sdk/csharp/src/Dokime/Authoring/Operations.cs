@@ -59,15 +59,8 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
   {
     registrar.Register(Wire<TWireRequest, TWireResponse>(), async (raw, request) =>
     {
-      try
-      {
-        var value = await handler(context(raw), Payload<TRequest>.Unpack(request.ToByteString()));
-        return (TWireResponse)Payload<TResponse>.Pack(value);
-      }
-      catch (SdkError error)
-      {
-        throw new Harmos.OperationException(error.Failure.ToWire());
-      }
+      var value = await handler(context(raw), Payload<TRequest>.Unpack(request.ToByteString()));
+      return (TWireResponse)Payload<TResponse>.Pack(value);
     });
   }
 

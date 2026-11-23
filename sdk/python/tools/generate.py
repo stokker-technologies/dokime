@@ -11,7 +11,6 @@
 # === Imports === #
 
 # Standard Library Imports
-
 import argparse
 import hashlib
 import json
@@ -38,7 +37,6 @@ ROOT_EXPORTS = {
     "_client": ["Case", "Cases", "Client", "Cycle", "Cycles", "Execution", "Executions", "Plugins", "RegisteredPlugin"],
     "_connection": ["connect"],
     "_context": ["StreamRow", "Gap"],
-    "_errors": ["Failure", "SdkError"],
     "_values": ["Artifact", "Note", "Outcome", "Progress", "PromptAnswer", "PromptQuestion", "ResultStatus", "Scalar"],
 }
 
@@ -123,7 +121,7 @@ PUBLIC_HOMES = {
             "heat_strip",
             "histogram",
             "materialize",
-            "observer",
+            "Observer",
             "pie",
             "plot_card",
             "prompt",
@@ -133,7 +131,6 @@ PUBLIC_HOMES = {
             "stream",
             "time_series",
             "trajectory",
-            "window_observer",
             "xy",
         ]
     ),

@@ -43,8 +43,8 @@ def counter(window: Window) -> Message:
     return CounterColumns(value=[1_152_921_504_606_847_975] * window.count)
 
 
-def channel(identifier: str) -> type[Observer[Counter]]:
-    class CounterObserver(Observer[Counter]):
+def channel(identifier: str) -> type[Observer[Message]]:
+    class CounterObserver(Observer[Message]):
         row = Counter
         columns = CounterColumns
         interval_ms = 1

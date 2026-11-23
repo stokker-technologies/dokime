@@ -22,19 +22,21 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 import harmos
 from grpc import StatusCode
 from grpc.aio import AioRpcError
+from harmos import CLASSIFICATION_PERMANENT, CLASSIFICATION_REFUSED, OperationError
+from harmos._wire.model.v1.failure_pb2 import Failure
 from harmos.plugin import Endpoint
 
 # Local Imports
 import dokime_sdk._generated.client
 
 from ._authoring import _Template
-from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
 from ._evidence import RecordsQuery, SamplesQuery
 from ._generated import client_types
 from ._generated.shared import MapValue
 from ._payloads import Payload
 from ._schemas import FrozenSchemaCache
 from ._transfers import download, publish_artifact, verify_archive
+from ._transport import call, chain, invalid, refused, transport_error
 from ._values import Artifact, Note, Outcome, Progress, PromptAnswer, PromptQuestion, ResultStatus, Scalar, Termination, decode, encode
 from ._wire.model.v1.evidence_pb2 import ArtifactScope
 from ._wire.model.v1.metadata_pb2 import Metadata
@@ -106,7 +108,7 @@ class Client:
         try:
             async for frame in watch:
                 if frame.HasField("resync_required"):
-                    raise SdkError(project_failure(frame.resync_required))
+                    raise OperationError(frame.resync_required)
                 for view in frame.prompts:
                     prompt = view.prompt
                     handler = self._prompt_handler
@@ -170,12 +172,12 @@ class Client:
                 failures.append(_cleanup_failure(close_result))
         self._closed = True
         if failures:
-            raise SdkError(
+            raise OperationError(
                 Failure(
-                    "Refused",
-                    "cleanup_failed",
-                    "Client Cleanup Failed",
-                    "Resolve Each Cleanup Failure and Retry Close",
+                    classification=CLASSIFICATION_REFUSED,
+                    code="cleanup_failed",
+                    message="Client Cleanup Failed",
+                    action="Resolve Each Cleanup Failure and Retry Close",
                     cause=chain(failures),
                 )
             )
@@ -252,7 +254,7 @@ class Plugins:
                     await entry._release()
                 else:
                     await endpoint.stop()
-            except (SdkError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
+            except (OperationError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
                 error.add_note(f"Registration Cleanup Failed: {cleanup}")
             raise
 
@@ -324,7 +326,10 @@ class RegisteredPlugin:
 
     def _check_failure(self, request_id: str) -> None:
         if self._entry.HasField("failure"):
-            raise SdkError(project_failure(self._entry.failure), request_id=request_id)
+            failure = OperationError(self._entry.failure)
+            if request_id is not None:
+                failure.value.details["request_id"] = request_id
+            raise failure
         if self.state in ("Unavailable", "Offline", "Stopped", "Stopping"):
             raise refused(
                 "plugins.register",
@@ -783,11 +788,17 @@ class Execution:
 
 
 def _cleanup_failure(error: BaseException) -> Failure:
-    if isinstance(error, SdkError):
-        return error.failure
+    if isinstance(error, OperationError):
+        return error.value
     if isinstance(error, AioRpcError):
-        return transport_error("client.close", error).failure
-    return Failure("Permanent", type(error).__name__, str(error), "Resolve the Cleanup Failure and Close Again", "client.close")
+        return transport_error("client.close", error).value
+    return Failure(
+        classification=CLASSIFICATION_PERMANENT,
+        code=type(error).__name__,
+        message=str(error),
+        action="Resolve the Cleanup Failure and Close Again",
+        operation="client.close",
+    )
 
 
 def _identity(request_id: str | None) -> str:

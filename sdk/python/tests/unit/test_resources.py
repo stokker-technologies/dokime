@@ -11,15 +11,15 @@ from unittest.mock import AsyncMock, Mock
 
 # Third Party Imports
 import harmos
-from harmos import plugin
+from harmos import CLASSIFICATION_REFUSED, plugin
 from harmos._wire.model.v1.failure_pb2 import Failure
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
-from dokime_sdk import Client, Plugin, RegisteredPlugin, SdkError
+from dokime_sdk import Client, Plugin, RegisteredPlugin
 from dokime_sdk._generated import client_types
 from dokime_sdk._wire.host.v1.secrets_pb2 import SecretsGetResponse
-from dokime_sdk.operations import Context, Resource, Secret
+from dokime_sdk.operations import Context, OperationError, Resource, Secret
 
 # Type Checking Imports
 
@@ -47,17 +47,17 @@ class ResourceTests(IsolatedAsyncioTestCase):
 
         for response in (b"", b"\xff"):
             transport._call.return_value = SecretsGetResponse(secret=response)
-            with self.assertRaises(SdkError) as raised:
+            with self.assertRaises(OperationError) as raised:
                 await context.secret("api_token")
-            self.assertEqual(raised.exception.failure.classification, "Refused")
-            self.assertIn("Remote API Token", raised.exception.failure.action)
-            self.assertIn("then Retry", raised.exception.failure.action)
+            self.assertEqual(raised.exception.value.classification, CLASSIFICATION_REFUSED)
+            self.assertIn("Remote API Token", raised.exception.value.action)
+            self.assertIn("then Retry", raised.exception.value.action)
 
         missing = Failure(code="NOT_FOUND", classification=harmos.CLASSIFICATION_REFUSED)
         transport._call.side_effect = harmos.OperationError(Failure(cause=missing))
-        with self.assertRaises(SdkError) as raised:
+        with self.assertRaises(OperationError) as raised:
             await context.secret("api_token")
-        self.assertEqual(raised.exception.failure.action, "Store the Remote API Token secret for this plugin, then Retry")
+        self.assertEqual(raised.exception.value.action, "Store the Remote API Token secret for this plugin, then Retry")
 
         failure = Failure(code="denied", classification=harmos.CLASSIFICATION_REFUSED, action="Request Access")
         transport._call.side_effect = harmos.OperationError(failure)
@@ -100,7 +100,7 @@ class ResourceTests(IsolatedAsyncioTestCase):
         await finalize(object(), transport)
         await finalize(object(), transport)
         self.assertEqual(closed, [api])
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await context.resource(RemoteApi)
         await owner._lifecycle("initialize")(object(), transport)
         restarted = await context.resource(RemoteApi)

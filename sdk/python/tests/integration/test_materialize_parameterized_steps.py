@@ -25,19 +25,18 @@ from harmos._wire.plugin.v1.invocation_pb2 import Request
 # Local Imports
 import dokime_sdk.operations
 import dokime_sdk.templates
-from dokime_sdk import Client, Plugin, ResultStatus, Scalar, SdkError, Suite
-from dokime_sdk.operations import OperationPolicy, RetryPolicy
+from dokime_sdk import Client, Plugin, ResultStatus, Scalar, Suite
+from dokime_sdk.operations import OperationError, OperationPolicy, RetryPolicy
 from dokime_sdk.templates import (
     Context,
     Materialization,
+    Observer,
     Parameter,
     Termination,
     TestTemplate,
     criterion,
     materialize,
-    Observer,
     step,
-    stream,
 )
 
 # Type Checking Imports
@@ -118,8 +117,8 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
     async def test_plugin_observers_use_the_actual_plugin_without_execution_fields(self) -> None:
         contexts: list[dokime_sdk.operations.Context] = []
 
-        class ObserverPluginReading(Observer):
-            identifier = 'reading'
+        class ObserverPluginReading(Observer[int]):
+            identifier = "reading"
             label = "Reading"
             row = int
 
@@ -129,7 +128,6 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 owner.reading_count += 1
                 return owner.reading_count
 
-
         class ObserverPlugin(Plugin):
             observers = (ObserverPluginReading,)
             version = "1.0.0"
@@ -138,12 +136,12 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 self.reading_count = 0
                 super().__init__()
 
-
         author = ObserverPlugin()
         definition, handler, observing = author._plugin._registrations()[1][0]
         self.assertTrue(observing)
         self.assertEqual(definition.id, "observer.reading")
         transport = plugin.Context(Request(attempt=1), author.identifier, {})
+        assert definition.on_start is not None
         await definition.on_start(transport)
         for expected in (1, 2):
             result = await cast(Any, handler)(transport)
@@ -195,7 +193,7 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
         await client.plugins.register(RadioPlugin())
         for name, value, label in (("channel", 2, "Wi-Fi Channel"), ("country", "XX", "Country Code"), ("power", 11.0, "Power")):
             materialized.clear()
-            with self.assertRaises(SdkError) as raised:
+            with self.assertRaises(OperationError) as raised:
                 await client.cases.materialize(RadioTestTemplate, parameters={name: [value]})
             self.assertIn(label, str(raised.exception))
             self.assertFalse(materialized)

@@ -43,7 +43,6 @@ from . import _logs
 from ._authoring import Materialization, Observer, Record, Stream, Suite, _Template, bind_suite, build_identifier, build_label
 from ._configuration import load
 from ._connection import connect
-from ._errors import SdkError, wire_failure
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretsDeclarations, Value
 from ._payloads import message_type, pack
@@ -97,9 +96,9 @@ class Plugin:
         self.identifier = build_identifier(type(self).__name__, getattr(type(self), "identifier", None), class_name=True)
         self._label = self.label if self.label is not None else build_label(type(self).__name__)
         self._version = self.version if self.version is not None else _distribution_version(type(self))
-        self._suites = tuple(bind_suite(item, self.identifier) for item in tuple(self.suites))
         self._plugin_records = tuple(self.records)
         self._record_identities: dict[int, str] = {}
+        record_names: dict[str, str] = {}
         for record in self._plugin_records:
             if not isinstance(record, Record) or not record.identifier:
                 raise ValueError("Declare Plugin Record: Supply a Record With an Identifier")
@@ -107,6 +106,8 @@ class Plugin:
             if identity in self._record_identities.values():
                 raise ValueError("Declare Plugin Records: Give Every Record a Unique Identifier")
             self._record_identities[id(record)] = identity
+            record_names[record.identifier] = identity
+        self._suites = tuple(bind_suite(item, self.identifier, record_names) for item in tuple(self.suites))
         for suite in self._suites:
             for template in suite.templates:
                 template._identifiers.update(self._record_identities)
@@ -189,10 +190,10 @@ class Plugin:
         for template in templates:
             for declaration in template.uses_streams:
                 if isinstance(declaration, type):
-                    identity = self._streams.get(id(declaration))
-                    if identity is None:
+                    selected = self._streams.get(id(declaration))
+                    if selected is None:
                         raise ValueError("Use Observer: Declare Its Class on the Plugin")
-                    template._identifiers[id(declaration)] = identity
+                    template._identifiers[id(declaration)] = selected
         methods["initialize"] = self._lifecycle("initialize")
         methods["finalize"] = self._lifecycle("finalize")
         adapter = type("DokimeOperations", (), methods)()
@@ -364,8 +365,6 @@ class Plugin:
                         raise TypeError("Evaluate Criterion: Handler Must Return bool")
                     return CriteriaEvaluateResponse(passed=result)
                 return response_type()
-            except SdkError as error:
-                raise harmos.OperationError(wire_failure(error.failure)) from error
             finally:
                 if kind == "cleanup":
                     self._sessions.pop(key, None)
@@ -409,14 +408,28 @@ class Plugin:
 
         nanoseconds = round(interval_ms * 1_000_000)
         duration = Duration(seconds=nanoseconds // 1_000_000_000, nanos=nanoseconds % 1_000_000_000)
-        options = dict(
-            row=message_type(declaration.row), interval=duration,
-            interval_setting=declaration.interval_setting, window_setting=declaration.window_setting,
-            description=declaration.label or build_label(declaration.__name__), on_start=start, on_stop=stop,
-        )
         if declaration.columns is not None:
-            return window_observer(identity, columns=declaration.columns, **options)(sample)
-        return observer(identity, **options)(sample)
+            return window_observer(
+                identity,
+                columns=declaration.columns,
+                row=message_type(declaration.row),
+                interval=duration,
+                interval_setting=declaration.interval_setting,
+                window_setting=declaration.window_setting,
+                description=declaration.label or build_label(declaration.__name__),
+                on_start=start,
+                on_stop=stop,
+            )(sample)
+        return observer(
+            identity,
+            row=message_type(declaration.row),
+            interval=duration,
+            interval_setting=declaration.interval_setting,
+            window_setting=declaration.window_setting,
+            description=declaration.label or build_label(declaration.__name__),
+            on_start=start,
+            on_stop=stop,
+        )(sample)
 
     def _stream(self, name: str, method: FunctionType) -> Callable[..., Awaitable[None]]:
         definition = cast(Stream, vars(method)["__dokime_stream__"])
@@ -463,8 +476,6 @@ class Plugin:
                             await self._close_resources()
 
                     await _logs.run(context, finalize)
-            except SdkError as error:
-                raise harmos.OperationError(wire_failure(error.failure)) from error
             finally:
                 if name == "finalize":
                     self._sessions.clear()

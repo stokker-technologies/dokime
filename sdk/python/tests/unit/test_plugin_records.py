@@ -15,7 +15,7 @@ from dokime_sdk import Plugin, Suite
 from dokime_sdk._wire.host.v1.evidence.records_pb2 import RecordsAppendResponse
 from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContracts
 from dokime_sdk.operations import Context
-from dokime_sdk.templates import TestTemplate, record
+from dokime_sdk.templates import Document, Section, TestTemplate, record, time_series
 
 # === Classes === #
 
@@ -31,7 +31,10 @@ class InspectTestTemplate(TestTemplate):
 
 
 class CaptureSuite(Suite):
-    templates = (CaptureTestTemplate, InspectTestTemplate,)
+    templates = (
+        CaptureTestTemplate,
+        InspectTestTemplate,
+    )
 
 
 class EventPlugin(Plugin):
@@ -41,6 +44,30 @@ class EventPlugin(Plugin):
 
 
 class PluginRecordTests(IsolatedAsyncioTestCase):
+    def test_documents_bind_plugin_records_without_template_record_declarations(self) -> None:
+        began = record(str, identifier="began")
+        ended = record(str, identifier="ended")
+        elapsed = ended.time_since(began)
+
+        class DurationTemplate(TestTemplate):
+            documents = (Document("Durations").section(Section("Events").plot(time_series(elapsed))),)
+
+        class DurationSuite(Suite):
+            templates = (DurationTemplate,)
+
+        class DurationPlugin(Plugin):
+            version = "1.0.0"
+            suites = (DurationSuite,)
+            records = (began, ended)
+
+        owner = DurationPlugin()
+        template = owner._suites[0].templates[0]
+        bound = template.documents[0].message.sections[0].cards[0].plot.y[0]
+        self.assertEqual(bound.transform.time_between, template.resolve(began))
+        self.assertEqual(bound.transform.input.record.identifier, template.resolve(ended))
+        self.assertEqual(elapsed.message.transform.time_between, "began")
+        self.assertEqual(elapsed.message.transform.input.record.identifier, "ended")
+
     def test_records_are_declared_once_at_plugin_scope(self) -> None:
         owner = EventPlugin()
         section = next(item for item in owner.declarations().sections if item.type == RecordContracts.DESCRIPTOR.full_name)

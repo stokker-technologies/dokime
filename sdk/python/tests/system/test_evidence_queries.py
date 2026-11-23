@@ -25,10 +25,10 @@ import harmos
 from grpc.aio import AioRpcError
 
 # Local Imports
-from dokime_sdk import Client, Plugin, ResultStatus, SdkError, Suite
+from dokime_sdk import Client, Plugin, ResultStatus, Suite
 from dokime_sdk._generated.shared import SettingValues
-from dokime_sdk.operations import Setting, Settings
-from dokime_sdk.templates import Context, TestTemplate, criterion, Observer, record, step, stream
+from dokime_sdk.operations import OperationError, Setting, Settings
+from dokime_sdk.templates import Context, Observer, TestTemplate, criterion, record, step
 
 # Type Checking Imports
 
@@ -44,7 +44,7 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 
 
 class CaptureTestTemplate(TestTemplate):
-    flag = record(bool, label="Captured Flag", identifier='flag')
+    flag = record(bool, label="Captured Flag", identifier="flag")
 
     @step("Capture")
     async def capture(self, ctx: Context) -> None:
@@ -99,7 +99,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         specification.loader.exec_module(module)
         host = await cast(HostFactory, module.Host).start(self)
         client = host.client
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await client.plugins.register(OutsideBoundsPlugin())
         entry = await client.plugins.register(SettingsPlugin())
         initial = await client._transport.plugins.settings.list(name=entry.identifier)
@@ -135,8 +135,8 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
 
         written = asyncio.Event()
 
-        class ObserverTestTemplateReading(Observer):
-            identifier = 'reading'
+        class ObserverTestTemplateReading(Observer[float]):
+            identifier = "reading"
             label = "Reading"
             row = float
             interval_ms = 10
@@ -149,10 +149,9 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
                 finally:
                     written.set()
 
-
         class ObserverTestTemplate(TestTemplate):
             uses_streams = (ObserverTestTemplateReading,)
-            flag = record(bool, identifier='flag')
+            flag = record(bool, identifier="flag")
 
             def __init__(self) -> None:
                 pass
@@ -161,7 +160,6 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
             async def capture(self, ctx: Context) -> None:
                 await ctx.sleep(0.25)
                 await written.wait()
-
 
             @criterion("Captured")
             async def captured(self, ctx: Context) -> bool:

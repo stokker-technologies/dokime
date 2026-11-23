@@ -47,6 +47,8 @@ Use `await context.Operation("example.measure", new { channel = 1 })` for a JSON
 operation. The host validates protobuf field names, schedules every call and
 returns replies with default fields present. Catch `Harmos.OperationException`
 for `Kind`, `Code`, `Message`, `Action`, `Operation` and `Retry` evidence.
+Client calls and plugin handlers carry the same library exception, preserving the
+full failure payload, causes and request identity in `Failure.Details`.
 Override the plugin's `Failure` property with a mapper returning an
 `OperationException` or `null` for library default handling.
 

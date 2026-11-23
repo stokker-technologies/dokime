@@ -50,6 +50,8 @@ if TYPE_CHECKING:
 class Observer[T: Payload = float]:
     """Plugin Sampling State, Created Anew for Each Sampling Period."""
 
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     identifier: ClassVar[str | None] = None
     label: ClassVar[str | None] = None
     row: type[T] = cast(type[T], float)
@@ -163,13 +165,17 @@ class _Template:
         for stream in self.uses_streams:
             if isinstance(stream, type) and issubclass(stream, Observer):
                 continue
-            if not isinstance(stream, Stream) or not stream.identifier or not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)+", stream.identifier):
+            if (
+                not isinstance(stream, Stream)
+                or not stream.identifier
+                or not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)+", stream.identifier)
+            ):
                 raise ValueError("Use Template Stream: Supply an Observer Class or a Qualified Stream")
         if sum(bool(getattr(method, "__dokime_materialize__", False)) for method in self._methods.values()) > 1:
             raise ValueError("Build Template: Declare Exactly One Custom Materializer")
         self.prompts = tuple(member for member in self._methods.values() if isinstance(member, PromptDeclaration))
 
-    def bind(self, prefix: str, root: str) -> "_Template":
+    def bind(self, prefix: str, root: str, record_ids: Mapping[str, str]) -> "_Template":
         bound = copy(self)
         bound._root = root
         bound.identifier = build_identifier(self.instance.__name__, self.identifier, prefix=prefix, root=root, class_name=True)
@@ -177,11 +183,11 @@ class _Template:
         bound._lifecycle = {name: build_identifier(name, prefix=bound.identifier) for name in ("materialize", "initialize", "cleanup")}
         bound._prompts = {}
         stream_ids = {}
-        for declaration in self.uses_streams:
-            if isinstance(declaration, type):
-                local = build_identifier(declaration.__name__, declaration.identifier, class_name=True)
-                identity = build_identifier(declaration.__name__, declaration.identifier, prefix=root, class_name=True)
-                bound._identifiers[id(declaration)] = identity
+        for stream in self.uses_streams:
+            if isinstance(stream, type):
+                local = build_identifier(stream.__name__, stream.identifier, class_name=True)
+                identity = build_identifier(stream.__name__, stream.identifier, prefix=root, class_name=True)
+                bound._identifiers[id(stream)] = identity
                 stream_ids[local] = identity
         names: list[str] = []
         declarations: list[tuple[object, str, str | None]] = []
@@ -211,10 +217,6 @@ class _Template:
             document_ids.add(qualified)
             bound._identifiers[id(declaration)] = qualified
             document.message.metadata.identifier = qualified
-            record_ids = {
-                member.identifier or name: build_identifier(name, member.identifier, prefix=root)
-                for name, member in self._methods.items() if isinstance(member, Record)
-            }
             pending: list[Message] = [document.message]
             while pending:
                 value = pending.pop()
@@ -496,7 +498,7 @@ def build_label(name: str) -> str:
 # === Private Functions === #
 
 
-def bind_suite(declaration: type[Suite], prefix: str) -> _Suite:
+def bind_suite(declaration: type[Suite], prefix: str, record_ids: Mapping[str, str]) -> _Suite:
     if not isinstance(declaration, type) or not issubclass(declaration, Suite):
         raise TypeError("Build Plugin: List Suite Classes in suites")
     identity = build_identifier(declaration.__name__, declaration.identifier, prefix=prefix, class_name=True)
@@ -511,7 +513,7 @@ def bind_suite(declaration: type[Suite], prefix: str) -> _Suite:
             files=tuple(deepcopy(item.files)),
             documents=tuple(item.documents),
             uses_streams=tuple(item.uses_streams),
-        ).bind(identity, prefix)
+        ).bind(identity, prefix, record_ids)
         templates.append(template)
     return _Suite(identity, tuple(templates), declaration.label or build_label(declaration.__name__))
 

@@ -20,7 +20,7 @@ from datetime import timedelta
 # Third Party Imports
 from dokime_sdk import Plugin, Suite, operations
 from dokime_sdk.operations import OperationPolicy, RetryPolicy, Setting, Settings, Visibility, operation
-from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, Observer, record, step, stream
+from dokime_sdk.templates import Context, Observer, Parameter, TestTemplate, Window, criterion, record, step
 from google.protobuf.message import Message
 from google.protobuf.wrappers_pb2 import BytesValue
 
@@ -44,8 +44,8 @@ log = logging.getLogger(__name__)
 # === Classes === #
 
 
-class ThermalCycleTestTemplateCounter(Observer):
-    identifier = 'counter'
+class ThermalCycleTestTemplateCounter(Observer[Message]):
+    identifier = "counter"
     label = "Exact Counter"
     row = Counter
     columns = CounterColumns
@@ -55,8 +55,8 @@ class ThermalCycleTestTemplateCounter(Observer):
         return sampling.counter(window)
 
 
-class ThermalCycleTestTemplateTemperature(Observer):
-    identifier = 'temperature'
+class ThermalCycleTestTemplateTemperature(Observer[Message]):
+    identifier = "temperature"
     label = "Temperature [°C]"
     row = Temperature
     interval_ms = 1000
@@ -71,7 +71,7 @@ class ThermalCycleTestTemplate(TestTemplate):
     label = "Thermal Cycle"
     limit = Parameter.number("Limit", default=85.0)
 
-    door = record(Door, label="Door Check", identifier='door')
+    door = record(Door, label="Door Check", identifier="door")
 
     async def initialize(self, ctx: Context) -> None:
         limit = ctx.parameter(ThermalCycleTestTemplate.limit)
@@ -90,7 +90,6 @@ class ThermalCycleTestTemplate(TestTemplate):
         await ctx.record(self.door, Door(closed=answer == "Yes"))
         await ctx.sleep(2.5)
         await ctx.progress(2, 2, label="Hold")
-
 
     # A 1 kHz Stream Answers Each Host Window at Once.
 

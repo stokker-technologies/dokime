@@ -29,7 +29,6 @@ from harmos._wire.plugin.v1.invocation_pb2 import Request
 from dokime_sdk import Plugin, Suite
 from dokime_sdk._client import Case, Cycle, Execution
 from dokime_sdk._connection import connect
-from dokime_sdk._errors import SdkError
 from dokime_sdk._generated import client_types
 from dokime_sdk._wire.host.v1 import documents_pb2, evidence_pb2
 from dokime_sdk._wire.host.v1.content import artifacts_pb2
@@ -43,7 +42,8 @@ from dokime_sdk._wire.host.v1.executions import schemas_pb2
 from dokime_sdk._wire.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
 from dokime_sdk._wire.host.v1.files import uploads_pb2
 from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
-from dokime_sdk.templates import Context, Document, Section, Termination, TestTemplate, Observer, record, stream
+from dokime_sdk.operations import OperationError
+from dokime_sdk.templates import Context, Document, Observer, Section, Termination, TestTemplate, record
 
 # Type Checking Imports
 
@@ -229,21 +229,19 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(artifact.execution)
 
     async def test_client_and_scoped_callers_share_publication_and_record_queries(self) -> None:
-        class CaptureTestTemplateVoltage(Observer):
-            identifier = 'voltage'
+        class CaptureTestTemplateVoltage(Observer[float]):
+            identifier = "voltage"
             label = "Voltage"
             row = float
 
             async def sample(self, ctx: Context) -> float:
                 return 0.0
 
-
         class CaptureTestTemplate(TestTemplate):
             uses_streams = (CaptureTestTemplateVoltage,)
-            flag = record(bool, identifier='flag')
+            flag = record(bool, identifier="flag")
             report = Document("Report")
             documents: ClassVar[list[Document]] = [report]
-
 
         class CaptureSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [CaptureTestTemplate]
@@ -299,23 +297,23 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.requests[0].document, "capture.capture.capture.report")
         with self.assertRaises(ValueError):
             await context.document("unknown", Section("Measured"))
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await context.note("Operator Note")
         cleanup = Context(ScopedCarrier(channel), owner, {}, owner._suites[0].templates[0], termination=3)
         self.assertIs(cleanup.termination, Termination.CANCELLED)
 
     async def test_failed_upload_abandons_without_changing_the_request_identity(self) -> None:
         self.fail_append = True
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.cycle.artifact("capture.bin", b"abcde", request_id="failed")
-        self.assertEqual(failed.exception.request_id, "failed")
+        self.assertEqual(failed.exception.value.details["request_id"], "failed")
         self.assertEqual(self.identities, ["failed/create", "failed/append/0", "failed/abandon"])
 
     async def test_failed_attachment_never_deletes_a_published_file(self) -> None:
         self.fail_attach = True
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.cycle.artifact("capture.bin", b"abcde", request_id="published")
-        self.assertEqual(failed.exception.request_id, "published")
+        self.assertEqual(failed.exception.value.details["request_id"], "published")
         self.assertEqual(self.identities[-2:], ["published/publish", "published/attach"])
         self.assertFalse(any(identity.endswith("/abandon") for identity in self.identities))
 

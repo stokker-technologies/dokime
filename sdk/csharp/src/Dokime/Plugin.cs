@@ -287,14 +287,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
         if (!request.TestCase.Steps.Any(item => item.Metadata.Identifier == request.Step && item.Operation == operation))
           throw new ArgumentException($"{operation}: Step Does Not Match the Frozen Case");
         var context = await GetContextAsync(raw, template, request.TestCase);
-        try
-        {
-          await step.Run(context);
-        }
-        catch (SdkError error)
-        {
-          throw new OperationException(error.Failure.ToWire());
-        }
+        await step.Run(context);
         return new StepsExecuteResponse();
       });
     }
@@ -309,14 +302,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
         if (!request.TestCase.Criteria.Any(item => item.Metadata.Identifier == request.Criterion && item.Operation == operation))
           throw new ArgumentException($"{operation}: Criterion Does Not Match the Frozen Case");
         var context = await GetContextAsync(raw, template, request.TestCase);
-        try
-        {
-          return new CriteriaEvaluateResponse { Passed = await criterion.Evaluate(context) };
-        }
-        catch (SdkError error)
-        {
-          throw new OperationException(error.Failure.ToWire());
-        }
+        return new CriteriaEvaluateResponse { Passed = await criterion.Evaluate(context) };
       });
     }
     foreach (var stream in template.Streams)

@@ -19,7 +19,7 @@ from collections.abc import Mapping
 # Third Party Imports
 from dokime_sdk import Scalar
 from dokime_sdk.operations import OperationPolicy
-from dokime_sdk.templates import Context, Materialization, Parameter, TestTemplate, Observer, Window, materialize, step
+from dokime_sdk.templates import Context, Materialization, Observer, Parameter, TestTemplate, Window, materialize, step
 from google.protobuf.message import Message
 
 # isort: split
@@ -43,7 +43,7 @@ from thermal_example.models import Counter, CounterColumns
 CHANNELS = tuple(sampling.channel(f"channel_{index:03}") for index in range(128))
 
 
-class Burst(Observer[Counter]):
+class Burst(Observer[Message]):
     row = Counter
     columns = CounterColumns
     interval_ms = 1

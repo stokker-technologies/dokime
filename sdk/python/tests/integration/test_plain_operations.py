@@ -27,6 +27,7 @@ from grpc.aio import insecure_channel
 from harmos import VISIBILITY_PROTECTED
 from harmos._columns import columns_type
 from harmos._wire.host.v1.time_pb2 import TimeGetResponse
+from harmos._wire.model.v1.failure_pb2 import Failure
 from harmos._wire.plugin.v1.instance_pb2 import (
     InstanceInvokeRequest,
     InstanceInvokeResponse,
@@ -37,10 +38,9 @@ from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 
 # Local Imports
 import dokime_sdk.operations
-from dokime_sdk import Failure, Plugin, Suite
-from dokime_sdk._errors import wire_failure
+from dokime_sdk import Plugin, Suite
 from dokime_sdk.operations import OperationError, Visibility, operation
-from dokime_sdk.templates import Context, TestTemplate, Window, criterion, Observer, prompt, record, step, stream
+from dokime_sdk.templates import Context, Observer, TestTemplate, Window, criterion, prompt, record, step
 
 # Type Checking Imports
 
@@ -126,34 +126,30 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         pool = descriptor_pool.DescriptorPool()
         pool.Add(definition)
         row_type = message_factory.GetMessageClass(pool.FindMessageTypeByName("reading.Reading"))
-        columns = columns_type(row_type, "readings.reading")
+        column_type = columns_type(row_type, "readings.reading")
         rows = (row_type(), row_type(value=0.0), row_type(value=2.5))
         pending = iter(rows)
 
-        class ReadingsPluginWindow(Observer):
-            identifier = 'window'
+        class ReadingsPluginWindow(Observer[Message]):
+            identifier = "window"
             label = "Window"
             row = row_type
-            columns = columns
+            columns = column_type
 
             def sample(self, ctx: dokime_sdk.operations.Context, window: Window) -> Message:
-                return columns(value=[{}, {"value": 0.0}, {"value": 2.5}])
+                return column_type(value=[{}, {"value": 0.0}, {"value": 2.5}])
 
-
-        class ReadingsPluginReading(Observer):
-            identifier = 'reading'
+        class ReadingsPluginReading(Observer[Message]):
+            identifier = "reading"
             label = "Reading"
             row = row_type
 
             def sample(self, ctx: dokime_sdk.operations.Context) -> Message:
                 return next(pending)
 
-
         class ReadingsPlugin(Plugin):
             observers = (ReadingsPluginReading, ReadingsPluginWindow)
             version = "1.0.0"
-
-
 
         endpoint = await ReadingsPlugin()._activate("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.stop)
@@ -169,11 +165,13 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             try:
                 await call.write(InstanceSamplesRequest(open={"stream": f"readings.{name}"}))
                 await call.write(InstanceSamplesRequest(demand={"streams": [f"readings.{name}"]}))
+                demand = await call.read()
+                assert isinstance(demand, InstanceSamplesResponse) and demand.HasField("demand")
                 await call.write(InstanceSamplesRequest(window={"start": {}, "count": 3, "period": {"seconds": 1}}))
                 response = await call.read()
                 assert isinstance(response, InstanceSamplesResponse)
                 self.assertTrue(response.HasField("batch"), response)
-                decoded = columns.FromString(response.batch.columns)
+                decoded = column_type.FromString(response.batch.columns)
                 values = list(getattr(decoded, "value"))
                 self.assertEqual([value.HasField("value") for value in values], [False, True, True])
                 self.assertEqual([getattr(value, "value") if value.HasField("value") else None for value in values], [None, 0.0, 2.5])
@@ -229,16 +227,16 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         @operation("example.failure", visibility=Visibility.PUBLIC)
         async def fail(ctx: dokime_sdk.operations.Context, request: bool) -> bool:
             raise OperationError(
-                wire_failure(
-                    Failure(
-                        "Transient",
-                        "outer_failure",
-                        "Read Failed",
-                        "Retry Read",
-                        cause=Failure("Refused", "inner_failure", "Device Refused", "Check Device"),
-                        details={"device": "42"},
-                        diagnostics="trace_42",
-                    )
+                Failure(
+                    classification="CLASSIFICATION_TRANSIENT",
+                    code="outer_failure",
+                    message="Read Failed",
+                    action="Retry Read",
+                    cause=Failure(
+                        classification="CLASSIFICATION_REFUSED", code="inner_failure", message="Device Refused", action="Check Device"
+                    ),
+                    details={"device": "42"},
+                    diagnostics="trace_42",
                 )
             )
 
@@ -278,31 +276,28 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             call.cancel()
 
     async def test_scalar_streams_use_declared_payload_types(self) -> None:
-        class ReadingsTestTemplateAccepted(Observer):
-            identifier = 'accepted'
+        class ReadingsTestTemplateAccepted(Observer[bool]):
+            identifier = "accepted"
             label = "Accepted"
             row = bool
 
             def sample(self, ctx: Context) -> bool:
                 return True
 
-
-        class ReadingsTestTemplateVoltage(Observer):
-            identifier = 'voltage'
+        class ReadingsTestTemplateVoltage(Observer[float]):
+            identifier = "voltage"
             label = "Voltage"
             row = float
 
             def sample(self, ctx: Context) -> float:
                 return 2.5
 
-
         class ReadingsTestTemplate(TestTemplate):
             uses_streams = (ReadingsTestTemplateVoltage, ReadingsTestTemplateAccepted)
+
             @step("Start")
             def start(self, ctx: Context) -> None:
                 pass
-
-
 
         class ReadingsSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [ReadingsTestTemplate]
@@ -357,6 +352,8 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             try:
                 await call.write(InstanceSamplesRequest(open={"stream": f"streams.{name}", "scope": "execution"}))
                 await call.write(InstanceSamplesRequest(demand={"streams": [f"streams.{name}"]}))
+                demand = await call.read()
+                assert isinstance(demand, InstanceSamplesResponse) and demand.HasField("demand")
                 await call.write(InstanceSamplesRequest(window={"start": {}, "count": 2, "period": {"seconds": 1}}))
                 response = await call.read()
                 assert isinstance(response, InstanceSamplesResponse)
@@ -371,11 +368,11 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
 
         class CaptureTestTemplate(TestTemplate):
             question = prompt("Choose a Reading", choices=["Yes", "No"])
-            flag = record(bool, identifier='flag')
-            text = record(str, identifier='text')
-            integer = record(int, identifier='integer')
-            number = record(float, identifier='number')
-            structured = record(BoolValue, identifier='structured')
+            flag = record(bool, identifier="flag")
+            text = record(str, identifier="text")
+            integer = record(int, identifier="integer")
+            number = record(float, identifier="number")
+            structured = record(BoolValue, identifier="structured")
 
             @step("Save")
             async def save(self, ctx: Context) -> None:
@@ -409,7 +406,13 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         class RecordsPlugin(Plugin):
             version = "1.0.0"
             suites: ClassVar[list[type[Suite]]] = [CaptureSuite]
-            records = (CaptureTestTemplate.flag, CaptureTestTemplate.text, CaptureTestTemplate.integer, CaptureTestTemplate.number, CaptureTestTemplate.structured,)
+            records = (
+                CaptureTestTemplate.flag,
+                CaptureTestTemplate.text,
+                CaptureTestTemplate.integer,
+                CaptureTestTemplate.number,
+                CaptureTestTemplate.structured,
+            )
 
         plugin = RecordsPlugin()
         endpoint = await plugin._activate("127.0.0.1:0")

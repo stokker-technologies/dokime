@@ -24,9 +24,9 @@ from harmos import plugin
 
 # Local Imports
 from . import _logs
-from ._errors import project_failure, refused
 from ._generated.host import HostRoot
 from ._payloads import Payload, pack
+from ._transport import refused
 
 # Type Checking Imports
 if TYPE_CHECKING:
@@ -97,8 +97,8 @@ class Context:
         try:
             value = (await self._host.secrets.get(declaration.identifier)).secret
         except harmos.OperationError as error:
-            failure = project_failure(error.value)
-            while failure.cause is not None:
+            failure = error.value
+            while failure.HasField("cause"):
                 failure = failure.cause
             if failure.code not in ("NOT_FOUND", "not_found"):
                 raise

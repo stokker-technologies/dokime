@@ -24,7 +24,6 @@ from harmos import plugin
 # Local Imports
 from .. import operations
 from .._authoring import PromptDeclaration, Record, _Template, prompt
-from .._errors import refused
 from .._evidence import RecordsQuery
 from .._generated import shared
 from .._generated.shared import (
@@ -35,6 +34,7 @@ from .._generated.shared import (
 from .._parameters import Parameter
 from .._payloads import Payload, pack
 from .._transfers import publish_artifact
+from .._transport import refused
 from .._values import Artifact, Note, Scalar, Statistics, Termination, decode, encode
 from .._wire.model.v1.evidence_pb2 import ArtifactScope, Window
 from ._captures import CaptureMode, CaptureResult, Environment, FileSource

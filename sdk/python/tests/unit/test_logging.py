@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 
 
 class LogTemplate(TestTemplate):
-    reading = record(int, identifier='reading')
+    reading = record(int, identifier="reading")
 
 
 class LogSuite(Suite):

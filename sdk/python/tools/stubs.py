@@ -39,7 +39,7 @@ MODULES = [
     "dokime_sdk._configuration",
     "dokime_sdk._connection",
     "dokime_sdk._evidence",
-    "dokime_sdk._errors",
+    "dokime_sdk._transport",
     "dokime_sdk._values",
     "dokime_sdk.templates._context",
     "dokime_sdk.templates._documents",

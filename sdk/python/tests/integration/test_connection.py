@@ -23,14 +23,15 @@ from unittest.mock import patch
 # Third Party Imports
 from grpc import ChannelConnectivity, StatusCode
 from grpc.aio import Channel, ServicerContext, UnaryStreamClientInterceptor, UnaryUnaryClientInterceptor, insecure_channel, server
+from harmos import CLASSIFICATION_REFUSED
 from harmos._wire.host.v1.status_pb2 import StatusGetRequest
 from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk._connection import connect
-from dokime_sdk._errors import SdkError
 from dokime_sdk._wire.host.v1.status_pb2 import StatusGetResponse
 from dokime_sdk._wire.host.v1.status_pb2_grpc import StatusServicer, add_StatusServicer_to_server
+from dokime_sdk.operations import OperationError
 
 # Type Checking Imports
 
@@ -118,7 +119,7 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
     async def test_all_refused_errors_follow_file_order(self) -> None:
         endpoints = [self.refused(), self.refused()]
         path = self.pairing(endpoints)
-        with self.assertRaises(SdkError) as failure:
+        with self.assertRaises(OperationError) as failure:
             await connect(path)
         message = str(failure.exception)
         self.assertLess(message.index(endpoints[0]), message.index(endpoints[1]))
@@ -150,12 +151,12 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
             cause={"classification": "CLASSIFICATION_PERMANENT", "code": "revoked", "details": {"key": "identity"}},
         )
         endpoint = await self.listening("intended-host", remote)
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await connect(endpoint, expected_backend_id="intended-host")
-        self.assertEqual(failed.exception.failure.classification, "Refused")
-        failure = failed.exception.failure.cause
-        self.assertIsNotNone(failure)
-        assert failure is not None and failure.cause is not None
+        self.assertEqual(failed.exception.value.classification, CLASSIFICATION_REFUSED)
+        failure = failed.exception.value.cause
+        self.assertTrue(failed.exception.value.HasField("cause"))
+        self.assertTrue(failure.HasField("cause"))
         self.assertEqual((failure.code, failure.cause.code), ("access", "revoked"))
         self.assertEqual(failure.cause.details, {"key": "identity"})
 

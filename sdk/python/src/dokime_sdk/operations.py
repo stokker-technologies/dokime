@@ -28,7 +28,7 @@ from google.protobuf.message import Message
 from harmos import plugin
 
 # Local Imports
-from . import _context, _errors, _logs
+from . import _context, _logs
 from ._authoring import build_identifier
 from ._generated import shared
 from ._payloads import Payload, message_type, pack, unpack
@@ -346,11 +346,8 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier:
 
     async def execute(adapter: object, transport: plugin.Context, request: Message) -> Message:
         context = Context(transport, owner)
-        try:
-            result = await _logs.run(context, handler, context, unpack(request_type, request))
-            return pack(response_type, cast(Payload, result))
-        except _errors.SdkError as error:
-            raise harmos.OperationError(_errors.wire_failure(error.failure)) from error
+        result = await _logs.run(context, handler, context, unpack(request_type, request))
+        return pack(response_type, cast(Payload, result))
 
     return plugin.operation(
         identifier,

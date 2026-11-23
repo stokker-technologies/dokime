@@ -22,15 +22,15 @@ from zipfile import BadZipFile, ZipFile
 
 # Third Party Imports
 from grpc.aio import AioRpcError
-from harmos import FileMetadata, FileReference, Upload
-
-import dokime_sdk._generated.client
+from harmos import FileMetadata, FileReference, OperationError, Upload
 
 # Local Imports
-from ._errors import SdkError, call, invalid
+import dokime_sdk._generated.client
+
 from ._generated.client_types import ReportSubject
 from ._generated.host import HostRoot
 from ._generated.shared import UploadsAppendResponse, UploadsCreateResponse, UploadsDeleteResponse, UploadsPublishResponse
+from ._transport import call, invalid
 from ._values import Artifact
 from ._wire.model.v1.evidence_pb2 import ArtifactScope
 
@@ -128,7 +128,7 @@ async def upload_bytes(uploads: Uploads, data: bytes, *, metadata: FileMetadata,
         try:
             if not published_file and created.HasField("upload"):
                 await uploads.delete(handle, request_id=f"{identity}/abandon")
-        except (SdkError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
+        except (OperationError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
             error.add_note(f"Abandon Upload Failed: {cleanup}")
         raise
 

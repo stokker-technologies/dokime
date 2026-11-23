@@ -14,16 +14,14 @@
 import unittest
 from hashlib import sha256
 
-from google.protobuf import descriptor_pool, message_factory
-
 # Third Party Imports
+from google.protobuf import descriptor_pool, message_factory
 from google.protobuf.descriptor_pb2 import FileDescriptorProto, FileDescriptorSet
 from google.protobuf.wrappers_pb2 import BoolValue, UInt64Value
 from grpc.aio import ServicerContext, server
 
 # Local Imports
 from dokime_sdk._connection import connect
-from dokime_sdk._errors import SdkError
 from dokime_sdk._wire.host.v1 import executions_pb2
 from dokime_sdk._wire.host.v1.evidence import records_pb2, samples_pb2
 from dokime_sdk._wire.host.v1.evidence.records_pb2_grpc import RecordsServicer, add_RecordsServicer_to_server
@@ -31,6 +29,7 @@ from dokime_sdk._wire.host.v1.evidence.samples_pb2_grpc import SamplesServicer, 
 from dokime_sdk._wire.host.v1.executions import schemas_pb2
 from dokime_sdk._wire.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
 from dokime_sdk._wire.host.v1.executions_pb2_grpc import ExecutionsServicer, add_ExecutionsServicer_to_server
+from dokime_sdk.operations import OperationError
 
 # Type Checking Imports
 
@@ -154,9 +153,9 @@ class ClientEvidenceStory(unittest.IsolatedAsyncioTestCase):
         dynamic = await self.execution.records("flag").read()
         self.assertEqual(dynamic[0].value.DESCRIPTOR.full_name, BoolValue.DESCRIPTOR.full_name)
         self.changed_cut = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await self.execution.records("flag").read(limit=3)
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await self.execution.records("flag", row_type=int).read()
 
     async def test_declared_row_type_must_match_the_frozen_fields_not_only_the_name(self) -> None:
@@ -166,7 +165,7 @@ class ClientEvidenceStory(unittest.IsolatedAsyncioTestCase):
         pool = descriptor_pool.DescriptorPool()
         pool.Add(definition)
         foreign = message_factory.GetMessageClass(pool.FindMessageTypeByName("google.protobuf.BoolValue"))
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await self.execution.records("flag", row_type=foreign).read()
 
     async def test_samples_preserve_nanoseconds_unsigned_values_and_refuse_truncation(self) -> None:

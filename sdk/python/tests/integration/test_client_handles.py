@@ -25,12 +25,12 @@ from zipfile import ZipFile
 from google.protobuf.message import Message
 from grpc import StatusCode
 from grpc.aio import ServicerContext, server
+from harmos import CLASSIFICATION_REFUSED
 from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk._client import Case, Client
 from dokime_sdk._connection import connect
-from dokime_sdk._errors import SdkError
 from dokime_sdk._transfers import verify_archive
 from dokime_sdk._values import Outcome, PromptAnswer, PromptQuestion, ResultStatus, Termination, decode
 from dokime_sdk._wire.host.v1 import cases_pb2, cycles_pb2, evidence_pb2, executions_pb2, files_pb2, prompts_pb2, reports_pb2
@@ -49,6 +49,7 @@ from dokime_sdk._wire.host.v1.prompts import answers_pb2
 from dokime_sdk._wire.host.v1.prompts.answers_pb2_grpc import AnswersServicer, add_AnswersServicer_to_server
 from dokime_sdk._wire.host.v1.prompts_pb2_grpc import PromptsServicer, add_PromptsServicer_to_server
 from dokime_sdk._wire.host.v1.reports_pb2_grpc import ReportsServicer, add_ReportsServicer_to_server
+from dokime_sdk.operations import OperationError
 
 # Type Checking Imports
 
@@ -412,7 +413,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
     async def test_refresh_refuses_a_changed_execution_binding(self) -> None:
         execution = await self.client.executions.get("execution")
         self.changed_binding = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await execution.refresh()
         self.assertEqual(execution.case.identifier, "case")
         self.assertEqual(execution._detail.summary.case_id, "case")
@@ -437,7 +438,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(cycle._summary.sealed)
         self.assertTrue(cycle._summary.archived)
         self.seal_failure = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await cycle.seal()
         self.assertFalse(cycle._summary.sealed)
 
@@ -454,32 +455,32 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
     async def test_sealed_execution_note_and_artifact_refusals_are_sdk_errors(self) -> None:
         execution = await self.client.executions.get("execution")
         self.execution_sealed = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await execution.note("later")
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await execution.artifact("later.bin", b"later")
 
     async def test_lost_reply_keeps_the_identity_for_an_unchanged_replay(self) -> None:
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.client.cycle(label="Lost Reply")
-        identity = failed.exception.request_id
+        identity = failed.exception.value.details["request_id"]
         self.assertIsNotNone(identity)
         self.assertEqual(len(self.trace), 1)
         await self.client.cycle(label="Lost Reply", request_id=identity)
         self.assertEqual(self.trace[0], self.trace[1])
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             await self.client.cycle(label="Different Payload", request_id=identity)
 
     async def test_remote_failures_preserve_classification_causes_details_and_request(self) -> None:
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await self.client.cycle(label="Refuse", request_id="refused-id")
-        failure = failed.exception.failure
+        failure = failed.exception.value
         self.assertEqual(
-            (failure.classification, failure.code, failure.operation, failure.plugin), ("Refused", "sealed", "cycles.create", "source")
+            (failure.classification, failure.code, failure.operation, failure.plugin),
+            (CLASSIFICATION_REFUSED, "sealed", "cycles.create", "source"),
         )
         self.assertEqual(failure.details, {"cycle": "cycle", "request_id": "refused-id"})
-        self.assertIsNotNone(failure.cause)
-        assert failure.cause is not None
+        self.assertTrue(failure.HasField("cause"))
         self.assertEqual(failure.cause.details, {"device": "1"})
 
     async def test_list_retains_the_first_cut_and_filters(self) -> None:
@@ -547,9 +548,9 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(await execution.seal(), Outcome(ResultStatus.FAILED, "declared", "Imported", importer="reader"))
         self.outcome.Clear()
-        with self.assertRaises(SdkError) as failed:
+        with self.assertRaises(OperationError) as failed:
             await execution.seal(request_id="missing-outcome")
-        self.assertEqual(failed.exception.request_id, "missing-outcome")
+        self.assertEqual(failed.exception.value.details["request_id"], "missing-outcome")
 
     async def test_run_starts_lazily_and_watch_requires_sealed_finality(self) -> None:
         execution = await self.client.executions.get("execution")
@@ -571,7 +572,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         await watch.aclose()
         self.assertEqual(self.trace, [progress_pb2.ProgressWatchRequest(name="execution")])
         self.end_unsealed = True
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             [value async for value in execution.watch()]
 
 
@@ -599,7 +600,7 @@ class ArchiveIntegrityStory(unittest.TestCase):
         archive.writestr("report.html", b"corrupt report")
         archive.writestr("manifest.json", json.dumps({"version": 1, "entries": [member]}))
         archive.close()
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             verify_archive(buffer.getvalue())
 
         buffer = BytesIO()
@@ -607,7 +608,7 @@ class ArchiveIntegrityStory(unittest.TestCase):
         archive.writestr("unlisted", b"evidence")
         archive.writestr("manifest.json", json.dumps({"version": 1, "entries": []}))
         archive.close()
-        with self.assertRaises(SdkError):
+        with self.assertRaises(OperationError):
             verify_archive(buffer.getvalue())
 
 
