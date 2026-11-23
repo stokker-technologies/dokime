@@ -13,6 +13,7 @@
 
 <script lang="ts">
   import LiveDocumentWorkspace from "../../components/document/LiveDocumentWorkspace.svelte";
+  import { isActiveExecutionStatus } from "./cycle-workspace-model";
   import { documentSectionWindow, type DocumentViewProps } from "./document-workspace";
 
   let {
@@ -34,6 +35,7 @@
   {...context}
   {cardChrome}
   {cardFilter}
+  complete={options.execution !== null && !isActiveExecutionStatus(options.execution.status)}
   {onRetry}
   plotContextTelemetry={view.plotContextTelemetry}
   {plotWindow}

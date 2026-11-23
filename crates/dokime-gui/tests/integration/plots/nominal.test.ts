@@ -1689,12 +1689,12 @@ test("Plot Placeholders", () => {
 
   // A Stated Stream Condition Replaces the Wait in the Placeholder
   const stated = plotPlaceholderText({
-    stateLabel: "Stream Stale",
-    stateDetail: "The plot stream ended before samples arrived.",
+    stateLabel: "Loading Plot",
+    stateDetail: "Waiting for the first plot payload.",
   });
   assert.deepEqual(stated, {
-    label: "Stream Stale",
-    detail: "The plot stream ended before samples arrived.",
+    label: "Loading Plot",
+    detail: "Waiting for the first plot payload.",
   });
 
   // A Plot Kind May Word Its Own Detail but Keeps the Shared Label
@@ -1710,7 +1710,7 @@ test("Plot Placeholders", () => {
     tone: "error",
   });
 
-  // A Stream Error With Nothing Drawn Takes The Same Tone; Waiting And Staleness Stay Quiet
+  // A Stream Error With Nothing Drawn Takes The Same Tone; Waiting And Loading Stay Quiet
   assert.equal(plotPlaceholderText({ stateLabel: STREAM_ERROR, stateDetail: "plot query unavailable" }).tone, "error");
   assert.equal(stated.tone, undefined);
   assert.equal(plotPlaceholderText({}).tone, undefined);

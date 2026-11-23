@@ -7,11 +7,12 @@
   import LiveCycleDocument, { type LiveCycleContext } from "@/features/cycle/LiveCycleDocument.svelte";
   import type { PlotWindow } from "@/features/cycle/plot-window-state";
   import type { Wire } from "@/lib/rpc/canonical";
-  import type { HubLiveState } from "@/lib/types";
+  import type { HubLiveState, TestExecution } from "@/lib/types";
 
   // A Desktop Context Also Draws The Document.
   let { session, plotWindow, desktop }: { session: ConnectedSession; plotWindow: PlotWindow; desktop?: LiveCycleContext } = $props();
   let snapshot = $state.raw<HubLiveState | null>(null);
+  let execution = $state.raw<TestExecution | null>(null);
   let scope = $state.raw<Wire<EvidenceScope>>({ cycleId: "cycle", executionId: "execution" });
   const query = createScopedDocumentQuery(
     () => session,
@@ -23,7 +24,9 @@
       get document() {
         return query.data ?? null;
       },
-      execution: null,
+      get execution() {
+        return execution;
+      },
       live: true,
       get snapshot() {
         return snapshot;
@@ -45,6 +48,9 @@
 
   export function setSnapshot(next: HubLiveState) {
     snapshot = next;
+  }
+  export function setExecution(next: TestExecution) {
+    execution = next;
   }
   export function setScope(next: Wire<EvidenceScope>) {
     scope = next;

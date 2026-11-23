@@ -30,6 +30,8 @@ const RECONNECT_INITIAL_MS = 1_000;
 const RECONNECT_MAX_MS = 10_000;
 
 export type LivePlotOptions = {
+  /** The Scope Can No Longer Change, So A Watch The Host Ends Stays Closed. */
+  complete?: boolean;
   enabled: boolean;
   plots: DocumentViewPlot[];
   renderActive?: boolean;
@@ -59,6 +61,7 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
   const requestVisible = $derived(!automatic || pageVisible);
   const onRefreshChange = $derived(plotWindow?.getState().refresh.onChange);
   const renderActive = $derived(options().renderActive ?? true);
+  const complete = $derived(options().complete ?? false);
   const visible = $derived(measurements.visible);
 
   const scopeKey = $derived(cutKey(scope));
@@ -406,6 +409,11 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
         }
         clearScheduledFlush();
         flush();
+        // The Host Ends A Watch Once Its Scope Is Complete; A Running Scope Reopens Its Watch.
+        if (!complete) {
+          scheduleReopen();
+          return;
+        }
         if (awaitingRefresh) {
           reportRefreshFailure(new Error("The plot stream ended before the view finished refreshing."));
         }
@@ -413,17 +421,10 @@ export function createLivePlotPayloads(options: () => LivePlotOptions, getSessio
         commit((current) => ({
           ...current,
           ...Object.fromEntries(
-            activePlots.map((plot) => {
-              const plotState = current[plot.plot_id] ?? emptyLivePlotState();
-              return [
-                plot.plot_id,
-                {
-                  ...plotState,
-                  status: plotState.status === "error" ? "error" : ("stale" as const),
-                  summaryInFlight: plotState.summaryInFlight && summaryInFlight("ended"),
-                },
-              ];
-            }),
+            activePlots.map((plot) => [
+              plot.plot_id,
+              { ...(current[plot.plot_id] ?? emptyLivePlotState()), summaryInFlight: summaryInFlight("ended") },
+            ]),
           ),
         }));
       };
