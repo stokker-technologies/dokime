@@ -185,6 +185,15 @@ export function normalizeDeliveryError(error: unknown): unknown {
   return normalized;
 }
 
+/**
+ * The client ended the call itself: a teardown, an unsubscribe or a page
+ * reload. It is expected, never a failure; a host's own cancellation arrives
+ * as a gRPC status instead.
+ */
+export function isClientCancellation(error: unknown): boolean {
+  return (error as { kind?: unknown } | null)?.kind === "cancelled";
+}
+
 /** Keep native RPC failures usable by UI code that displays Error.message. */
 export function normalizeRpcError(error: unknown, operation?: string): unknown {
   if (error instanceof Error || !isRpcError(error)) return error;

@@ -34,6 +34,11 @@ import { createRawSnippet } from "svelte";
 import { beforeEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
+import type { ConnectedSession } from "@/app/native-session/session";
+import { observeRuntime } from "@/app/live/runtime-stream";
+import { toast } from "@/lib/notifications";
+import { normalizeRpcError } from "@/lib/rpc/errors";
+import { hubStore } from "@/stores/hub-store";
 import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
 import { openNativeExecutionProgressStream, openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { previewNativeTestCycle } from "@/lib/api/native-planning";
@@ -472,6 +477,31 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
     dispose();
   }
   assert.equal(canceled.mock.calls.length, 1);
+});
+
+test("A Client Cancellation Ends the Runtime Watch Without a Failure Notice", async () => {
+  const notify = vi.spyOn(toast, "error").mockImplementation(() => undefined as never);
+  onTestFinished(() => notify.mockRestore());
+  const connected = { identity: session, own: () => () => {}, queryClient: new QueryClient() } as unknown as ConnectedSession;
+  const endings = [
+    [normalizeRpcError({ kind: "cancelled" }), 0],
+    [normalizeRpcError({ kind: "grpc", detail: { code: 1, message: "Cancelled by the host.", details: [] } }), 1],
+  ] as const;
+  for (const [ending, notices] of endings) {
+    notify.mockClear();
+    hubStore.getState().setHubState({ connection: "connecting" });
+    fixture.stream.mockImplementation(async () => ({
+      cancel: async () => {},
+      // biome-ignore lint/correctness/useYield: the watch ends before its first frame
+      async *[Symbol.asyncIterator]() {
+        throw ending;
+      },
+    }));
+    const dispose = observeRuntime(connected);
+    await vi.waitFor(() => assert.equal(hubStore.getState().connection, "reconnecting"));
+    dispose();
+    assert.equal(notify.mock.calls.length, notices);
+  }
 });
 
 test("Imported and Unevaluated Outcomes Never Gain Run Capabilities", () => {

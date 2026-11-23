@@ -15,6 +15,7 @@ import { PlotKind, PlotStreamKind, type PlotRequest, type SnapshotsWatchResponse
 import { type PlotEnvelope, mapNativePlotEnvelope, mapNativePlotPayload } from "@/lib/api/native-plot-projection";
 import { plotsSnapshotsList, plotsSnapshotsWatch } from "@/lib/host/client";
 import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
+import { isClientCancellation } from "@/lib/rpc/errors";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { DocumentPlotType, PlotPayloadStreamMessage, PlotPayloadEnvelope } from "@/lib/types";
 import { NATIVE_MAX_PAGES, NativeApiLimitError, safeNumber } from "@/lib/api/native-values";
@@ -283,7 +284,7 @@ function ensureActive(session: SessionIdentity, signal?: AbortSignal): void {
 }
 
 function normalizeCancellation(error: unknown, session: SessionIdentity, signal?: AbortSignal): unknown {
-  if (signal?.aborted || !session.isCurrent()) {
+  if (signal?.aborted || !session.isCurrent() || isClientCancellation(error)) {
     return abortError();
   }
   return error;

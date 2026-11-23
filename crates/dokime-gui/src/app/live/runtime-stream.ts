@@ -21,6 +21,7 @@ import { workflowQueryKeys } from "@/features/cycle/workflow-query-keys";
 import { cyclesHomeQueryKeys } from "@/features/cycles-home/cycles-query-options";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
+import { isClientCancellation } from "@/lib/rpc/errors";
 import { type BackendOperationsPatch, hubStore } from "@/stores/hub-store";
 import {
   createEvidenceRefresh,
@@ -125,7 +126,7 @@ export function observeRuntime(session: ConnectedSession): () => void {
         );
       }
     } catch (error: unknown) {
-      if (active && session.identity.isCurrent()) {
+      if (active && session.identity.isCurrent() && !isClientCancellation(error)) {
         toast.error(failureOf(error, "Runtime Stream Failed"), { context: "background" });
         setHubState({
           error: failureOf(error, "Operation Failed").message,
