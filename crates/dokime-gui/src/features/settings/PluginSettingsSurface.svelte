@@ -5,7 +5,7 @@
   import ErrorCard from "../../components/ErrorCard.svelte";
   import Button from "../../components/ui/Button.svelte";
   import { failureOf } from "../../lib/notification-details";
-  import { publishPageChrome } from "../../shell/page-chrome.svelte";
+  import PageChrome from "../../shell/PageChrome.svelte";
   import { hubStore } from "../../stores/hub-store";
   import { storeState } from "../../stores/store-state";
   import InstalledPluginDetail from "./installed-plugins/InstalledPluginDetail.svelte";
@@ -65,7 +65,6 @@
     observedOperations = current;
   });
 
-  publishPageChrome(() => ({ title: `Settings › Plugins › ${section?.label ?? installation?.description?.id ?? sectionId}`, overflow }));
 
   function reloadOwner() {
     const id = owning?.name ?? pluginId;
@@ -74,6 +73,8 @@
     }
   }
 </script>
+
+<PageChrome title={`Settings › Plugins › ${section?.label ?? installation?.description?.id ?? sectionId}`} {overflow} />
 
 {#snippet overflow()}
   <SettingsAdvancedSwitch />

@@ -2,7 +2,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { HubLiveState, PromptRequest, TestCyclePlan } from "../../lib/types";
-  import { publishPageChrome } from "../../shell/page-chrome.svelte";
+  import PageChrome from "../../shell/PageChrome.svelte";
   import { storeState } from "../../stores/store-state";
   import CycleEvidenceView, { isCycleEvidenceCard } from "./CycleEvidenceView.svelte";
   import DocumentPagination from "./DocumentPagination.svelte";
@@ -58,8 +58,9 @@
   );
   const records = $derived(surface.view.records.filter((record) => !record.scope?.executionId));
   const onRetry = (cardId?: string) => void query.retryCard(cardId);
-  publishPageChrome(() => ({ title: `Cycles › ${plan.test_cycle.title}`, actions: headerActions }));
 </script>
+
+<PageChrome title={`Cycles › ${plan.test_cycle.title}`} actions={headerActions} />
 
 {#snippet headerActions()}
   {@render pageActions()}

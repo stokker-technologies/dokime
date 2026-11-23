@@ -1,25 +1,49 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
-import type { Snippet } from "svelte";
 
-type PageChrome = {
-  title: string;
-  actions?: Snippet;
-  overflow?: Snippet;
-};
+/* The page owns its header. Its title reaches the shell as a value, and its
+ * actions render inside the page's own tree, moved into the shell's header
+ * slot. The shell never evaluates page state, so a page whose props go stale
+ * while it is being replaced cannot break the shell's update.
+ */
 
-let readPage = $state.raw<(() => PageChrome) | null>(null);
+let title = $state.raw<{ value: string } | null>(null);
+let slot = $state.raw<HTMLElement | null>(null);
 
-export function publishPageChrome(read: () => PageChrome) {
+export function publishPageTitle(read: () => string) {
   $effect(() => {
-    readPage = read;
+    const owned = { value: read() };
+    title = owned;
     return () => {
-      if (readPage === read) {
-        readPage = null;
+      if (title === owned) {
+        title = null;
       }
     };
   });
 }
 
-export function currentPageChrome() {
-  return readPage?.();
+export function pageTitle(): string | undefined {
+  return title?.value;
+}
+
+/** Attach to the shell element that receives page actions. */
+export function pageActionsSlot(node: HTMLElement) {
+  slot = node;
+  return () => {
+    if (slot === node) {
+      slot = null;
+    }
+  };
+}
+
+/** Attach to a page element to show it in the shell's header slot. */
+export function moveToPageActions(node: HTMLElement) {
+  if (!slot) {
+    return;
+  }
+  slot.append(node);
+  return () => node.remove();
+}
+
+export function pageActionsReady(): boolean {
+  return slot !== null;
 }

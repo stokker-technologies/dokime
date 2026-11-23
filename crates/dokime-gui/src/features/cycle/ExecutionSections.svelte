@@ -12,7 +12,7 @@
   import type { LiveExecutionProgress } from "../../app/live/execution-progress";
   import type { HubLiveState, PromptRequest, TestCyclePlan } from "../../lib/types";
   import type { FocusMode } from "../../shell/focus-mode";
-  import { publishPageChrome } from "../../shell/page-chrome.svelte";
+  import PageChrome from "../../shell/PageChrome.svelte";
   import { storeState } from "../../stores/store-state";
   import { type createCycleCommands, executionDetailQueryOptions } from "./cycle-queries";
   import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
@@ -123,8 +123,9 @@
   const reportSubject = $derived(executionId ? { executionId, label: titlePrefix + label, sealed: commanded?.sealed === true } : null);
   const transfers = $derived(nativeMediaTransfers(session()));
   const onRetry = (cardId?: string) => void documentQuery.retryCard(cardId);
-  publishPageChrome(() => ({ title: `Cycle › ${titlePrefix}${label}`, actions: headerActions }));
 </script>
+
+<PageChrome title={`Cycle › ${titlePrefix}${label}`} actions={headerActions} />
 
 {#snippet primary()}
   {#if actions && primaryAction && primaryAction !== "Stop" && primaryAction !== "Cancel"}

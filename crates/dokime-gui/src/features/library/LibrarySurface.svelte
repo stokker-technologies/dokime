@@ -8,7 +8,7 @@
   import Button from "../../components/ui/Button.svelte";
   import { failureOf } from "../../lib/notification-details";
   import { admittedPluginRecords } from "../../lib/api/native-plugins";
-  import { publishPageChrome } from "../../shell/page-chrome.svelte";
+  import PageChrome from "../../shell/PageChrome.svelte";
   import { pageContentClass } from "../../shell/page-layout";
   import NewCycleDialog from "../cycles-home/NewCycleDialog.svelte";
   import { pluginsListQueryOptions } from "../settings/plugins/plugin-queries";
@@ -51,8 +51,9 @@
       active.choose(requested);
     }
   });
-  publishPageChrome(() => ({ title: "Library", actions }));
 </script>
+
+<PageChrome title="Library" {actions} />
 
 {#snippet actions()}
   {#if active.cycle}
