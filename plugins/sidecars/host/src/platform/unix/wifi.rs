@@ -274,12 +274,12 @@ fn wireless_capabilities(filter: Option<&str>, timeout: Duration) -> Option<Wifi
         if let Some(number) = line.strip_prefix("phy#") {
             phy = Some(format!("phy{number}"));
         }
-        if let Some(interface) = line.strip_prefix("Interface ") {
-            if adapter_matches(Some(interface), filter) {
-                let phy = phy.as_ref()?;
-                if !selected.contains(phy) {
-                    selected.push(phy.clone());
-                }
+        if let Some(interface) = line.strip_prefix("Interface ")
+            && adapter_matches(Some(interface), filter)
+        {
+            let phy = phy.as_ref()?;
+            if !selected.contains(phy) {
+                selected.push(phy.clone());
             }
         }
     }
