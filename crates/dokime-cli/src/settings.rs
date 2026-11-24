@@ -31,7 +31,7 @@ use tonic::transport::{Channel, Endpoint};
 
 // Local Imports
 use crate::{Result, commands::pairing, error::Error};
-use dokime::StorageTransferSettings;
+use dokime::{StorageTransferSettings, TransferFraming};
 use dokime_client_internal::CallOptions;
 use dokime_client_internal::Client;
 use dokime_runtime::{
@@ -107,7 +107,7 @@ impl Default for Settings {
             reconnect_delay_ms: 25,
             interval_window_ms: INTERVAL_WINDOW.as_millis() as u64,
             interval_lag_windows: INTERVAL_LAG,
-            message_bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+            message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
             stream_buffer: NonZeroUsize::new(8).unwrap(),
             max_cases: NonZeroUsize::new(1000).unwrap(),
@@ -193,7 +193,9 @@ impl Settings {
     }
     pub fn client(&self) -> dokime_client_internal::ClientSettings {
         dokime_client_internal::ClientSettings {
-            transfer: StorageTransferSettings::default(),
+            transfer: StorageTransferSettings {
+                chunk_bytes: Some(self.message_bytes.get().saturating_sub(TransferFraming::Bytes as usize) as u64),
+            },
             retained_bytes: self.retained_bytes,
             message_bytes: self.message_bytes,
             input_items: self.stream_buffer,
@@ -272,6 +274,12 @@ mod tests {
         let settings = Settings::load(cli.config.as_deref(), cli.connect_timeout)?;
         assert_eq!(settings.connect_timeout_s, 11);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn default_client_carries_its_transfer_chunks() {
+        let channel = tonic::transport::Endpoint::from_static("http://127.0.0.1:1").connect_lazy();
+        assert!(dokime_client_internal::Client::from_channel(channel, Settings::default().client()).is_ok());
     }
 
     #[test]
