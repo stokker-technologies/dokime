@@ -74,7 +74,7 @@ class ThermalCycleTestTemplate(TestTemplate):
     uses_streams = (TemperatureObserver, CounterObserver)
     identifier = "cycle"
     label = "Thermal Cycle"
-    limit = Parameter.number("Limit", default=85.0)
+    limit = Parameter.number("Limit", default=85.0, required=False)
 
     door = record(Door, label="Door Check", identifier="door")
 
@@ -89,7 +89,7 @@ class ThermalCycleTestTemplate(TestTemplate):
     async def ramp(self, ctx: Context) -> None:
         await ctx.progress(1, 2, label="Ramp to Target")
 
-    @step("Hold", identifier="hold", policy=OperationPolicy())
+    @step("Hold", identifier="hold")
     async def hold(self, ctx: Context) -> None:
         answer = await ctx.prompt("Is the Door Closed?", choices=["Yes", "No"])
         await ctx.record(self.door, Door(closed=answer == "Yes"))

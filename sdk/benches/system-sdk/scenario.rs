@@ -64,8 +64,8 @@ pub struct Measurement {
 impl Default for Scenario {
     fn default() -> Self {
         Self {
-            channels: (0..128).map(|index| format!("thermal.load.channel_{index:03}")).collect(),
-            ceiling: "thermal.load.burst".into(),
+            channels: (0..128).map(|index| format!("thermal.channel_{index:03}")).collect(),
+            ceiling: "thermal.burst".into(),
             intervals_ns: INTERVALS_NS.to_vec(),
         }
     }

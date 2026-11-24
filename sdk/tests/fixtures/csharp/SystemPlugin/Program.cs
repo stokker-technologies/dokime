@@ -24,7 +24,7 @@ public sealed class ThermalSettings : Dokime.Operations.Settings
 {
   public override IReadOnlyList<Harmos.SettingDeclaration> Declarations => [new()
   {
-    Name = "thermal.load.interval", Title = "Load Interval",
+    Name = "load_interval", Title = "Load Interval",
     Default = new() { Duration = Google.Protobuf.WellKnownTypes.Duration.FromTimeSpan(TimeSpan.FromMilliseconds(1)) }
   }];
 }
@@ -215,7 +215,7 @@ public sealed class LoadTestTemplate : TestTemplate
   public static readonly Dokime.Templates.Stream<Counter> Channel125 = Channel("channel_125");
   public static readonly Dokime.Templates.Stream<Counter> Channel126 = Channel("channel_126");
   public static readonly Dokime.Templates.Stream<Counter> Channel127 = Channel("channel_127");
-  public static readonly Dokime.Templates.Stream<Counter> Burst = Channel("burst", "thermal.load.interval");
+  public static readonly Dokime.Templates.Stream<Counter> Burst = Channel("burst", "load_interval");
 
   private static Dokime.Templates.Stream<Counter> Channel(string identifier, string intervalSetting = "")
   {

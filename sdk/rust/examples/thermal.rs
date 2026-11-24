@@ -170,7 +170,7 @@ fn main() -> Result<()> {
         load = load.stream(stream).observer(observer);
     }
     let burst = Stream::<Counter>::new("burst", "Single-Stream Ceiling");
-    let observer = Observer::window(&burst, read_counter).every(Duration::from_millis(1)).interval_setting("thermal.load.interval");
+    let observer = Observer::window(&burst, read_counter).every(Duration::from_millis(1)).interval_setting("load_interval");
     load = load.stream(burst).observer(observer);
     let plugin = Plugin::of::<ThermalPlugin>("1.0.0")
         .record(Record::<Door>::new("door", "Door Check"))
@@ -178,7 +178,7 @@ fn main() -> Result<()> {
         .setting(SettingDeclaration {
             minimum: None,
             maximum: None,
-            name: "thermal.load.interval".into(),
+            name: "load_interval".into(),
             title: "Load Interval".into(),
             description: String::new(),
             default: Some(SettingValue {
