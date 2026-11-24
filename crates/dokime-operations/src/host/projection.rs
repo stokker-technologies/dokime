@@ -20,7 +20,7 @@
 // Third Party Imports
 use harmos_protocol::model as h;
 use prost::Message;
-use prost_reflect::{DescriptorPool, DynamicMessage, ReflectMessage};
+use prost_reflect::{DynamicMessage, ReflectMessage};
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -38,6 +38,7 @@ use dokime_protocol::model::EvidenceScope;
 use dokime_protocol::model::Prompt;
 use dokime_protocol::model::Value as ProductValue;
 use dokime_storage::Evidence;
+use dokime_storage::FrozenCatalog;
 use dokime_storage::OutcomeCounts;
 use dokime_storage::{ExecutionSnapshot, ExecutionState};
 use prost_reflect::MapKey;
@@ -257,12 +258,16 @@ pub(crate) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Opti
     }
     Ok(records)
 }
-pub(crate) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Option<&str>) -> Result<Vec<TelemetrySample>> {
-    let catalog = h::Declarations::decode(snapshot.execution.catalog.as_slice())?;
-    let pool = DescriptorPool::from_file_descriptor_set(
-        catalog.types.clone().ok_or_else(|| Error::Invalid("Read Samples Requires Frozen Descriptors".into()))?,
-    )
-    .map_err(|error| Error::Invalid(format!("Read Sample Descriptors: {error}")))?;
+/// The Snapshot's Samples, Decoded by Its Execution's Frozen Catalog.
+pub(crate) fn samples(
+    snapshot: &ExecutionSnapshot, catalog: &FrozenCatalog, streams: &[String], step: Option<&str>,
+) -> Result<Vec<TelemetrySample>> {
+    let pool = catalog
+        .pool
+        .as_ref()
+        .ok_or_else(|| Error::Invalid("Read Samples Requires Frozen Descriptors".into()))?
+        .as_ref()
+        .map_err(|error| Error::Invalid(format!("Read Sample Descriptors: {error}")))?;
     let mut samples = Vec::new();
     for sample in &snapshot.samples {
         if !streams.is_empty() && !streams.contains(&sample.stream) {
@@ -272,6 +277,7 @@ pub(crate) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Op
             continue;
         }
         let stream = catalog
+            .declarations
             .streams
             .iter()
             .find(|stream| stream.id == sample.stream)
@@ -362,3 +368,41 @@ pub(crate) fn value(value: &Value) -> ProductValue {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::samples;
+    use dokime_storage::{Execution, ExecutionSnapshot, ExecutionState, FrozenCatalog};
+    use harmos_protocol::model::Declarations;
+    use prost::Message;
+    use prost_types::{DescriptorProto, FileDescriptorProto, FileDescriptorSet};
+
+    #[test]
+    fn empty_selections_answer_empty_but_still_require_frozen_descriptors() {
+        let snapshot = ExecutionSnapshot {
+            execution: Execution::default(),
+            state: ExecutionState::Open,
+            evidence: Vec::new(),
+            samples: Vec::new(),
+            seal: Vec::new(),
+        };
+        let untyped = FrozenCatalog::decode(&Declarations::default().encode_to_vec()).unwrap();
+        assert!(samples(&snapshot, &untyped, &[], None).is_err());
+        let typed = Declarations {
+            types: Some(FileDescriptorSet {
+                file: vec![FileDescriptorProto {
+                    name: Some("fixture.proto".into()),
+                    package: Some("fixture".into()),
+                    message_type: vec![DescriptorProto {
+                        name: Some("Row".into()),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+            }),
+            ..Default::default()
+        };
+        let typed = FrozenCatalog::decode(&typed.encode_to_vec()).unwrap();
+        assert!(samples(&snapshot, &typed, &[], None).unwrap().is_empty());
+    }
+}

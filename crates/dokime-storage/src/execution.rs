@@ -138,6 +138,17 @@ pub enum ExecutionState {
 
 /* === Implementations === */
 
+impl ExecutionState {
+    /// The State a Stored Execution Row Records.
+    pub(crate) fn stored(value: i32) -> Result<Self> {
+        match value {
+            0 => Ok(Self::Open),
+            1 => Ok(Self::Closed),
+            2 => Ok(Self::Sealed),
+            _ => Err(crate::Error::Incompatible("Invalid Execution State".into())),
+        }
+    }
+}
 impl ExecutionSnapshot {
     pub fn records(&self, kind: &str) -> Vec<&Evidence> {
         self.evidence.iter().filter(|entry| entry.kind == format!("record:{kind}")).collect()

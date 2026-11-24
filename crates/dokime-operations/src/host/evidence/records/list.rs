@@ -20,10 +20,9 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::model::Declarations;
 use harmos_protocol::model::ReadCut;
 use prost::Message;
-use prost_reflect::{DescriptorPool, Kind};
+use prost_reflect::Kind;
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -225,7 +224,7 @@ pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, afte
             if record_matches(&request, &record) {
                 response.count += 1;
                 if !heterogeneous {
-                    let candidate = record_schema(frozen, &record.record_type)?;
+                    let candidate = record_schema(&reader, frozen, &record.record_type)?;
                     if schema.as_ref().is_some_and(|saved| Some(saved) != candidate.as_ref()) {
                         if !request.record_type.is_empty() {
                             return Err(Error::Invalid("List Records: Select One Frozen Record Schema Across Executions".into()));
@@ -258,13 +257,13 @@ fn metadata<'a>(reader: &Store, executions: &'a mut HashMap<String, ExecutionCut
     Ok(&executions[execution])
 }
 
-fn record_schema(cut: &ExecutionCut, kind: &str) -> Result<Option<Schema>> {
+fn record_schema(reader: &Store, cut: &ExecutionCut, kind: &str) -> Result<Option<Schema>> {
     let (types, message) = if kind == "dokime.log" {
         (dokime_protocol::descriptor_pool().clone(), "dokime.host.v1.evidence.LogsAppendRequest".to_owned())
     } else {
-        let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
+        let catalog = reader.frozen_catalog(&cut.execution.catalog)?;
         let mut message = None;
-        for section in &catalog.sections {
+        for section in &catalog.declarations.sections {
             if section.r#type != "dokime.model.v1.RecordContracts" {
                 continue;
             }
@@ -277,10 +276,13 @@ fn record_schema(cut: &ExecutionCut, kind: &str) -> Result<Option<Schema>> {
         let Some(message) = message else {
             return Ok(None);
         };
-        let types = catalog.types.ok_or_else(|| Error::Invalid("List Records: Restore Its Frozen Record Descriptors".into()))?;
-        let pool = DescriptorPool::from_file_descriptor_set(types)
+        let pool = catalog
+            .pool
+            .as_ref()
+            .ok_or_else(|| Error::Invalid("List Records: Restore Its Frozen Record Descriptors".into()))?
+            .as_ref()
             .map_err(|source| Error::Invalid(format!("List Records: Read the Frozen Schema: {source}")))?;
-        (pool, message)
+        (pool.clone(), message)
     };
     let descriptor =
         types.get_message_by_name(&message).ok_or_else(|| Error::Invalid("List Records: Restore the Frozen Record Message".into()))?;

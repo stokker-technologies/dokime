@@ -103,12 +103,7 @@ impl Store {
             })
             .optional()?
             .ok_or_else(|| Error::NotFound(format!("Inspect Execution: Select an Existing Execution {execution}")))?;
-        let state = match state {
-            0 => ExecutionState::Open,
-            1 => ExecutionState::Closed,
-            2 => ExecutionState::Sealed,
-            _ => return Err(Error::Incompatible("Invalid Execution State".into())),
-        };
+        let state = ExecutionState::stored(state)?;
         if state != ExecutionState::Sealed && !seal.is_empty() {
             return Err(Error::Invalid("Inspect Execution: Seal Does Not Match Evidence; Restore a Valid Backup".into()));
         }

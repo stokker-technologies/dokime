@@ -196,6 +196,7 @@ pub(crate) fn read_page(context: &Context, request: SamplesListRequest, after: O
             cursor.insert(stream.clone(), through);
         }
     }
+    let catalog = store.frozen_catalog(&cut.execution.catalog)?;
     let snapshot = ExecutionSnapshot {
         execution: cut.execution,
         state: cut.state,
@@ -203,7 +204,7 @@ pub(crate) fn read_page(context: &Context, request: SamplesListRequest, after: O
         samples: selected,
         evidence: Vec::new(),
     };
-    let mut samples = crate::host::projection::samples(&snapshot, &[], None)?;
+    let mut samples = crate::host::projection::samples(&snapshot, &catalog, &[], None)?;
     for sample in &mut samples {
         sample.source = source.clone();
         if let Some(scope) = &mut sample.scope {

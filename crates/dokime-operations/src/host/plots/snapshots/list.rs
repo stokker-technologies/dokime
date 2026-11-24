@@ -69,7 +69,7 @@ use dokime_protocol::model::XyInterval;
 use dokime_protocol::model::data_expression;
 use dokime_protocol::model::value;
 use dokime_storage::persisted::Scope;
-use dokime_storage::{ExecutionCut, KindWindow, NumericWindow, Store};
+use dokime_storage::{ExecutionCut, FrozenCatalog, KindWindow, NumericWindow, Store};
 
 /* === Constants === */
 
@@ -86,7 +86,7 @@ const DEFAULT_POINTS: u64 = 15_360;
 
 struct PlotSource {
     cut: ExecutionCut,
-    catalog: Declarations,
+    catalog: Arc<FrozenCatalog>,
     pool: DescriptorPool,
 }
 
@@ -212,14 +212,15 @@ async fn batch(
                 Some(_) => return Err(Error::Invalid("Capture Plots: Keep Every Plot Within Its Execution Cut".into())),
                 None => store.metadata(execution)?,
             };
-            let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
-            let pool = {
+            let catalog = {
                 let _span = tracing::debug_span!("plot.schema").entered();
-                DescriptorPool::from_file_descriptor_set(
-                    catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
-                )
-                .map_err(|source| Error::Invalid(source.to_string()))?
+                store.frozen_catalog(&cut.execution.catalog)?
             };
+            let pool = catalog
+                .pool
+                .clone()
+                .ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?
+                .map_err(Error::Invalid)?;
             sources.insert(execution.to_owned(), Arc::new(PlotSource { cut, catalog, pool }));
         }
         let source = sources[execution].clone();
@@ -281,7 +282,7 @@ async fn batch(
                             maximum,
                             now_ns,
                             epoch: &epoch,
-                            catalog: &source.catalog,
+                            catalog: &source.catalog.declarations,
                             pool: &source.pool,
                         },
                         &request,

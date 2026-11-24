@@ -91,8 +91,11 @@ pub async fn handle(context: &Context, request: SamplesWatchRequest) -> Result<O
                     selection.at = cut;
                     selection.page.get_or_insert_default().page_token = token;
                 } else {
-                    let execution = selection.scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
-                    if execution.is_some_and(|id| context.host.store().metadata(id).is_ok_and(|cut| cut.state != ExecutionState::Open)) {
+                    let execution = selection.scope.as_ref().and_then(|scope| scope.execution_id.clone());
+                    if execution
+                        .as_deref()
+                        .is_some_and(|id| context.host.store().metadata(id).is_ok_and(|cut| cut.state != ExecutionState::Open))
+                    {
                         return;
                     }
                     // Every Selected Sample Through This Cut Was Sent; Later Passes Read Only Beyond It.
@@ -104,12 +107,23 @@ pub async fn handle(context: &Context, request: SamplesWatchRequest) -> Result<O
                     loop {
                         tokio::select! {
                             _ = sender.closed() => return,
-                            changed = changes.changed() => if changed.is_err() { return; } else { break },
-                            changed = runtime.changed() => if changed.is_err() || context.host.shutting_down() { return; },
+                            changed = changes.changed() => if changed.is_err() { return; },
+                            changed = runtime.changed() => if changed.is_err() || context.host.shutting_down() { return; } else { continue },
                         }
-                    }
-                    if context.host.shutting_down() {
-                        return;
+                        if context.host.shutting_down() {
+                            return;
+                        }
+                        // While the Open Execution Saved Nothing Past the Cut Sent, No Selected Sample Can Appear.
+                        let sent = after.as_ref().and_then(|cut| cut.positions.first()).map(|position| position.sequence);
+                        if !execution.as_deref().is_some_and(|id| {
+                            context
+                                .host
+                                .store()
+                                .frontier(id)
+                                .is_ok_and(|(state, frontier)| state == ExecutionState::Open && Some(frontier) == sent)
+                        }) {
+                            break;
+                        }
                     }
                 }
                 match crate::host::evidence::samples::list::read_page(&context, selection.clone(), after.as_ref()) {

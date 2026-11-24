@@ -31,7 +31,7 @@ use dokime_protocol::model::StreamMatchOperator;
 use dokime_protocol::model::Value;
 use dokime_protocol::model::ValueType;
 use dokime_protocol::model::value::Kind as ValueKind;
-use dokime_storage::ExecutionSnapshot;
+use dokime_storage::{ExecutionSnapshot, FrozenCatalog};
 use harmos_protocol::model::Declarations;
 
 /* === Constants === */
@@ -273,7 +273,8 @@ fn condition_met(condition: &EvidenceCondition, snapshot: &ExecutionSnapshot) ->
             matched
         }
         Some(Kind::Stream(stream)) => {
-            let samples = crate::host::projection::samples(snapshot, std::slice::from_ref(&stream.stream), None)?;
+            let catalog = FrozenCatalog::decode(&snapshot.execution.catalog)?;
+            let samples = crate::host::projection::samples(snapshot, &catalog, std::slice::from_ref(&stream.stream), None)?;
             let value = samples.last().and_then(|sample| sample.values.as_ref()).and_then(|values| values.values.get(&stream.field));
             let operator = StreamMatchOperator::try_from(stream.operator).unwrap_or_default();
             if operator == StreamMatchOperator::Exists {

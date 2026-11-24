@@ -47,7 +47,7 @@ use uuid::Uuid;
 
 // Local Imports
 use crate::telemetry::aggregates::SummaryReads;
-use crate::{Backend, StorageSettings, expressions, history, stream_windows, telemetry};
+use crate::{Backend, StorageSettings, expressions, frozen, history, stream_windows, telemetry};
 use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample, StatisticsRead, storage_defaults};
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
@@ -91,6 +91,8 @@ pub struct Store {
     /// Sealed Ranks Cover Immutable Values, So Unlike Summaries the Host Store Shares Them.
     pub(crate) ranks: Arc<Mutex<RankCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    /// Frozen Catalogs Never Change, So the Host Store and Its Read Sessions Share Their Decoded Pools.
+    pub(crate) frozen: Arc<frozen::FrozenCatalogs>,
     pub(crate) changed: Sender<u64>,
 
     /// Parks This Store's Flush Syncs While a Story Holds It; Other Stores Never Pass It.
@@ -286,6 +288,7 @@ impl Store {
             statistics: Arc::new(Mutex::new(HashMap::new())),
             ranks: Arc::default(),
             verified: Arc::new(Mutex::new(HashMap::new())),
+            frozen: Arc::default(),
             changed: watch::channel(0).0,
             #[cfg(test)]
             sync_gate: Arc::default(),
@@ -329,6 +332,7 @@ impl Store {
             statistics: self.statistics.clone(),
             ranks: self.ranks.clone(),
             verified: self.verified.clone(),
+            frozen: self.frozen.clone(),
             changed: self.changed.clone(),
             #[cfg(test)]
             sync_gate: self.sync_gate.clone(),
@@ -560,12 +564,7 @@ impl Store {
         let samples = self.all_samples(execution, i64::MAX as u64)?;
         Ok(ExecutionSnapshot {
             execution: Execution::decode(payload.as_slice())?,
-            state: match state {
-                0 => ExecutionState::Open,
-                1 => ExecutionState::Closed,
-                2 => ExecutionState::Sealed,
-                _ => return Err(Error::Incompatible("Invalid Execution State".into())),
-            },
+            state: ExecutionState::stored(state)?,
             evidence,
             samples,
             seal,

@@ -90,12 +90,12 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                         .selection
                         .as_ref()
                         .and_then(|selection| selection.scope.as_ref())
-                        .and_then(|scope| scope.execution_id.as_deref())
+                        .and_then(|scope| scope.execution_id.clone())
                         .or_else(|| match selection.scope.as_ref().and_then(|scope| scope.kind.as_ref()) {
-                            Some(record_scope::Kind::Execution(id)) => Some(id.as_str()),
+                            Some(record_scope::Kind::Execution(id)) => Some(id.clone()),
                             _ => None,
                         });
-                    if execution.is_some_and(|id| {
+                    if execution.as_deref().is_some_and(|id| {
                         context.host.store().metadata(id).is_ok_and(|cut| cut.state != dokime_storage::ExecutionState::Open)
                     }) {
                         return Ok(());
@@ -108,12 +108,22 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                     loop {
                         tokio::select! {
                             _ = sender.closed() => return Ok(()),
-                            changed = changes.changed() => if changed.is_err() { return Ok(()); } else { break },
-                            changed = runtime.changed() => if changed.is_err() || context.host.shutting_down() { return Ok(()); },
+                            changed = changes.changed() => if changed.is_err() { return Ok(()); },
+                            changed = runtime.changed() => if changed.is_err() || context.host.shutting_down() { return Ok(()); } else { continue },
                         }
-                    }
-                    if context.host.shutting_down() {
-                        return Ok(());
+                        if context.host.shutting_down() {
+                            return Ok(());
+                        }
+                        // While No Evidence Follows the Cut Sent and the Execution Stays Open, No Record Can Appear.
+                        let store = context.host.store();
+                        let sent = after.as_ref().and_then(|cut| cut.positions.first());
+                        if !(store.current_evidence_position().is_ok_and(|position| sent == Some(&position))
+                            && execution
+                                .as_deref()
+                                .is_none_or(|id| store.frontier(id).is_ok_and(|(state, _)| state == dokime_storage::ExecutionState::Open)))
+                        {
+                            break;
+                        }
                     }
                 }
                 match crate::host::evidence::records::list::read_page(&context, selection.clone(), after.as_ref()) {
