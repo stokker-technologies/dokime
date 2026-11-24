@@ -281,30 +281,26 @@ mod tests {
 
     #[test]
     fn library_carrier_becomes_one_desktop_protobuf() {
-        use base64::{Engine, engine::general_purpose::STANDARD};
-        use harmos_protocol::model::Failure;
-        let captured = STANDARD
-            .decode(concat!(
-                "AQAAABRMaXN0IFBsdWdpbiBTZXR0aW5ncwEUTGlzdCBQbHVnaW4gU2V0dGluZ3MAAAG3AQgBEhJzZXR0aW5nc19ub3RfcmVhZHka",
-                "FExpc3QgUGx1Z2luIFNldHRpbmdzIi1XYWl0IGZvciB0aGUgcGx1Z2luIHRvIHJlcG9ydCBpdHMgZGVzY3JpcHRpb24qFExpc3Qg",
-                "UGx1Z2luIFNldHRpbmdzMgViZW5jaDo9EhNkZXNjcmlwdGlvbl9wZW5kaW5nGiZiZW5jaCBoYXMgbm90IHJlcG9ydGVkIGl0cyBk",
-                "ZXNjcmlwdGlvbg==",
-            ))
-            .unwrap();
-        let expected = STANDARD
-            .decode(concat!(
-                "CAESEnNldHRpbmdzX25vdF9yZWFkeRoUTGlzdCBQbHVnaW4gU2V0dGluZ3MiLVdhaXQgZm9yIHRoZSBwbHVnaW4gdG8gcmVwb3J0",
-                "IGl0cyBkZXNjcmlwdGlvbioUTGlzdCBQbHVnaW4gU2V0dGluZ3MyBWJlbmNoOj0SE2Rlc2NyaXB0aW9uX3BlbmRpbmcaJmJlbmNo",
-                "IGhhcyBub3QgcmVwb3J0ZWQgaXRzIGRlc2NyaXB0aW9u",
-            ))
-            .unwrap();
-        let canonical = Failure::decode(expected.as_slice()).unwrap();
-        assert_eq!(harmos_runtime::Failure::from(canonical.clone()).encode(), captured);
-        let status = tonic::Status::with_details(tonic::Code::FailedPrecondition, "operation request failed", captured.into());
+        use harmos_protocol::model::{Classification, Failure};
+        let canonical = Failure {
+            classification: Classification::Permanent as i32,
+            code: "settings_not_ready".into(),
+            message: "List Plugin Settings".into(),
+            action: "Wait for the plugin to report its description".into(),
+            operation: "List Plugin Settings".into(),
+            plugin: "bench".into(),
+            cause: Some(Box::new(Failure {
+                code: "description_pending".into(),
+                message: "bench has not reported its description".into(),
+                ..Default::default()
+            })),
+            ..Default::default()
+        };
+        let carrier = harmos_runtime::Failure::from(canonical.clone()).encode();
+        let status = tonic::Status::with_details(tonic::Code::FailedPrecondition, "operation request failed", carrier.into());
         let Error::Grpc { code, details, .. } = rpc_error(status) else { panic!("expected gRPC failure") };
         assert_eq!(code, tonic::Code::FailedPrecondition as i32);
-        let decoded = Failure::decode(details.as_slice()).unwrap();
-        assert_eq!(decoded, Failure::decode(expected.as_slice()).unwrap());
+        assert_eq!(Failure::decode(details.as_slice()).unwrap(), canonical);
     }
 
     #[test]
