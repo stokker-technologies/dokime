@@ -343,7 +343,7 @@ impl Store {
     fn grouped_values(
         &self, request: &KindWindow<'_>, aggregate: Option<Aggregate>, heat_strip: bool,
     ) -> Result<BTreeMap<(String, String, i64), ValueGroup>> {
-        let budget = self.storage_settings()?.query_bytes.get();
+        let budget = self.storage_settings().query_bytes.get();
         let mut bytes = 0usize;
         let mut groups = BTreeMap::<(String, String, i64), ValueGroup>::new();
         self.kind_values(request, heat_strip, |row| {
@@ -371,7 +371,7 @@ impl Store {
     fn instant_groups(
         &self, request: &KindWindow<'_>, aggregate: Option<Aggregate>,
     ) -> Result<BTreeMap<(String, String, i64), ValueGroup>> {
-        let budget = self.storage_settings()?.query_bytes.get();
+        let budget = self.storage_settings().query_bytes.get();
         let (start, span) =
             (i128::from(request.window.start_ns), (i128::from(request.window.end_ns) - i128::from(request.window.start_ns)).max(0));
         // Spans Below 2^64 Nanoseconds Times 2^62 Stay Within the Slot Arithmetic.

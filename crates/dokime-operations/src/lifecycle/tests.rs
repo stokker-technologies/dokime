@@ -131,7 +131,7 @@ impl Fixture {
                     max_active_file_operations: capacity,
                     // A Compound Mutation Reserves One Whole Batch; Only the Product's Larger Budget Leaves
                     // Room for Writes a Live Watch Has Not Read Yet, So Admission Never Lags That Watch.
-                    max_pending_write_bytes: store.storage_settings()?.pending_bytes,
+                    max_pending_write_bytes: store.storage_settings().pending_bytes,
                 },
                 response: StorageResponseSettings { batch_rows: rows, batch_bytes: bytes },
                 filesystem: StorageFilesystemSettings {

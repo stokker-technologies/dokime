@@ -17,7 +17,7 @@
 use std::{
     collections::BTreeSet,
     fs,
-    io::{self, Cursor},
+    io::{self, BufReader, Cursor},
     path::{Path, PathBuf},
     result,
 };
@@ -173,11 +173,12 @@ pub(super) fn read_chunk(connection: &Connection, chunk: i64, metadata: &[&str],
     if Path::new(&filename).components().count() != 1 {
         return Err(incompatible());
     }
-    let path = directory(connection)?.join(filename);
-    let reader = FileReader::try_new(fs::File::open(&path).map_err(io)?, None)
-        .map_err(|source| Error::backend("Read Arrow Schema", BackendFailure::Corrupt, source))?;
-    let projection = Projection::new(reader.schema(), metadata, values).map_err(product)?;
-    ipc::read_query_batch(&path, &block, &projection, maximum).map_err(product)
+    let mut file = BufReader::new(fs::File::open(directory(connection)?.join(filename)).map_err(io)?);
+    let schema = FileReader::try_new(&mut file, None)
+        .map_err(|source| Error::backend("Read Arrow Schema", BackendFailure::Corrupt, source))?
+        .schema();
+    let projection = Projection::new(schema, metadata, values).map_err(product)?;
+    ipc::read_query_batch(&mut file, &block, &projection, maximum).map_err(product)
 }
 
 fn io(source: io::Error) -> Error {

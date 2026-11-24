@@ -21,7 +21,7 @@ use std::{num::NonZeroUsize, time::Duration};
 // Third Party Imports
 
 // Local Imports
-use crate::{Error, Result, Store};
+use crate::Store;
 
 /* === Constants === */
 
@@ -57,8 +57,8 @@ pub struct PreviewSettings {
 /* === Implementations === */
 
 impl Store {
-    pub fn storage_settings(&self) -> Result<StorageSettings> {
-        Ok(self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry settings lock failed"))?.settings)
+    pub fn storage_settings(&self) -> StorageSettings {
+        self.settings
     }
 }
 

@@ -295,7 +295,7 @@ impl Store {
                 })
             },
             &statistics,
-            self.storage_settings()?.query_bytes.get(),
+            self.storage_settings().query_bytes.get(),
         )?;
         Ok(percentiles
             .iter()

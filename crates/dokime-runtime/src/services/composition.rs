@@ -99,7 +99,7 @@ pub(super) async fn launch(
     let sample_scopes = host.executions.inner.sample_scopes.clone();
     let capturing_scopes = sample_scopes.clone();
     let sample_failures = host.executions.inner.sample_failures.clone();
-    let backend_settings = store.storage_settings()?;
+    let backend_settings = store.storage_settings();
     let capacity =
         NonZeroUsize::new(settings.max_cases).ok_or_else(|| Error::Invalid("Start Storage: Supply Positive Admission Capacity".into()))?;
     let rows =

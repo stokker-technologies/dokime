@@ -340,13 +340,7 @@ impl Store {
     }
     pub(crate) fn source_codec(&self, cut: &ExecutionCut, source: &Source) -> Result<Codec> {
         if !source.0 {
-            let connection = self.lock()?;
-            let codec = self.telemetry.lock().map_err(|_| Error::Data("restart after the stream descriptor lock failed"))?.codec(
-                &connection,
-                &cut.execution.identifier,
-                &source.1,
-            )?;
-            return Ok(codec.as_ref().clone());
+            return Ok(self.codec(&*self.lock()?, &cut.execution.identifier, &source.1)?.as_ref().clone());
         }
         let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
         let contracts = catalog
@@ -403,7 +397,7 @@ impl Store {
                             cursor as i64,
                             through.min(i64::MAX as u64) as i64,
                             format!("record:{}", source.1),
-                            self.storage_settings()?.flush_rows.get() as i64
+                            self.storage_settings().flush_rows.get() as i64
                         ],
                         |row| row.get::<_, Vec<u8>>(0),
                     )?
@@ -615,7 +609,7 @@ impl BatchReader for RetainedTable {
 /* === Private Functions === */
 
 fn align(store: &Store, cut: &ExecutionCut, base: &Table, right: &Table, name: &str) -> Result<Table> {
-    let settings = store.storage_settings()?;
+    let settings = store.storage_settings();
     let history = StoreHistory {
         store: Identifier::new(store.identity()).map_err(|error| Error::Invalid(error.to_string()))?,
         epoch: Identifier::new(&cut.execution.identifier).map_err(|error| Error::Invalid(error.to_string()))?,

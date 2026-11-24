@@ -49,16 +49,17 @@ use config::StorageSettings;
 
 /* === Type Aliases === */
 
+/// Stream Codecs by Execution and Stream; Streams Sharing a Row Type Share One Codec.
+pub(crate) type Codecs = BTreeMap<(String, String), Arc<Codec>>;
+
 /* === Structs === */
 
-/// Flush State: Arrow Writers, Their Codecs and a Background Round's Unsynced Batches.
+/// Flush State: Arrow Writers and a Background Round's Unsynced Batches.
 ///
 /// Flushes hold this lock, and the store's connection, while they write and sync; stream intake
-/// never takes either.
+/// and reads never take it.
 pub(crate) struct Telemetry {
-    settings: StorageSettings,
     writers: BTreeMap<String, ipc::Writer>,
-    codecs: BTreeMap<(String, String), Arc<Codec>>,
 
     /// A Background Round's Written Batches Awaiting Their Sync and Catalog Commit.
     unsynced: Option<writer::Unsynced>,
@@ -105,7 +106,8 @@ struct Pending {
 /* === Implementations === */
 
 impl Telemetry {
-    pub(crate) fn new(settings: StorageSettings) -> Result<Self> {
+    /// Flush State for Settings Whose Intervals Are Positive and Representable.
+    pub(crate) fn new(settings: &StorageSettings) -> Result<Self> {
         if settings.previews.bucket_interval.is_zero()
             || settings.previews.bucket_interval.as_nanos() > i128::MAX as u128
             || settings.flush_interval.is_zero()
@@ -114,9 +116,7 @@ impl Telemetry {
             return Err(Error::Data("set a positive representable storage flush interval"));
         }
         Ok(Self {
-            settings,
             writers: BTreeMap::new(),
-            codecs: BTreeMap::new(),
             unsynced: None,
             rounds: 0,
         })

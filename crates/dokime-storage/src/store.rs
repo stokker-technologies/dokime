@@ -78,6 +78,9 @@ pub struct Store {
     pub(crate) projection: Arc<Mutex<Option<expressions::Projection>>>,
     pub(crate) telemetry: Arc<Mutex<telemetry::Telemetry>>,
     pub(crate) intake: Arc<Mutex<telemetry::Intake>>,
+    pub(crate) settings: StorageSettings,
+    /// Stream Codecs by Execution and Stream; Their Short Lock Never Waits for a Flush.
+    pub(crate) codecs: Arc<Mutex<telemetry::Codecs>>,
     pub(crate) identity: Arc<str>,
     pub(crate) cancelled: Option<Arc<AtomicBool>>,
 
@@ -127,7 +130,7 @@ impl Store {
     }
     pub fn open_with(root: &Path, settings: StorageSettings) -> Result<Self> {
         Backend::validate_root(root)?;
-        let telemetry = telemetry::Telemetry::new(settings)?;
+        let telemetry = telemetry::Telemetry::new(&settings)?;
         let intake = telemetry::Intake::new(settings);
         fs::create_dir_all(root)?;
         let database = root.join("execution.sqlite3");
@@ -280,6 +283,8 @@ impl Store {
             projection: Arc::new(Mutex::new(None)),
             telemetry: Arc::new(Mutex::new(telemetry)),
             intake: Arc::new(Mutex::new(intake)),
+            settings,
+            codecs: Arc::default(),
             identity: identity.into(),
             cancelled: None,
             summaries: None,
@@ -324,6 +329,8 @@ impl Store {
             projection: Arc::new(Mutex::new(None)),
             telemetry: self.telemetry.clone(),
             intake: self.intake.clone(),
+            settings: self.settings,
+            codecs: self.codecs.clone(),
             identity: self.identity.clone(),
             cancelled: Some(cancelled.clone()),
             summaries: Some(self.summaries.clone().unwrap_or_else(|| Arc::new(Mutex::new(BTreeMap::new())))),

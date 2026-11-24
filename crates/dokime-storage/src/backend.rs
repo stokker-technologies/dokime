@@ -152,7 +152,7 @@ impl Backend {
             store: Identifier::new(history.store).map_err(|source| Error::backend("Open Root History", BackendFailure::Corrupt, source))?,
             epoch: Identifier::new(history.epoch).map_err(|source| Error::backend("Open Root History", BackendFailure::Corrupt, source))?,
         };
-        let settings = store.storage_settings()?;
+        let settings = store.storage_settings();
         let primary = Self::new(
             store.database.with_file_name("storage.sqlite3"),
             history,
