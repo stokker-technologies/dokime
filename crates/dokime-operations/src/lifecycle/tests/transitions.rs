@@ -19,9 +19,9 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_operations::storage::{Mutate, MutateRequest, MutationItem, watch_rows_response::Event};
+use harmos_operations::storage::{Mutate, MutateRequest, MutationItem, WatchRows, WatchRowsResponse, watch_rows_response::Event};
 use harmos_protocol::model::{Declarations, PageRequest, Receipt};
-use harmos_runtime::operations::{StreamSettings, native_stream};
+use harmos_runtime::operations::{NativeInvocation, StreamInput, StreamSettings, native_stream};
 use harmos_runtime::storage::query::ObjectVersions;
 use prost::Message;
 
@@ -140,6 +140,18 @@ impl Fixture {
 
 /* === Private Functions === */
 
+/// Receive One Watch Event; a Resync or a Closed Stream Names How the Watch Ended.
+async fn frame(input: &StreamInput<WatchRowsResponse>, watching: &mut NativeInvocation<WatchRows>) -> Proof<Event> {
+    let Some(frame) = input.recv().await else {
+        let ended = watching.await.map(|response| response.event.clone());
+        return Err(format!("Keep the Native Revision Watch Open; It Ended With {ended:?}").into());
+    };
+    match frame.event.clone() {
+        Some(Event::ResyncRequired(reason)) => Err(format!("Keep the Native Revision Watch Current: {reason}").into()),
+        event => event.ok_or_else(|| "Return a Native Revision Watch Event".into()),
+    }
+}
+
 /* === Tests === */
 
 #[tokio::test]
@@ -168,7 +180,9 @@ async fn admission_replays_and_stale_cycle_conditions_refuse_every_item() -> Pro
         items: NonZeroUsize::new(8).unwrap(),
         bytes: fixture.bytes,
     })?;
-    let watching = rows::watch::<Execution>(operations, None, at.clone(), output)?;
+    let mut watching = rows::watch::<Execution>(operations, None, at.clone(), output)?;
+    // The Boundary Proves the Watch Holds the Opening Cut Before Any Later Admission.
+    assert!(matches!(frame(&input, &mut watching).await?, Event::Boundary(())));
     let mut found = false;
     loop {
         found |= rows::decode::<Execution>(&page, fixture.bytes)?.iter().any(|value| value.key == "first");
@@ -193,12 +207,10 @@ async fn admission_replays_and_stale_cycle_conditions_refuse_every_item() -> Pro
     execution::admit(operations, &next, fixture.bytes).await?;
     let mut observed = false;
     loop {
-        let frame = input.recv().await.ok_or("Keep the Native Revision Watch Open")?;
-        if let Some(Event::Object(object)) = &frame.event {
-            observed |= object.value.item.as_str() == "next";
-        }
-        if observed && matches!(frame.event, Some(Event::DurableProgress(()))) {
-            break;
+        match frame(&input, &mut watching).await? {
+            Event::Object(object) => observed |= object.value.item.as_str() == "next",
+            Event::DurableProgress(()) if observed => break,
+            _ => {}
         }
     }
     drop(input);
