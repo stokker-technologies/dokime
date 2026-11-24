@@ -192,7 +192,7 @@ impl Fixture {
         let admitted = session
             .execute(
                 "Plugins.Create",
-                session.client().plugins.create_with("bench.pipeline", placement, PluginValue { enabled: true }, options),
+                session.client().plugins.create_with("desktop.benchmark", placement, PluginValue { enabled: true }, options),
             )
             .await
             .unwrap();
@@ -220,8 +220,8 @@ impl Fixture {
                 CasesCreateRequest {
                     plan: Some(SelectionPlan {
                         selections: vec![RegisteredSelection {
-                            suite_id: "bench.pipeline".into(),
-                            template_id: "bench.pipeline.capture".into(),
+                            suite_id: "desktop.benchmark.pipeline".into(),
+                            template_id: "desktop.benchmark.pipeline.capture".into(),
                             ..Default::default()
                         }],
                         ..Default::default()
@@ -377,7 +377,7 @@ pub fn serve() -> Result<()> {
                 })),
             }),
         })
-        .suite(Suite::of::<()>().identifier("bench.pipeline").label("Pipeline Bench").template(template))
+        .suite(Suite::of::<()>().identifier("desktop.benchmark.pipeline").label("Pipeline Bench").template(template))
         .run()
 }
 
