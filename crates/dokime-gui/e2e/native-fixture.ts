@@ -1293,7 +1293,7 @@ async function answerPendingPrompts(session: Session) {
     return {
       text: needed.innerText,
       respond: [...document.querySelectorAll('button')].some((button) => button.innerText.trim() === 'Respond'),
-      responsePanels: document.querySelectorAll('[aria-labelledby="active-prompt-title"]').length,
+      responsePanels: document.querySelectorAll('li[data-prompt-id] section[aria-labelledby]').length,
     };
   `);
     if (cycleSighting) {
@@ -1352,7 +1352,7 @@ async function answerPendingPrompts(session: Session) {
     if (!pending) return 0;
     await session.execute(
       `const note = arguments[0];
-     const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]') ?? document.body;
+     const panel = document.querySelector('li[data-prompt-state="open"] section[aria-labelledby]') ?? document.body;
      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
      for (const input of panel.querySelectorAll('input[type="text"], input[type="number"]')) {
        if (input.value) continue;
@@ -1368,13 +1368,13 @@ async function answerPendingPrompts(session: Session) {
     await session.waitForDom(
       "prompt response ready",
       `
-      const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]');
+      const panel = document.querySelector('li[data-prompt-state="open"] section[aria-labelledby]');
       return panel && [...panel.querySelectorAll('button')].some(button =>
         /^(Yes|Submit|Confirm|Accept|Continue)$/.test(button.innerText.trim()) && !button.disabled);
     `,
     );
     const submitted = await session.execute(`
-    const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]');
+    const panel = document.querySelector('li[data-prompt-state="open"] section[aria-labelledby]');
     if (!panel) return false;
     const submit = [...panel.querySelectorAll('button')].find((button) =>
       /^(Yes|Submit|Confirm|Accept|Continue)$/.test(button.innerText.trim()),
