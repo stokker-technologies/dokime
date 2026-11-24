@@ -414,7 +414,7 @@ fn document(count: usize) -> Document {
     let field = |name: &str| FieldReference::new("desktop.benchmark.samples").field(name);
     let cards = (0..count)
         .map(|index| {
-            let kind = if index < count - 9 { PlotKind::TimeSeries } else { kinds[index - count + 9] };
+            let kind = if index < count - 9 { PlotKind::TimeSeries } else { kinds[index + 9 - count] };
             let plot = Plot {
                 metadata: Some(Metadata {
                     identifier: format!("desktop.plot.{index}"),
