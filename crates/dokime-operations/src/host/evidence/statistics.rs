@@ -20,10 +20,9 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use arrow_array::{Float64Array, StructArray, UInt64Array};
-use harmos_protocol::model::Declarations;
 use harmos_protocol::model::ReadCut;
 use prost::Message;
-use prost_reflect::{DescriptorPool, Kind};
+use prost_reflect::Kind;
 
 // Local Imports
 use crate::host::evidence::selection;
@@ -77,16 +76,19 @@ fn select(store: &Store, execution: &str, request: EvidenceStatisticsRequest, pa
     let mut snapshot = store.cut(execution)?;
     let resolved_at = store.resource_value(execution, "progress", request.at.as_ref().and_then(|at| at.positions.first()))?.resolved_at;
     snapshot.frontier = resolved_at.sequence;
-    let catalog = Declarations::decode(snapshot.execution.catalog.as_slice())?;
+    let catalog = store.frozen_catalog(&snapshot.execution.catalog)?;
     let stream = catalog
+        .declarations
         .streams
         .iter()
         .find(|stream| stream.id == request.stream)
         .ok_or_else(|| Error::Invalid(format!("Select a Declared Stream: {}", request.stream)))?;
-    let pool = DescriptorPool::from_file_descriptor_set(
-        catalog.types.ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Message Descriptors".into()))?,
-    )
-    .map_err(|error| Error::Invalid(error.to_string()))?;
+    let pool = catalog
+        .pool
+        .as_ref()
+        .ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Message Descriptors".into()))?
+        .as_ref()
+        .map_err(|error| Error::Invalid(error.clone()))?;
     let descriptor = pool
         .get_message_by_name(&stream.row)
         .ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Stream Row Descriptor".into()))?;

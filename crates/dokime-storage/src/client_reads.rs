@@ -56,18 +56,18 @@ impl Store {
             connection.query_row("SELECT state,payload,seal FROM executions WHERE id=?1", [execution], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?))
             })?;
-        let state = match state {
-            0 => ExecutionState::Open,
-            1 => ExecutionState::Closed,
-            2 => ExecutionState::Sealed,
-            _ => return Err(crate::Error::Incompatible("Invalid Execution State".into())),
-        };
         Ok(ExecutionCut {
             execution: Execution::decode(payload.as_slice())?,
-            state,
+            state: ExecutionState::stored(state)?,
             seal,
             frontier: crate::store::saved_position(&connection, execution)?,
         })
+    }
+    /// An Execution's State and Saved Frontier, Read Without Decoding Its Definition.
+    pub fn frontier(&self, execution: &str) -> Result<(ExecutionState, u64)> {
+        let connection = self.lock()?;
+        let state = connection.query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        Ok((ExecutionState::stored(state)?, crate::store::saved_position(&connection, execution)?))
     }
     pub fn subscribe(&self) -> Receiver<u64> {
         self.changed.subscribe()

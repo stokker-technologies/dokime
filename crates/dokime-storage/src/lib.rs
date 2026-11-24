@@ -22,6 +22,7 @@ mod error;
 mod evidence_positions;
 mod execution;
 mod expressions;
+mod frozen;
 mod history;
 mod ipc;
 mod outcome;
@@ -45,6 +46,7 @@ pub use content::{ArchivedContent, ArchivedNativeFile, CONTENT_CHUNK_BYTES, Stor
 pub use content_name::{validate_artifact_name, validate_execution_path};
 pub use error::Error;
 pub use execution::{Evidence, Execution, ExecutionSnapshot, ExecutionState, Sample};
+pub use frozen::FrozenCatalog;
 pub use outcome::OutcomeCounts;
 pub use plot_kinds::{CartesianRead, KindWindow};
 pub use plot_selection::{PlotGroup, PlotSelection};

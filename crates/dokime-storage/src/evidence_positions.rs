@@ -52,6 +52,11 @@ impl Store {
         Ok(position)
     }
 
+    /// The Current Evidence Position, Read Without Issuing It.
+    pub fn current_evidence_position(&self) -> Result<Position> {
+        resolve(&*self.lock()?, None)
+    }
+
     pub fn retain_evidence_position(&self, position: &Position) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
