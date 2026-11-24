@@ -158,7 +158,7 @@ impl Store {
             let mut values = aggregates::rank_values(
                 |push| self.expression_values(cut, expression, None, filters, |_, _, value, _| push(value)),
                 &[statistics],
-                self.storage_settings()?.query_bytes.get(),
+                self.storage_settings().query_bytes.get(),
             )?;
             return Ok(values.remove(0));
         }
@@ -187,7 +187,7 @@ impl Store {
                 return Ok(());
             }
             if !values.iter().any(|(v, _)| v.compare(&value).is_ok_and(|o| o.is_eq())) {
-                if values.len().saturating_mul(256) > self.storage_settings()?.query_bytes.get() {
+                if values.len().saturating_mul(256) > self.storage_settings().query_bytes.get() {
                     return Err(Error::Data("narrow distinct values to fit the configured query budget"));
                 }
                 values.push((value.clone(), ordering.unwrap_or(value)));

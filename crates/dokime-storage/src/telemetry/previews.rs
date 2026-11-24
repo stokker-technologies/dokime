@@ -270,7 +270,7 @@ impl Store {
         };
         // Saved Rows After the Preview Have No Value for Its Field, So Only Pending Rows Can Extend It.
         if window.through > through as u64 {
-            let maximum = self.storage_settings()?.previews.bucket_count.get();
+            let maximum = self.storage_settings().previews.bucket_count.get();
             let selection = BatchSelection {
                 after: through as u64,
                 ..BatchSelection::from(window)

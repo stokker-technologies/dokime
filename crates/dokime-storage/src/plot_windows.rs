@@ -141,9 +141,7 @@ impl Store {
     fn boolean_window(&self, window: NumericWindow<'_>) -> Result<bool> {
         let field = FieldPath::from(format!("values.{}", window.field).as_str());
         if !self.has_projection(window)? {
-            let connection = self.lock()?;
-            let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry reader lock failed"))?;
-            let codec = telemetry.codec(&connection, window.execution, window.stream)?;
+            let codec = self.codec(&*self.lock()?, window.execution, window.stream)?;
             return Ok(field.field(codec.schema.as_ref())?.data_type() == &DataType::Boolean);
         }
         let mut boolean = false;
@@ -156,7 +154,7 @@ impl Store {
     fn read_numeric_batches(&self, window: NumericWindow<'_>, mut read: impl FnMut(RecordBatch) -> Result<()>) -> Result<()> {
         let mut times = Vec::new();
         let mut values = Vec::new();
-        let rows = self.storage_settings()?.flush_rows.get();
+        let rows = self.storage_settings().flush_rows.get();
         self.numeric_values(window, |_, time, value| {
             times.push(time);
             values.push(value);
@@ -206,7 +204,7 @@ impl Store {
                 grid: histogram.then_some(envelope.histogram),
             });
         }
-        let settings = self.storage_settings()?;
+        let settings = self.storage_settings();
         let mut running = Running::default();
         let mut ranked = Ranked::new(settings.query_bytes.get());
         let mut display = bins.then(|| WindowBins::new(&window)).transpose()?;
@@ -319,7 +317,7 @@ impl Store {
         if summary.count == 0 {
             return Ok(Default::default());
         }
-        let budget = self.storage_settings()?.query_bytes.get();
+        let budget = self.storage_settings().query_bytes.get();
         let batch = self.reduce_numeric(
             window,
             &Transform::BoxSummary(statistics::BoxSummary {
@@ -348,7 +346,7 @@ impl Store {
     }
     fn numeric_order_statistics(&self, window: NumericWindow<'_>, percentiles: &[u8]) -> Result<(ScalarValue, BTreeMap<u8, ScalarValue>)> {
         let statistics = [Aggregate::Median].into_iter().chain(percentiles.iter().copied().map(Aggregate::Percentile)).collect::<Vec<_>>();
-        let mut ranked = Ranked::new(self.storage_settings()?.query_bytes.get());
+        let mut ranked = Ranked::new(self.storage_settings().query_bytes.get());
         self.numeric_batches(window, |_, column| ranked.extend(&column.values, |row| column.valid(row)))?;
         let mut values = ranked.finish(&statistics)?;
         let median = values.remove(0);

@@ -148,7 +148,7 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
             at: request.at,
             page: request.page,
         };
-        let mut pacer = Pacer::start(context.host.store().storage_settings()?.previews.refresh_interval);
+        let mut pacer = Pacer::start(context.host.store().storage_settings().previews.refresh_interval);
         // Keep the Query State off the Watch's Inline Future and Poll Stack.
         let first = Box::pin(list::watched(context, selection.clone())).await?;
         let context = context.clone();

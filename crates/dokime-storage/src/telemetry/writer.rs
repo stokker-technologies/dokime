@@ -145,14 +145,15 @@ pub(crate) struct SyncGate {
 
 /* === Implementations === */
 
-impl Telemetry {
+impl Store {
     /// The Codec of One Execution Stream.
     ///
     /// A miss decodes the execution's frozen catalog once and fills every declared stream, and
     /// streams that share a row type share one codec.
-    pub(crate) fn codec(&mut self, connection: &Connection, execution: &str, stream: &str) -> Result<Arc<Codec>> {
+    pub(crate) fn codec(&self, connection: &Connection, execution: &str, stream: &str) -> Result<Arc<Codec>> {
+        let mut codecs = self.codecs.lock().map_err(|_| Error::Data("restart after the stream codec lock failed"))?;
         let key = (execution.to_owned(), stream.to_owned());
-        if let Some(codec) = self.codecs.get(&key) {
+        if let Some(codec) = codecs.get(&key) {
             return Ok(codec.clone());
         }
         let bytes: Vec<u8> = connection.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
@@ -178,9 +179,9 @@ impl Telemetry {
                     codec
                 }
             };
-            self.codecs.entry((execution.to_owned(), declaration.id.clone())).or_insert(codec);
+            codecs.entry((execution.to_owned(), declaration.id.clone())).or_insert(codec);
         }
-        self.codecs.insert(key, requested.clone());
+        codecs.insert(key, requested.clone());
         Ok(requested)
     }
 }
@@ -382,7 +383,6 @@ impl Store {
             .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         drop(statement);
-        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         let mut streams = Vec::with_capacity(open.len());
         let mut accepted = BTreeMap::new();
         for (execution, stream) in open {
@@ -390,12 +390,11 @@ impl Store {
                 accepted.insert(execution.clone(), crate::store::saved_position(&connection, &execution)?);
             }
             // A Stream Whose Frozen Row No Longer Decodes Refuses Samples, as Before It Was Reopened.
-            match telemetry.codec(&connection, &execution, &stream) {
+            match self.codec(&connection, &execution, &stream) {
                 Ok(codec) => streams.push(((execution, stream), codec)),
                 Err(error) => tracing::warn!(%error, %execution, %stream, "Reopen Stream Intake"),
             }
         }
-        drop(telemetry);
         let mut intake = self.intake()?;
         intake.streams.extend(streams);
         intake.accepted.extend(accepted);
@@ -462,7 +461,7 @@ impl Store {
         let root = self.database.parent().ok_or(Error::Data("select a valid storage root"))?;
         let mut files = Vec::with_capacity(streams.len());
         for stream in streams {
-            let codec = telemetry.codec(&connection, execution, stream)?;
+            let codec = self.codec(&connection, execution, stream)?;
             let id = catalog::identifier(execution, stream, &codec.digest);
             // A Cataloged File Holds Saved Rows; Only a File Without an Entry May Be Recovered to Its Header.
             let cataloged: bool =
@@ -682,7 +681,7 @@ impl Store {
         if claims.is_empty() {
             return Ok(());
         }
-        let prepared = prepare(load_statistics(connection, claims, &telemetry.settings)?, &telemetry.settings)?;
+        let prepared = prepare(load_statistics(connection, claims, &self.settings)?, &self.settings)?;
         let unsynced = self.write(connection, &mut telemetry, prepared)?;
         self.sync_and_catalog(connection, &mut telemetry, unsynced)
     }
@@ -695,7 +694,7 @@ impl Store {
     }
     /// Claim, Prepare and Write One Round, Leaving Its Batches Unsynced With Handles That Sync Them.
     fn begin_round(&self) -> Result<Option<Round>> {
-        let (claims, settings) = {
+        let claims = {
             let mut connection = self.lock()?;
             let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
             self.settle(&mut connection, &mut telemetry)?;
@@ -709,9 +708,9 @@ impl Store {
             if claims.is_empty() {
                 return Ok(None);
             }
-            (load_statistics(&connection, claims, &telemetry.settings)?, telemetry.settings)
+            load_statistics(&connection, claims, &self.settings)?
         };
-        let prepared = prepare(claims, &settings)?;
+        let prepared = prepare(claims, &self.settings)?;
         let mut connection = self.lock()?;
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         self.settle(&mut connection, &mut telemetry)?;
@@ -905,7 +904,7 @@ impl Store {
         let mut finished = Vec::new();
         let result = (|| -> Result<()> {
             for (id, stream) in &files {
-                let codec = telemetry.codec(&transaction, execution, stream)?;
+                let codec = self.codec(&transaction, execution, stream)?;
                 let path = catalog::path(self.database.parent().unwrap(), id)?;
                 let checkpoint = catalog::checkpoint(&transaction, id)?;
                 let indices = catalog::indices(&transaction, id)?;
@@ -1178,7 +1177,7 @@ mod tests {
         // A Crash Between Creating a Stream File and Its Catalog Commit Leaves a Header Without an Entry.
         let codec = {
             let connection = store.lock()?;
-            store.telemetry.lock().unwrap().codec(&connection, "execution", &stream(0))?
+            store.codec(&connection, "execution", &stream(0))?
         };
         let path = catalog::path(root.path(), &catalog::identifier("execution", &stream(0), &codec.digest))?;
         std::fs::create_dir_all(path.parent().unwrap())?;
@@ -1293,6 +1292,26 @@ mod tests {
         // The Flush Saved Only What It Claimed; Rows Admitted During Its Sync Stay Pending Until the Next.
         assert_eq!(store.cut("execution")?.frontier, ROWS * STREAMS as u64);
         store.flush_samples()?;
+        require_saved_once(&store, 2)
+    }
+
+    #[test]
+    fn reads_proceed_while_a_flush_syncs_under_its_locks() -> Result<()> {
+        let (_root, store) = opened(storage_defaults())?;
+        let round = ROWS * STREAMS as u64;
+        store.sample_batch("execution", &samples(0))?;
+        store.flush_samples()?;
+        store.sample_batch("execution", &samples(1))?;
+        while_syncing(
+            &store,
+            || store.flush_samples(),
+            || {
+                // The Parked Flush Holds the Connection and the Flush Lock; a Read Session Reads Its Saved Rows Without Either.
+                assert!(store.telemetry.try_lock().is_err());
+                let (reader, _cancellation) = store.read_session().unwrap();
+                assert_eq!(saved_positions(&reader, "execution").unwrap(), (1..=round).collect::<Vec<_>>());
+            },
+        )?;
         require_saved_once(&store, 2)
     }
 

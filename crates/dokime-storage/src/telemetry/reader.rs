@@ -18,6 +18,8 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
+    fs::File,
+    io::BufReader,
     num::NonZeroUsize,
     path::Path,
     result,
@@ -78,7 +80,10 @@ pub(crate) struct LiveSamples {
 /* === Implementations === */
 
 impl SampleReads {
-    fn batch(&self, store: &Store, path: &Path, index: &BatchIndex, projection: &ipc::Projection, maximum: usize) -> Result<RecordBatch> {
+    fn batch(
+        &self, store: &Store, path: &Path, file: &mut Option<BufReader<File>>, index: &BatchIndex, projection: &ipc::Projection,
+        maximum: usize,
+    ) -> Result<RecordBatch> {
         store.check_read()?;
         let key = (path.to_string_lossy().into_owned(), index.offset);
         let block = {
@@ -90,7 +95,7 @@ impl SampleReads {
             store.check_read()?;
             if value.is_none() {
                 let _span = tracing::debug_span!("source.block", samples = index.rows).entered();
-                let buffer = ipc::read_query_buffer(path, index, maximum)?;
+                let buffer = ipc::read_query_buffer(opened(file, path)?, index, maximum)?;
                 // Spill Retained Blocks So Earlier Blocks Do Not Accumulate Beyond the Query Working Budget.
                 let schema = Arc::new(Schema::new(vec![Field::new("block", DataType::Binary, false)]));
                 let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(BinaryArray::from_iter_values([buffer.as_slice()]))])?;
@@ -213,8 +218,7 @@ impl Store {
         &self, selection: BatchSelection<'_>, columns: &[String], latest: bool, mut read: impl FnMut(RecordBatch, i64) -> Result<bool>,
     ) -> Result<()> {
         let connection = self.lock()?;
-        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry reader lock failed"))?;
-        let codec = telemetry.codec(&connection, selection.execution, selection.stream)?;
+        let codec = self.codec(&connection, selection.execution, selection.stream)?;
         let id = catalog::identifier(selection.execution, selection.stream, &codec.digest);
         let order = if latest { "b.end_ns DESC,b.first_position DESC" } else { "b.first_position" };
         let mut query=connection.prepare(&format!("SELECT b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,b.end_ns,b.first_position>?3 AND b.last_position<=?4 AND b.start_ns>=?6 AND b.end_ns<=?5 FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE b.file=?1 AND f.schema_hash=?2 AND b.last_position>?3 AND b.first_position<=?4 AND b.start_ns<=?5 AND b.end_ns>=?6 ORDER BY {order}"))?;
@@ -234,8 +238,7 @@ impl Store {
         drop(query);
         let batches = self.pending_batches(selection.execution, selection.stream)?;
         let tail = batches.iter().map(|batch| tail(batch, &selection)).collect::<Result<Vec<_>>>()?;
-        let maximum = telemetry.settings.query_bytes.get();
-        drop(telemetry);
+        let maximum = self.settings.query_bytes.get();
         drop(connection);
         let keys = if columns.is_empty() {
             match codec.schema.field(1).data_type() {
@@ -261,7 +264,7 @@ impl Store {
         let projection = ipc::Projection::new(codec.schema.clone(), &["position", "source_ns", "receipt_ns", "sequence"], &keys)?;
         let path = catalog::path(self.database.parent().unwrap(), &id)?;
         let mut pending = Vec::new();
-        let rows = self.storage_settings()?.flush_rows.get();
+        let rows = self.storage_settings().flush_rows.get();
         let chunks = tail
             .iter()
             .filter(|batch| batch.num_rows() > 0)
@@ -292,11 +295,12 @@ impl Store {
                 }
             }
         }
+        let mut file = None;
         for (index, end_ns, inside) in indices {
             self.check_read()?;
             let batch = match &self.sample_reads {
-                Some(reads) => reads.batch(self, &path, &index, &projection, maximum)?,
-                None => ipc::read_query_batch(&path, &index, &projection, maximum)?,
+                Some(reads) => reads.batch(self, &path, &mut file, &index, &projection, maximum)?,
+                None => ipc::read_query_batch(opened(&mut file, &path)?, &index, &projection, maximum)?,
             };
             // A Chunk Wholly Inside the Selection Needs No Row Filter.
             if inside {
@@ -339,14 +343,7 @@ impl Store {
         let names = if window.streams.is_empty() { self.stream_names(window.execution)? } else { window.streams.to_vec() };
         let mut samples = BTreeMap::new();
         for stream in names {
-            let codec = {
-                let connection = self.lock()?;
-                self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry reader lock failed"))?.codec(
-                    &connection,
-                    window.execution,
-                    &stream,
-                )?
-            };
+            let codec = self.codec(&*self.lock()?, window.execution, &stream)?;
             let after = window.after.iter().find(|(name, _)| name == &stream).map_or(0, |(_, after)| *after);
             self.read_batches(
                 BatchSelection {
@@ -401,6 +398,14 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/// A Selection's Stream File, Opened on Its First Chunk Read From Disk; Later Chunks Share the Handle.
+fn opened<'a>(file: &'a mut Option<BufReader<File>>, path: &Path) -> Result<&'a mut BufReader<File>> {
+    Ok(match file {
+        Some(file) => file,
+        None => file.insert(BufReader::new(File::open(path)?)),
+    })
+}
 
 fn positions(batch: &RecordBatch) -> &UInt64Array {
     let storage = batch.column(0).as_any().downcast_ref::<StructArray>().expect("pending rows keep their storage layout");

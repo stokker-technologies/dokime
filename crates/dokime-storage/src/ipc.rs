@@ -22,7 +22,7 @@ pub(crate) use projection::Projection;
 // Standard Library Imports
 use std::{
     fs::{File, OpenOptions},
-    io::{self, Read, Seek, SeekFrom, Write},
+    io::{self, BufReader, Read, Seek, SeekFrom, Write},
     path::Path,
 };
 
@@ -357,7 +357,7 @@ pub(crate) fn encode(schema: &SchemaRef, batch: &RecordBatch) -> Result<Encoded>
 
 #[cfg(test)]
 pub(crate) fn read_batch(path: &Path, schema: SchemaRef, index: &BatchIndex) -> Result<RecordBatch> {
-    let buffer = read_buffer(path, index)?;
+    let buffer = read_buffer(&mut BufReader::new(File::open(path)?), index)?;
     let decoder = FileDecoder::new(schema, MetadataVersion::V5);
     let batch = decoder.read_record_batch(&index.block()?, &buffer)?.ok_or(Error::Corrupt("IPC block is not a record batch"))?;
     if batch.num_rows() as u64 != index.rows {
@@ -366,17 +366,19 @@ pub(crate) fn read_batch(path: &Path, schema: SchemaRef, index: &BatchIndex) -> 
     Ok(batch)
 }
 
-pub(crate) fn read_query_batch(path: &Path, index: &BatchIndex, projection: &Projection, maximum: usize) -> Result<RecordBatch> {
-    let buffer = read_query_buffer(path, index, maximum)?;
+pub(crate) fn read_query_batch(
+    file: &mut BufReader<File>, index: &BatchIndex, projection: &Projection, maximum: usize,
+) -> Result<RecordBatch> {
+    let buffer = read_query_buffer(file, index, maximum)?;
     decode_query_buffer(&buffer, index, projection, maximum)
 }
 
-pub(crate) fn read_query_buffer(path: &Path, index: &BatchIndex, maximum: usize) -> Result<Buffer> {
+pub(crate) fn read_query_buffer(file: &mut BufReader<File>, index: &BatchIndex, maximum: usize) -> Result<Buffer> {
     let length = index.body_bytes.saturating_add(u64::from(index.metadata_bytes));
     if length > maximum as u64 {
         return Err(Error::Data("query batch exceeds working budget"));
     }
-    read_buffer(path, index)
+    read_buffer(file, index)
 }
 
 pub(crate) fn decode_query_buffer(buffer: &Buffer, index: &BatchIndex, projection: &Projection, maximum: usize) -> Result<RecordBatch> {
@@ -441,9 +443,10 @@ pub(crate) fn recover(path: &Path, schema: SchemaRef, indices: &[BatchIndex], ch
 
 /* === Private Functions === */
 
-fn read_buffer(path: &Path, index: &BatchIndex) -> Result<Buffer> {
-    let mut file = File::open(path)?;
-    file.seek(SeekFrom::Start(index.offset))?;
+/// Read One Chunk; Adjacent Chunks Share the Reader's Buffered Reads.
+fn read_buffer(file: &mut BufReader<File>, index: &BatchIndex) -> Result<Buffer> {
+    let position = file.stream_position()?;
+    file.seek_relative(index.offset as i64 - position as i64)?;
     let length = usize::try_from(index.end()? - index.offset).map_err(|_| Error::Corrupt("IPC block exceeds address space"))?;
     let mut bytes = vec![0; length];
     file.read_exact(&mut bytes)?;
