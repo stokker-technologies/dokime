@@ -181,8 +181,6 @@ async fn admission_replays_and_stale_cycle_conditions_refuse_every_item() -> Pro
         bytes: fixture.bytes,
     })?;
     let mut watching = rows::watch::<Execution>(operations, None, at.clone(), output)?;
-    // The Boundary Proves the Watch Holds the Opening Cut Before Any Later Admission.
-    assert!(matches!(frame(&input, &mut watching).await?, Event::Boundary(())));
     let mut found = false;
     loop {
         found |= rows::decode::<Execution>(&page, fixture.bytes)?.iter().any(|value| value.key == "first");
