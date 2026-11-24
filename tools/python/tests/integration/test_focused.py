@@ -227,7 +227,12 @@ class ChangedPathsTests(unittest.TestCase):
 
     def test_changed_paths_reject_filtersets_before_launching_cargo(self) -> None:
         output = io.StringIO()
-        with patch.object(focused, "changed") as execute, redirect_stderr(output), self.assertRaises(SystemExit) as failure:
+        with (
+            patch.object(tasks.transport, "receive"),
+            patch.object(focused, "changed") as execute,
+            redirect_stderr(output),
+            self.assertRaises(SystemExit) as failure,
+        ):
             tasks.main(["test", "--changed", "Cargo.toml", "--filterset", "test(record)"])
         self.assertEqual(failure.exception.code, 2)
         self.assertIn("Remove Explicit Package, Target, Feature and Filter Selectors", output.getvalue())
