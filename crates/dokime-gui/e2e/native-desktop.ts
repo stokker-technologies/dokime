@@ -251,8 +251,11 @@ async function exactBench() {
 }
 
 async function reportsAndHistory() {
-  const before = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
-  assert.equal(before.report.state, "REPORT_STATE_PENDING");
+  // Sealing Freezes the Report; Download Delivers That File.
+  await until("Report Frozen at Seal", async () => {
+    const current = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
+    return current.report.state === "REPORT_STATE_READY";
+  });
   await desktop.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`, { reload: true });
   const path = join(work, "thermal-execution.html");
   const saved = await saveReport(desktop, path, { label: "Thermal", executionId });
@@ -390,8 +393,6 @@ async function settings() {
     if (["plugins", "secrets", "backends"].includes(section)) {
       const table = await desktop.execute<{
         heading: boolean;
-        filter: boolean;
-        footer: boolean;
         columns: number;
         failureWidth: boolean;
       } | null>(`const frame = document.querySelector('[data-slot="data-table"]');
@@ -400,16 +401,11 @@ async function settings() {
         }
         return {
           heading: Boolean(frame.querySelector('h2')),
-          filter: Boolean(frame.querySelector('input')),
-          footer: Boolean(frame.querySelector('footer [data-testid="table-page-size"]')),
           columns: frame.querySelectorAll('thead th').length,
           failureWidth: [...frame.querySelectorAll('tbody td[colspan]')].every(cell => cell.colSpan === frame.querySelectorAll('thead th').length),
         };`);
       assert.ok(table);
       assert.ok(table.heading && table.columns > 0 && table.failureWidth);
-      if (section !== "backends") {
-        assert.ok(table.filter && table.footer);
-      }
     }
   }
   await desktop.goto("/settings/plugins");

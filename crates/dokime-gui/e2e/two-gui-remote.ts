@@ -224,9 +224,12 @@ try {
   for (const gui of [a, b])
     await until("Remote Operator Prompt", () => gui.find("css selector", 'ol[aria-label="Pending Prompts"] li[data-prompt-state="open"]'));
   await b.clickNamed("button", "Yes");
+  // Sealing Freezes the Report, So Both Desktops Settle on a Ready Report.
   await until("Both Desktops Observe Sealed Result", async () => {
     const details = await Promise.all([a, b].map((gui) => call(gui, "Executions", "Get", { name: executionId })));
-    const sealed = details.every((reply) => reply.execution.summary.state === "EXECUTION_STATE_SEALED");
+    const sealed = details.every(
+      (reply) => reply.execution.summary.state === "EXECUTION_STATE_SEALED" && reply.execution.report.state === "REPORT_STATE_READY",
+    );
     return sealed && (await a.text()).includes("Passed") && (await b.text()).includes("Passed");
   });
   const detailA = await call(a, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
@@ -243,8 +246,9 @@ try {
 
   // Each Native Owner Saves and Reopens the Same Verified Sealed Report.
   const subject = { execution: executionId };
-  await assert.rejects(call(a, "Reports", "Get", { subject }));
+  const frozen = await call(a, "Reports", "Get", { subject });
   const preview = await call(a, "Reports", "Create", { subject, requestId: crypto.randomUUID() });
+  assert.equal(preview.file.sha256, frozen.file.sha256, "Create Returns the Report Its Seal Froze");
   await call(a, "Reports", "Publish", {
     subject,
     name: preview.file.metadata.id,
