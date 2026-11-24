@@ -39,7 +39,7 @@ from ._generated.shared import MapValue
 from ._payloads import Payload
 from ._schemas import FrozenSchemaCache, pool
 from ._transfers import download, publish_artifact, verify_archive
-from ._transport import call, chain, invalid, refused, transport_error
+from ._transport import call, chain, invalid, refused, reopen, transport_error
 from ._values import (
     Artifact,
     CatalogTemplate,
@@ -191,7 +191,7 @@ class Client:
 
     async def _answer_prompts(self) -> None:
         answered: set[str] = set()
-        watch = self._transport.prompts.watch("", True)
+        watch = reopen(lambda: self._transport.prompts.watch("", True))
         try:
             async for frame in watch:
                 if frame.HasField("resync_required"):
@@ -703,10 +703,12 @@ class Cycle:
         self._summary.CopyFrom(reply.cycle)
         if self._summary.sealed:
             return
-        watch = self._client._transport.cycles.watch(
-            client_types.CycleSelection(cycle_ids=[self.identifier]),
-            client_types.CycleFilter(archive=client_types.ARCHIVE_SCOPE_ALL),
-            client_types.CycleOrder(),
+        watch = reopen(
+            lambda: self._client._transport.cycles.watch(
+                client_types.CycleSelection(cycle_ids=[self.identifier]),
+                client_types.CycleFilter(archive=client_types.ARCHIVE_SCOPE_ALL),
+                client_types.CycleOrder(),
+            )
         )
         try:
             async for frame in watch:
@@ -802,12 +804,16 @@ class Execution:
         self._observe(reply.execution, identity)
 
     async def watch(self) -> AsyncGenerator[Progress]:
-        watch = self._client._transport.executions.progress.watch(self.identifier)
+        watch = reopen(lambda: self._client._transport.executions.progress.watch(self.identifier))
+        last: Progress | None = None
         try:
             async for frame in watch:
-                sealed = frame.sealed
-                yield Progress(frame.phase, frame.value.completed, frame.value.total, frame.value.label, sealed)
-                if sealed:
+                progress = Progress(frame.phase, frame.value.completed, frame.value.total, frame.value.label, frame.sealed)
+                # A Reopened Watch Replays the Current Progress First.
+                if progress != last:
+                    last = progress
+                    yield progress
+                if progress.sealed:
                     return
             raise invalid("executions.progress.watch", "Execution Observation Closed Without Sealed State")
         except AioRpcError as error:

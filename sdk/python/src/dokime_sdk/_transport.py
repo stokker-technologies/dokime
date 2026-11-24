@@ -11,7 +11,7 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Awaitable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 
 # Third Party Imports
 from google.protobuf.message import DecodeError
@@ -127,6 +127,21 @@ def transport_error(operation: str, error: AioRpcError, request_id: str | None =
     if request_id is not None:
         failure.details["request_id"] = request_id
     return OperationError(failure)
+
+
+async def reopen[F](watch: Callable[[], AsyncGenerator[F]]) -> AsyncGenerator[F]:
+    # The Host Bounds Each Watch; Reopen After Its Deadline, and Raise Every Other Failure Unchanged.
+    while True:
+        frames = watch()
+        try:
+            async for frame in frames:
+                yield frame
+            return
+        except AioRpcError as error:
+            if error.code() != StatusCode.DEADLINE_EXCEEDED:
+                raise
+        finally:
+            await frames.aclose()
 
 
 # === Private Functions === #
