@@ -18,7 +18,6 @@ from collections.abc import Mapping
 
 # Third Party Imports
 from dokime_sdk import Scalar, operations
-from dokime_sdk.operations import OperationPolicy
 from dokime_sdk.templates import Context, Materialization, Observer, Parameter, TestTemplate, Window, materialize, step
 from google.protobuf.message import Message
 
@@ -57,7 +56,7 @@ class Burst(Observer[Message]):
 class ThermalLoadTestTemplate(TestTemplate):
     identifier = "load"
     label = "Thermal Load"
-    burst_enabled = Parameter.flag("Burst", default=False)
+    burst = Parameter.flag("Burst", default=False, required=False)
     uses_streams = (*CHANNELS, Burst)
 
     async def initialize(self, ctx: Context) -> None:
@@ -65,13 +64,13 @@ class ThermalLoadTestTemplate(TestTemplate):
 
     @materialize
     def select(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
-        burst = parameters["burst_enabled"]
+        burst = parameters["burst"]
         retained = [stream for stream in case.message.streams if stream.endswith(".burst") == burst]
         del case.message.streams[:]
         case.message.streams.extend(retained)
         case.step("Hold", self.hold)
 
-    @step("Hold", identifier="hold", policy=OperationPolicy())
+    @step("Hold", identifier="hold")
     async def hold(self, ctx: Context) -> None:
         await ctx.cancelled()
 

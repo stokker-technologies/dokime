@@ -398,8 +398,8 @@ async fn throughput(channel: Channel, endpoint: &str, streams: &[String], pid: u
             request_id: identity.clone(),
             plan: Some(SelectionPlan {
                 selections: vec![RegisteredSelection {
-                    suite_id: "thermal".into(),
-                    template_id: "thermal.load".into(),
+                    suite_id: "thermal.thermal".into(),
+                    template_id: "thermal.thermal.load".into(),
                     parameters: vec![RegisteredSelectionParametersEntry {
                         key: "burst".into(),
                         value: Some(SelectionValues {
