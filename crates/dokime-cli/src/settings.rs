@@ -35,7 +35,8 @@ use dokime::{StorageTransferSettings, TransferFraming};
 use dokime_client_internal::CallOptions;
 use dokime_client_internal::Client;
 use dokime_runtime::{
-    CaptureSettings, ControlledClock, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
+    CaptureSettings, ControlledClock, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PLUGIN_LOAD, PlacementSettings,
+    SchedulerClock,
     services::{ClientSettings, WallClock},
 };
 
@@ -68,6 +69,7 @@ pub(crate) struct Settings {
     pub read_timeout_s: u64,
     pub mutation_timeout_s: u64,
     pub watch_timeout_s: u64,
+    pub plugin_load_s: u64,
     pub reconnect_delay_ms: u64,
     pub interval_window_ms: u64,
     pub interval_lag_windows: NonZeroU32,
@@ -104,6 +106,7 @@ impl Default for Settings {
             read_timeout_s: 30,
             mutation_timeout_s: 30,
             watch_timeout_s: 3600,
+            plugin_load_s: PLUGIN_LOAD.as_secs(),
             reconnect_delay_ms: 25,
             interval_window_ms: INTERVAL_WINDOW.as_millis() as u64,
             interval_lag_windows: INTERVAL_LAG,
@@ -134,6 +137,7 @@ impl Settings {
             settings.read_timeout_s,
             settings.mutation_timeout_s,
             settings.watch_timeout_s,
+            settings.plugin_load_s,
             settings.telemetry_interval_ms,
         ]
         .contains(&0)
@@ -153,6 +157,7 @@ impl Settings {
             interval_window: Duration::from_millis(self.interval_window_ms),
             interval_lag: self.interval_lag_windows,
             message_bytes: self.message_bytes,
+            plugin_load: Duration::from_secs(self.plugin_load_s),
         }
     }
     pub fn credentials(&self) -> Result<CredentialNamespace> {

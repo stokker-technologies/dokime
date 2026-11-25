@@ -129,6 +129,7 @@ impl Fixture {
                     interval_window: HISTORY_WINDOW,
                     interval_lag: dokime_runtime::INTERVAL_LAG,
                     message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                    plugin_load: dokime_runtime::PLUGIN_LOAD,
                 },
             },
             services: services::ClientSettings {
@@ -171,6 +172,7 @@ impl Fixture {
             interval_window: HISTORY_WINDOW,
             interval_lag: dokime_runtime::INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            plugin_load: dokime_runtime::PLUGIN_LOAD,
         };
         let executable = env::current_exe().unwrap();
         let control = TcpListener::bind("127.0.0.1:0").await.unwrap();

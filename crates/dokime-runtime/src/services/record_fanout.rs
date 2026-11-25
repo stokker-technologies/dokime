@@ -51,6 +51,7 @@ fn observer_records_fan_out_to_two_capturing_executions_only() -> Result<(), Box
                 interval_window: crate::INTERVAL_WINDOW,
                 interval_lag: crate::INTERVAL_LAG,
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                plugin_load: crate::PLUGIN_LOAD,
             },
             storage: storage_defaults(),
             clock: Arc::new(ControlledClock::manual(1_000_000_000)),

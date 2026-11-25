@@ -140,6 +140,7 @@ fn stop_ends_waits() -> Result<(), Box<dyn Error>> {
                     interval_window: crate::INTERVAL_WINDOW,
                     interval_lag: crate::INTERVAL_LAG,
                     message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                    plugin_load: crate::PLUGIN_LOAD,
                 },
                 storage: dokime_storage::storage_defaults(),
                 clock: Arc::new(clock.clone()),

@@ -38,8 +38,8 @@ pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
 pub use host::{Host, HostSettings};
 pub use plugin::{
-    INTERVAL_LAG, INTERVAL_WINDOW, PLUGINS_TIMEOUT, PlacementSettings, PluginProcess, STOP_GRACE, await_plugin_ready, describe_plugin,
-    plugin_settings,
+    INTERVAL_LAG, INTERVAL_WINDOW, PLUGIN_LOAD, PLUGINS_TIMEOUT, PlacementSettings, PluginProcess, STOP_GRACE, await_plugin_ready,
+    describe_plugin, plugin_settings,
 };
 
 /* === Imports === */

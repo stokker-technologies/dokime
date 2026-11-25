@@ -58,6 +58,7 @@ pub fn settings() -> HostSettings {
             interval_window: dokime_runtime::INTERVAL_WINDOW,
             interval_lag: dokime_runtime::INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            plugin_load: dokime_runtime::PLUGIN_LOAD,
         },
         clock: Arc::new(ControlledClock::new(0)),
         capture: dokime_runtime::CaptureSettings::default(),

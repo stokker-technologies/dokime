@@ -34,7 +34,7 @@ use tracing_subscriber::{EnvFilter, prelude::*};
 
 // Local Imports
 use dokime_runtime::{
-    ControlledClock, CredentialNamespace, Host, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, PluginProcess,
+    ControlledClock, CredentialNamespace, Host, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PLUGIN_LOAD, PlacementSettings, PluginProcess,
     SchedulerClock,
     services::{self, ClientSettings, WallClock},
 };
@@ -120,6 +120,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             interval_window: INTERVAL_WINDOW,
             interval_lag: INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            plugin_load: PLUGIN_LOAD,
         },
         capture: dokime_runtime::CaptureSettings::default(),
     };

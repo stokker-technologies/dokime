@@ -454,6 +454,7 @@ mod tests {
                 interval_window: crate::INTERVAL_WINDOW,
                 interval_lag: crate::INTERVAL_LAG,
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                plugin_load: crate::PLUGIN_LOAD,
             },
             clock: Arc::new(ControlledClock::new(0)),
             capture: CaptureSettings::default(),
