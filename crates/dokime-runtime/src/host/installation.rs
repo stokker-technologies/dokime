@@ -41,9 +41,7 @@ use super::{Host, lock};
 use crate::{Error, Result};
 use dokime_operations::host::files::delete;
 use dokime_packaging::{bundle, installation, organization};
-use dokime_protocol::host::{
-    AppearanceLogo, AppearanceSnapshot, FilesDeleteRequest, LogoVariant, OrganizationIdentity, ThemeFamily, ThemeModePolicy,
-};
+use dokime_protocol::host::{AppearanceLogo, AppearanceSnapshot, FilesDeleteRequest, LogoVariant, OrganizationIdentity, ThemeFamily};
 
 /* === Constants === */
 
@@ -67,7 +65,6 @@ impl Host {
     pub(crate) fn installed_appearance(&self, message_bytes: usize) -> AppearanceSnapshot {
         let default = || AppearanceSnapshot {
             app_name: "Dokime".into(),
-            mode_policy: ThemeModePolicy::UserOrSystem as i32,
             ..Default::default()
         };
         let pack = match self.installation_directory() {
@@ -362,9 +359,7 @@ fn snapshot(appearance: organization::Appearance) -> AppearanceSnapshot {
         logos: logos.collect(),
         active_theme: theme.as_ref().map(|theme| theme.theme_id.clone()),
         themes: theme.into_iter().collect(),
-        mode_policy: ThemeModePolicy::UserOrSystem as i32,
         app_name: appearance.label,
-        ..Default::default()
     }
 }
 

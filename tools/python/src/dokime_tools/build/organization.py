@@ -68,14 +68,7 @@ def generate() -> None:
                 raise ValueError("Build Organization: brand logos must be pack-root-relative SVG or PNG paths")
             data = base64.b64encode(path.read_bytes()).decode("ascii")
             logos[f"{treatment}_on_{surface}"] = {"src": f"data:{mime};base64,{data}", "alt": app["label"]}
-    _write_json(
-        GENERATED / "default-organization.json",
-        {
-            "label": app["label"],
-            "title": app.get("title_template", "{app}").replace("{app}", app["label"]),
-            "logos": logos,
-        },
-    )
+    _write_json(GENERATED / "default-organization.json", {"label": app["label"], "logos": logos})
 
     _write_text(GENERATED / "theme.css", _stylesheet(manifest))
 

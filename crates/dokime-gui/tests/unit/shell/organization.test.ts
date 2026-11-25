@@ -8,7 +8,7 @@
  */
 
 /**
- * Organization Appearance Tokens And Favicon Selection
+ * Organization Appearance And Favicon Selection
  */
 
 /* === Imports === */
@@ -20,13 +20,10 @@ import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
 
 // Local Imports
-import { brandFromLogos, selectLogo, type Brand } from "@/lib/brand";
-import { appearanceFrameFromNative } from "@/lib/native-appearance";
+import { type AppearanceSnapshot, brandFromAppearance, selectLogo, type Brand } from "@/lib/brand";
 import { loadAppearance } from "@/lib/rpc/appearance";
 import { LogoVariant } from "@generated/host/model";
-import type { RuntimeThemeFamily } from "@/lib/types/appearance";
 import { applyBrandFavicon } from "@/lib/favicon";
-import { materializeThemeFamilyVariables } from "@/lib/theme-family";
 import { applyReportAppearance } from "@/report/report-appearance";
 
 /* === Re-Exports === */
@@ -45,44 +42,6 @@ vi.mock("@/lib/host/client", () => ({ backendAppearance: hostAppearance }));
 /* === Public Functions === */
 
 afterEach(() => vi.unstubAllGlobals());
-
-test.each(["light", "dark"] as const)("Red Organization Palettes Keep %s Focus Distinct From Errors", (mode) => {
-  for (const destructive of ["#d2051e", "#b42318"]) {
-    const palette = { primary: "#d2051e", destructive, ring: "var(--primary)" };
-    const theme: RuntimeThemeFamily = {
-      theme_id: "red-brand",
-      label: "Red Brand",
-      light: { variables: palette },
-      dark: { variables: palette },
-    };
-    const variables = materializeThemeFamilyVariables(theme, mode);
-    assert.ok(variables);
-    const focus = variables["focus-ring"];
-    assert.notEqual(focus, palette.primary);
-    assert.notEqual(focus, palette.destructive);
-    assert.notEqual(focus, palette.ring);
-    assert.equal(variables.destructive, destructive);
-    assert.equal(variables.primary, palette.primary);
-
-    const surfaces = mode === "dark" ? ["#111111", "#1a1a1a"] : ["#efecdf", "#d9d4be"];
-    for (const surface of surfaces) {
-      assert.ok(focusContrast(focus, surface, 1) >= 3);
-      assert.ok(focusContrast(focus, surface, 0.5) >= 3);
-    }
-  }
-});
-
-test("Explicit Focus Colors Respect Shared and Mode Theme Precedence", () => {
-  const theme: RuntimeThemeFamily = {
-    theme_id: "custom-focus",
-    label: "Custom Focus",
-    variables: { "focus-ring": "#005577", destructive: "#d2051e" },
-    light: {},
-    dark: { variables: { "focus-ring": "#88ddff" } },
-  };
-  assert.equal(materializeThemeFamilyVariables(theme, "light")?.["focus-ring"], "#005577");
-  assert.equal(materializeThemeFamilyVariables(theme, "dark")?.["focus-ring"], "#88ddff");
-});
 
 test("Brand Favicon Replaces All Existing Tab Icons", () => {
   const head = documentHead();
@@ -128,32 +87,33 @@ test("Missing Brand Logos Remove Previous Artwork", () => {
 
 test("Report Favicon Uses Only Captured Image Data", () => {
   const head = documentHead();
-  const appearance = { app_name: "Organization", themes: [], logos: [{ variant: "contained_on_light", url: LIGHT }] };
+  const logo = { variant: LogoVariant.CONTAINED_ON_LIGHT, dataUri: LIGHT };
+  const appearance: AppearanceSnapshot = { appName: "Organization", themes: [], logos: [logo] };
   applyReportAppearance(appearance);
   assert.equal(head.icon.href, LIGHT);
   assert.equal(head.append.mock.calls.length, 1);
 
   head.append.mockClear();
   head.querySelectorAll.mockClear();
-  applyReportAppearance({ ...appearance, logos: [{ variant: "contained_on_light", url: "https://example.com/logo.svg" }] });
+  applyReportAppearance({ ...appearance, logos: [{ ...logo, dataUri: "https://example.com/logo.svg" }] });
   assert.equal(head.querySelectorAll.mock.calls.length, 1);
   assert.equal(head.append.mock.calls.length, 0);
 });
 
-/* === Private Functions === */
+test("Host Appearance Carries Inline Logos", async () => {
+  const session = { generation: "1", isCurrent: () => true };
+  const logos = [
+    { variant: LogoVariant.TRANSPARENT_ON_LIGHT, dataUri: LIGHT },
+    { variant: LogoVariant.TRANSPARENT_ON_DARK, dataUri: DARK },
+  ];
+  hostAppearance.mockResolvedValue({ appearance: { appName: "Fixture", logos, themes: [] } });
+  const brand = brandFromAppearance(await loadAppearance(session));
+  assert.equal(selectLogo(brand, "transparent", "light")?.src, LIGHT);
+  assert.equal(selectLogo(brand, "transparent", "dark")?.src, DARK);
+  await assert.rejects(loadAppearance({ ...session, isCurrent: () => false }), (error: { kind: string }) => error.kind === "session");
+});
 
-function focusContrast(foreground: string, background: string, opacity: number): number {
-  const channels = (hex: string) => [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
-  const surface = channels(background);
-  const ring = channels(foreground).map((channel, index) => channel * opacity + surface[index] * (1 - opacity));
-  const luminance = (rgb: number[]) => {
-    const linear = rgb.map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
-    return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
-  };
-  const ringLuminance = luminance(ring);
-  const surfaceLuminance = luminance(surface);
-  return (Math.max(ringLuminance, surfaceLuminance) + 0.05) / (Math.min(ringLuminance, surfaceLuminance) + 0.05);
-}
+/* === Private Functions === */
 
 /** Supply the document head boundary used by the favicon without a browser runtime. */
 function documentHead(dark = false) {
@@ -167,17 +127,3 @@ function documentHead(dark = false) {
 }
 
 /* === Entry Point === */
-
-test("Host Appearance Carries Inline Logos", async () => {
-  const session = { generation: "1", isCurrent: () => true };
-  const logos = [
-    { variant: LogoVariant.TRANSPARENT_ON_LIGHT, dataUri: LIGHT },
-    { variant: LogoVariant.TRANSPARENT_ON_DARK, dataUri: DARK },
-  ];
-  hostAppearance.mockResolvedValue({ appearance: { appName: "Fixture", logos, themes: [] } });
-  const frame = appearanceFrameFromNative(await loadAppearance(session));
-  const brand = brandFromLogos(frame.app_name, frame.logos);
-  assert.equal(selectLogo(brand, "transparent", "light")?.src, LIGHT);
-  assert.equal(selectLogo(brand, "transparent", "dark")?.src, DARK);
-  await assert.rejects(loadAppearance({ ...session, isCurrent: () => false }), (error: { kind: string }) => error.kind === "session");
-});

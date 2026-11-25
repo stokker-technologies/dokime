@@ -439,7 +439,6 @@ test("Embedded Organization Appearance Styles the Report in Both Schemes", async
     assert.equal(brand.logos.transparent_on_light?.src, "data:image/svg+xml;base64,PHN2Zy8+");
     assert.equal(document.getElementById("dokime-host-theme")?.textContent, css);
     assert.equal(document.documentElement.classList.contains("dark"), dark);
-    assert.equal(document.documentElement.style.getPropertyValue("--focus-ring"), "");
   }
   assert.equal(document.title, "Example Lab Report");
 });

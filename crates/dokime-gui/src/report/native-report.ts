@@ -31,7 +31,6 @@ import { mapNativeTraceability } from "@/lib/api/native-traceability-projection"
 import { timestampIso } from "@/lib/api/native-values";
 import { frozenRegistry } from "@/lib/host/schema-registry";
 import { mapSuite } from "@/lib/host/suites";
-import { appearanceFrameFromNative } from "@/lib/native-appearance";
 import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import type { ArtifactRecord, DocumentViewPayload, PlotPayload } from "@/lib/types";
 import { ReportCaptureSchema, type DocumentsGetResponse, type FileReference, type ReportCapture } from "@generated/host/model";
@@ -56,7 +55,7 @@ export function readReportCapture(): ReportCapture {
 export async function materializeReport(capture: ReportCapture) {
   const urls = await fileUrls(capture);
   const source = await reportSource(capture, urls);
-  const appearance = appearanceFrameFromNative(required(capture.appearance?.appearance, "Open Report Appearance"));
+  const appearance = required(capture.appearance?.appearance, "Open Report Appearance");
   return { source, appearance, executionId: capture.report?.testExecutionId ?? null };
 }
 

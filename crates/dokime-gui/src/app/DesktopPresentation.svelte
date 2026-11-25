@@ -27,18 +27,15 @@
   import DokimeToaster from "../components/DokimeToaster.svelte";
   import { provideErrorRecovery } from "../components/error-recovery";
   import { preferencesMutation, preferencesQuery } from "../features/settings/application-preferences";
-  import { bootOrganization } from "../lib/brand";
+  import { type AppearanceSnapshot, bootOrganization } from "../lib/brand";
   import { setDesktopWindowTitle } from "../lib/desktop-title";
   import { failureRecovery } from "../lib/failure-recovery";
   import { applyBrandFavicon } from "../lib/favicon";
-  import type { AppearanceSnapshot } from "../lib/native-appearance";
   import { failureOf } from "../lib/notification-details";
   import { toast } from "../lib/notifications";
   import { isTauriDesktop } from "../lib/surface-environment";
-  import { applyDensity, applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "../lib/theme";
-  import { materializeThemeFamilyVariables, resolveThemeFamily } from "../lib/theme-family";
+  import { applyDensity, applyThemeStylesheet, type ResolvedTheme } from "../lib/theme";
   import { resolvePlotThemeColors } from "../plots/colors";
-  import { desktopPlotPalette } from "../plots/desktop-plot-palette";
   import { BUILT_IN_REPORT_DEFAULTS } from "../plots/plot-settings";
   import { storeState } from "../stores/store-state";
   import { uiStore } from "../stores/ui-store";
@@ -72,29 +69,13 @@
     () => client,
   );
   const identity = $derived(desktopAppearance(resource));
-  const appearance = $derived(identity.appearance);
-  const themeFamily = storeState(uiStore, (state) => state.themeFamily);
   const density = storeState(uiStore, (state) => state.density);
   let browserTheme = $state<ThemeModePreference>("system");
   let system = $state<ResolvedTheme>("light");
   const current = $derived(local.data?.settings.appearance);
   const theme = $derived(desktop ? (current?.theme_mode ?? "system") : browserTheme);
-  const policy = $derived(appearance.mode_policy);
-  const resolved = $derived(
-    policy === "force_light"
-      ? "light"
-      : policy === "force_dark"
-        ? "dark"
-        : policy === "force_system" || theme === "system"
-          ? system
-          : theme,
-  );
-  const family = $derived(
-    resolveThemeFamily(appearance.themes ?? [], { activeThemeId: appearance.active_theme, storedThemeId: themeFamily() }),
-  );
-  const variables = $derived(materializeThemeFamilyVariables(family, resolved));
-  let fallbackPalette = $state.raw(resolvePlotThemeColors().palette);
-  const plotPalette = $derived(desktopPlotPalette(variables, fallbackPalette));
+  const resolved = $derived(theme === "system" ? system : theme);
+  let plotPalette = $state.raw(resolvePlotThemeColors().palette);
   const report = $derived(backend.data?.settings.report);
   const reportDefaults = $derived(
     report
@@ -130,12 +111,17 @@
     void setDesktopWindowTitle(identity.title);
   });
   $effect(() => {
+    applyThemeStylesheet(identity.stylesheet);
+    return () => applyThemeStylesheet(null);
+  });
+  // Plots Read the Palette the Applied Stylesheet and Mode Resolve To.
+  $effect(() => {
+    void identity.stylesheet;
     const root = document.documentElement;
     root.classList.toggle("dark", resolved === "dark");
     root.classList.toggle("light", resolved === "light");
     root.style.colorScheme = resolved;
-    applyThemeVariables(variables);
-    fallbackPalette = resolvePlotThemeColors().palette;
+    plotPalette = resolvePlotThemeColors().palette;
   });
   $effect(() => {
     if (current) {
@@ -143,22 +129,8 @@
     }
   });
   $effect(() => {
-    if (appearance.theme_family_locked && appearance.active_theme && themeFamily() !== appearance.active_theme) {
-      uiStore.getState().setUiState({ themeFamily: appearance.active_theme });
-    }
-  });
-  $effect(() => {
     if (session) {
       applyDensity(density());
-    }
-  });
-  $effect(() => {
-    applyThemeStylesheet(family?.stylesheet);
-    return () => applyThemeStylesheet(null);
-  });
-  $effect(() => {
-    if (!desktop && policy === "force_system" && browserTheme !== "system") {
-      chooseTheme("system");
     }
   });
 
@@ -203,12 +175,7 @@
     chooseDensity,
     chooseTheme,
     densityDisabled: desktop && (!local.data || save.isPending),
-    themeDisabled:
-      save.isPending ||
-      appearance.mode_locked ||
-      policy === "force_dark" ||
-      policy === "force_light" ||
-      (desktop && policy === "force_system"),
+    themeDisabled: save.isPending,
   })}
   <DokimeToaster theme={resolved} />
 </QueryClientProvider>

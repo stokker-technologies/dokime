@@ -9,8 +9,9 @@
 
 /* === Local Imports === */
 
+import type { Wire } from "@/lib/rpc/canonical";
+import { type BackendAppearanceResponse, LogoVariant as HostLogoVariant } from "@generated/host/model";
 import type { BootOrganization, BootOrganizationPack } from "./contracts/organization";
-import type { RuntimeAppLogo } from "@/lib/types/appearance";
 import defaultBrandData from "../generated/organization/default-organization.json";
 
 /* === Re-Exports === */
@@ -18,6 +19,12 @@ import defaultBrandData from "../generated/organization/default-organization.jso
 /* === Constants === */
 
 const ORGANIZATION_PACK_STYLE_ID = "dokime-organization-pack";
+const HOST_LOGO_VARIANTS: Partial<Record<HostLogoVariant, LogoVariant>> = {
+  [HostLogoVariant.TRANSPARENT_ON_LIGHT]: "transparent_on_light",
+  [HostLogoVariant.TRANSPARENT_ON_DARK]: "transparent_on_dark",
+  [HostLogoVariant.CONTAINED_ON_LIGHT]: "contained_on_light",
+  [HostLogoVariant.CONTAINED_ON_DARK]: "contained_on_dark",
+};
 
 /**
  * What the desktop shell resolved before this page loaded: the installation's
@@ -45,7 +52,9 @@ export const defaultTitleTemplate: string = organizationPack?.titleTemplate ?? "
 
 /* === Types === */
 
-export type LogoVariant = RuntimeAppLogo["variant"];
+/** The appearance a host reads from its installed organization pack. */
+export type AppearanceSnapshot = Wire<NonNullable<BackendAppearanceResponse["appearance"]>>;
+export type LogoVariant = "transparent_on_light" | "transparent_on_dark" | "contained_on_light" | "contained_on_dark";
 export type BrandLogo = { src: string; alt?: string };
 
 export type Brand = {
@@ -55,14 +64,25 @@ export type Brand = {
 
 type DefaultBrandManifest = {
   label: string;
-  title: string;
   logos: Partial<Record<LogoVariant, BrandLogo>>;
 };
 
 /* === Public Functions === */
 
-export function brandFromLogos(label: string, logos: RuntimeAppLogo[]): Brand {
-  return { label, logos: Object.fromEntries(logos.map((logo) => [logo.variant, { src: logo.url, alt: logo.alt ?? label }])) };
+/** The brand a host appearance declares; `accepts` keeps only the logo data a surface may load. */
+export function brandFromAppearance(appearance: AppearanceSnapshot, accepts: (uri: string) => boolean = () => true): Brand {
+  const label = appearance.appName.trim() || defaultBrand.label;
+  const logos: Brand["logos"] = {};
+  for (const logo of appearance.logos) {
+    const variant = HOST_LOGO_VARIANTS[logo.variant];
+    if (variant && accepts(logo.dataUri)) logos[variant] = { src: logo.dataUri, alt: logo.alt ?? label };
+  }
+  return { label, logos };
+}
+
+/** The stylesheet of the theme family the host marks active. */
+export function appearanceStylesheet(appearance: AppearanceSnapshot): string | null {
+  return appearance.themes.find((theme) => theme.themeId === appearance.activeTheme)?.stylesheet ?? null;
 }
 
 export function selectLogo(brand: Brand, treatment: "transparent" | "contained", surface: "light" | "dark"): BrandLogo | undefined {
