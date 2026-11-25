@@ -21,6 +21,7 @@
 
 // Local Imports
 use crate::collectors::network::Change;
+use crate::domain::telemetry::BluetoothRssi;
 
 /* === Constants === */
 
@@ -162,7 +163,7 @@ pub struct WifiLatency {
     pub wifi_packet_loss_percent: Option<f64>,
 }
 
-/// One Bluetooth Collection, Every Field Present Only When Read.
+/// One Bluetooth Inventory Collection, Every Field Present Only When Read.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Bluetooth {
     pub sample_index: Option<i64>,
@@ -170,12 +171,20 @@ pub struct Bluetooth {
     pub probe_error: Option<String>,
     pub bluetooth_adapter: Option<String>,
     pub bluetooth_adapter_count: Option<i64>,
-    pub bluetooth_connected_device_count: Option<i64>,
     pub bluetooth_present_device_count: Option<i64>,
-    pub bluetooth_recv_mb_per_second: Option<f64>,
-    pub bluetooth_sent_mb_per_second: Option<f64>,
     pub bluetooth_radio_state: Option<String>,
     pub bluetooth_device_names: Vec<String>,
+}
+
+/// One Bluetooth Link Collection, Every Field Present Only When Read; One RSSI Row per Device Heard.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BluetoothLink {
+    pub probe_status: Option<String>,
+    pub probe_error: Option<String>,
+    pub bluetooth_connected_device_count: Option<i64>,
+    pub bluetooth_rx_mbps: Option<f64>,
+    pub bluetooth_tx_mbps: Option<f64>,
+    pub bluetooth_rssi: Vec<BluetoothRssi>,
 }
 
 /* === Enums === */

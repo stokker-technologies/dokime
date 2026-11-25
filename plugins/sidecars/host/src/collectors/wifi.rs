@@ -27,6 +27,7 @@ use sysinfo::Networks;
 use tokio::task;
 
 // Local Imports
+use crate::collectors::megabits_per_second;
 use crate::domain::readings::{WifiLatency, WifiLink, WifiScan};
 use crate::domain::telemetry::WifiChannels;
 use crate::platform::{ScannedNetwork, WifiBand, WifiCapabilities, wifi};
@@ -36,8 +37,6 @@ use dokime::{Error, Result};
 
 pub const CONGESTION_MODEL_24_GHZ: &str = "2.4ghz_adjacent_channel_v1";
 pub const CONGESTION_MODEL_SAME_CHANNEL: &str = "same_channel_v1";
-const BITS_PER_MEGABIT: f64 = 1_000_000.0;
-const BITS_PER_BYTE: f64 = 8.0;
 const LOST_PERCENT: f64 = 100.0;
 // 2.4 GHz Channel Spacing Is 5 MHz; Overlap Falls to Zero Five Channels Away.
 const OVERLAP_CHANNEL_SPAN: f64 = 5.0;
@@ -170,8 +169,8 @@ impl Collector {
                 })
                 .collect::<Vec<_>>();
             if let Some((received, sent)) = adapter.as_deref().and_then(|adapter| throughput(&counters, adapter, elapsed_s)) {
-                row.wifi_rx_mbps = Some(received * BITS_PER_BYTE / BITS_PER_MEGABIT);
-                row.wifi_tx_mbps = Some(sent * BITS_PER_BYTE / BITS_PER_MEGABIT);
+                row.wifi_rx_mbps = Some(megabits_per_second(received));
+                row.wifi_tx_mbps = Some(megabits_per_second(sent));
             }
             Ok(row)
         })

@@ -32,9 +32,11 @@ pub const WIFI_LINK_INTERVAL: &str = "wifi_link_interval";
 pub const WIFI_SCAN_INTERVAL: &str = "wifi_scan_interval";
 pub const WIFI_LATENCY_INTERVAL: &str = "wifi_latency_interval";
 pub const BLUETOOTH_INTERVAL: &str = "bluetooth_interval";
+pub const BLUETOOTH_LINK_INTERVAL: &str = "bluetooth_link_interval";
 
 pub const WIFI_ADAPTER: &str = "wifi_adapter";
 pub const BLUETOOTH_ADAPTER: &str = "bluetooth_adapter";
+pub const BLUETOOTH_RSSI_DEVICES: &str = "bluetooth_rssi_devices";
 pub const LATENCY_HOST: &str = "latency_host";
 pub const MINIMUM_SCAN_INTERVAL: &str = "minimum_scan_interval";
 
@@ -126,8 +128,23 @@ pub const SETTINGS: &[Setting] = &[
         1,
         DAY_MS,
     ),
+    Setting::milliseconds(
+        BLUETOOTH_LINK_INTERVAL,
+        "Bluetooth Link Interval",
+        "Time between Bluetooth link, throughput and RSSI collections.",
+        1_000,
+        1,
+        DAY_MS,
+    ),
     Setting::text(WIFI_ADAPTER, "Wi-Fi Adapter", "Adapter name to collect; empty selects an available adapter.", ""),
     Setting::text(BLUETOOTH_ADAPTER, "Bluetooth Adapter", "Adapter name to collect; empty selects an available adapter.", ""),
+    Setting::text(
+        BLUETOOTH_RSSI_DEVICES,
+        "Bluetooth RSSI Devices",
+        "Devices whose BLE advertisement RSSI is recorded; empty records every device that advertises a name. Windows reports no RSSI \
+         for connected classic links.",
+        "",
+    ),
     Setting::text(LATENCY_HOST, "Latency Host", "IP address or hostname receiving one ICMP echo per latency collection.", "1.1.1.1"),
     Setting::milliseconds(
         MINIMUM_SCAN_INTERVAL,
@@ -230,7 +247,7 @@ pub const SETTINGS: &[Setting] = &[
     Setting::milliseconds(
         MINIMUM_RATE_WINDOW,
         "Minimum Rate Window",
-        "Minimum elapsed denominator for network and Wi-Fi throughput calculations.",
+        "Minimum elapsed denominator for network, Wi-Fi and Bluetooth throughput calculations.",
         1,
         1,
         60_000,
@@ -527,6 +544,16 @@ pub async fn selected(ctx: &Context, name: &str) -> Result<Option<String>> {
     let value = text(ctx, name).await?;
     let value = value.trim();
     Ok((!value.is_empty()).then(|| value.to_owned()))
+}
+
+/// A Comma-Separated Text Selection Where Empty Means Every Available Choice.
+pub async fn selections(ctx: &Context, name: &str) -> Result<Vec<String>> {
+    Ok(split(&text(ctx, name).await?))
+}
+
+/// The Trimmed, Non-Empty Names of a Comma-Separated Selection.
+pub fn split(text: &str) -> Vec<String> {
+    text.split(',').map(str::trim).filter(|name| !name.is_empty()).map(str::to_owned).collect()
 }
 
 pub fn setting(name: &str) -> Result<&'static Setting> {

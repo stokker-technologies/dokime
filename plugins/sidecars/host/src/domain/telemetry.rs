@@ -25,13 +25,14 @@ use crate::domain::readings::WifiScan;
 /* === Constants === */
 
 /// Every Collection Outcome Stream and Its Label; Each Collection Publishes One Outcome per Tick.
-pub const PROBES: [(&str, &str); 6] = [
+pub const PROBES: [(&str, &str); 7] = [
     (SYSTEM_PROBE, "Host System Probe"),
     (NETWORK_PROBE, "Host Network Probe"),
     (WIFI_LINK_PROBE, "Host Wi-Fi Link Probe"),
     (WIFI_SCAN_PROBE, "Host Wi-Fi Scan Probe"),
     (WIFI_LATENCY_PROBE, "Host Wi-Fi Latency Probe"),
     (BLUETOOTH_PROBE, "Host Bluetooth Probe"),
+    (BLUETOOTH_LINK_PROBE, "Host Bluetooth Link Probe"),
 ];
 
 pub const SYSTEM_PROBE: &str = "host.system_probe";
@@ -40,6 +41,7 @@ pub const WIFI_LINK_PROBE: &str = "host.wifi_link_probe";
 pub const WIFI_SCAN_PROBE: &str = "host.wifi_scan_probe";
 pub const WIFI_LATENCY_PROBE: &str = "host.wifi_latency_probe";
 pub const BLUETOOTH_PROBE: &str = "host.bluetooth_probe";
+pub const BLUETOOTH_LINK_PROBE: &str = "host.bluetooth_link_probe";
 
 /* === Macros === */
 
@@ -385,12 +387,20 @@ pub struct BluetoothConnections {
     pub bluetooth_connected_device_count: i64,
 }
 
-/// Bluetooth Traffic; Silent Where the Platform Does Not Report It.
+/// Radio Traffic Since the Previous Collection; Silent Without Its Counters.
 #[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
-pub struct BluetoothTraffic {
-    pub bluetooth_recv_mb_per_second: f64,
-    pub bluetooth_sent_mb_per_second: f64,
+pub struct BluetoothThroughput {
+    pub bluetooth_rx_mbps: f64,
+    pub bluetooth_tx_mbps: f64,
+}
+
+/// One Row per Device Heard Advertising Its Name Since the Previous Collection, With Its Newest Signal Strength.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BluetoothRssi {
+    pub bluetooth_device_name: String,
+    pub bluetooth_rssi_dbm: f64,
 }
 
 /// One Row per Present Device; All Rows of an Inventory Share Its Timestamp.
@@ -765,13 +775,20 @@ impl BluetoothConnections {
     pub const COLUMNS: &'static [Column] = &[Column::new("bluetooth_connected_device_count", "Connected Bluetooth Devices", "")];
 }
 
-impl BluetoothTraffic {
-    pub const STREAM: &'static str = "host.bluetooth_traffic";
-    pub const LABEL: &'static str = "Host Bluetooth Traffic";
+impl BluetoothThroughput {
+    pub const STREAM: &'static str = "host.bluetooth_throughput";
+    pub const LABEL: &'static str = "Host Bluetooth Throughput";
     pub const COLUMNS: &'static [Column] = &[
-        Column::new("bluetooth_recv_mb_per_second", "Bluetooth RX", "MB/s"),
-        Column::new("bluetooth_sent_mb_per_second", "Bluetooth TX", "MB/s"),
+        Column::new("bluetooth_rx_mbps", "Bluetooth RX Throughput", "Mbps"),
+        Column::new("bluetooth_tx_mbps", "Bluetooth TX Throughput", "Mbps"),
     ];
+}
+
+impl BluetoothRssi {
+    pub const STREAM: &'static str = "host.bluetooth_rssi";
+    pub const LABEL: &'static str = "Host Bluetooth RSSI";
+    pub const COLUMNS: &'static [Column] =
+        &[Column::new("bluetooth_device_name", "Bluetooth Device", ""), Column::new("bluetooth_rssi_dbm", "Bluetooth RSSI", "dBm")];
 }
 
 impl BluetoothDevice {

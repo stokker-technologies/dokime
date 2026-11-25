@@ -22,11 +22,11 @@ pub mod windows;
 #[cfg(unix)]
 pub use unix::Lease;
 #[cfg(unix)]
-pub use unix::wifi;
+pub use unix::{bluetooth, wifi};
 #[cfg(target_os = "windows")]
 pub use windows::apartment::Lease;
 #[cfg(target_os = "windows")]
-pub use windows::wifi;
+pub use windows::{bluetooth, wifi};
 
 /* === Imports === */
 
