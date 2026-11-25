@@ -46,7 +46,7 @@ const PENDING: &str = "Read Bluetooth Counters: Rates Need a Second Collection; 
 #[derive(Default)]
 pub struct Collector {
     inventory: Arc<Mutex<State>>,
-    link: Arc<Mutex<Link>>,
+    link: Arc<Mutex<Option<Link>>>,
 }
 
 /// What the Inventory Collection Reads From the Plugin Settings.
@@ -119,11 +119,19 @@ impl Collector {
         .await
     }
 
+    /// Admit Link Ticks When Link Collection Demand Starts, So a Tick Settling After the Stop Opens Nothing.
+    pub fn start_link(&self) -> Result<()> {
+        *self.link.lock().map_err(|_| poisoned())? = Some(Link::default());
+        Ok(())
+    }
+
     /// One Link Row Read Fresh Every Tick; the Counters and the Advertisement Watcher Open at the First Tick.
     pub async fn link(&self, options: LinkOptions) -> Result<BluetoothLink> {
         let state = Arc::clone(&self.link);
         blocking(move || {
-            let mut link = state.lock().map_err(|_| poisoned())?;
+            let mut state = state.lock().map_err(|_| poisoned())?;
+            let link =
+                state.as_mut().ok_or_else(|| Error::Invalid("Collect Bluetooth Link: Start the Collection Before Reading".into()))?;
             let radios = link.radios(&options);
             let heard = link.heard(&options.rssi_devices);
             Ok(link_row(radios, heard, options.adapter.as_deref()))
@@ -140,7 +148,7 @@ impl Collector {
 
     /// Close the Counters and Stop the Watcher When the Link Collection's Last Listener Leaves.
     pub fn stop_link(&self) {
-        *self.link.lock().unwrap_or_else(PoisonError::into_inner) = Link::default();
+        *self.link.lock().unwrap_or_else(PoisonError::into_inner) = None;
     }
 }
 

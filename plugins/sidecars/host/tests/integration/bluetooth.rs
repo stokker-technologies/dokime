@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 // Third Party Imports
 
 // Local Imports
-use plugin_host::collectors::bluetooth::{Heard, Measure, Radio, Sample, State, link_row, radios, rate, select};
+use plugin_host::collectors::bluetooth::{Collector, Heard, LinkOptions, Measure, Radio, Sample, State, link_row, radios, rate, select};
 use plugin_host::domain::readings::Bluetooth;
 use plugin_host::domain::telemetry::BluetoothRssi;
 use plugin_host::settings;
@@ -212,6 +212,22 @@ fn the_rssi_devices_setting_selects_names_by_substring_ignoring_case() {
     }
     let names = heard.drain(&devices).into_iter().map(|row| row.bluetooth_device_name).collect::<Vec<_>>();
     assert_eq!(names, vec!["Lab Sensor 1".to_owned(), "SENSOR-B".to_owned(), "tag 2".to_owned()]);
+}
+
+#[tokio::test]
+async fn a_link_tick_outside_its_collection_run_opens_nothing() {
+    // The Refusal Comes Before Any Native Call, So No Radio Is Needed.
+    let collector = Collector::default();
+    let options = || LinkOptions {
+        adapter: None,
+        rssi_devices: Vec::new(),
+        probe_timeout: Duration::from_millis(1),
+        minimum_rate_window: Duration::from_millis(1),
+    };
+    assert!(matches!(collector.link(options()).await, Err(dokime::Error::Invalid(error)) if error.contains("Start the Collection")));
+    collector.start_link().unwrap();
+    collector.stop_link();
+    assert!(collector.link(options()).await.is_err());
 }
 
 #[test]

@@ -66,6 +66,10 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
     .stream(Stream::<BluetoothThroughput>::new(BluetoothThroughput::STREAM).description(BluetoothThroughput::LABEL))
     .stream(Stream::<BluetoothRssi>::new(BluetoothRssi::STREAM).description(BluetoothRssi::LABEL))
     .interval_setting(settings::BLUETOOTH_LINK_INTERVAL)
+    .on_start({
+        let host = host.clone();
+        async move |_| host.bluetooth.start_link()
+    })
     .on_stop({
         let host = host.clone();
         async move |_| {
