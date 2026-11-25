@@ -127,7 +127,7 @@ pub(super) fn read(directory: &Path) -> Result<ResolvedPack, Error> {
     }
     if let Some(installer) = pack.manifest.get("installer") {
         let installer = installer.as_table().ok_or_else(|| Error::Invalid("Use an installer Table in organization.toml".into()))?;
-        pack.installer_sidebar_color().map_err(Error::Invalid)?;
+        sidebar_color(&pack)?;
         if let Some(value) = installer.get("sidebar_image") {
             image_asset(&pack, value)?;
         }
@@ -156,6 +156,11 @@ pub(super) fn read(directory: &Path) -> Result<ResolvedPack, Error> {
         }
     }
     Ok(pack)
+}
+
+/// The Installer Sidebar Color, Refused With the Installer's Own Guidance.
+pub(super) fn sidebar_color(pack: &ResolvedPack) -> Result<[u8; 3], Error> {
+    pack.installer_sidebar_color().map_err(|_| Error::Invalid("Set installer.sidebar_color to #RRGGBB".into()))
 }
 
 /* === Private Functions === */
