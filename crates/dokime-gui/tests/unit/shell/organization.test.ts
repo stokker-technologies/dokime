@@ -88,7 +88,7 @@ test("Missing Brand Logos Remove Previous Artwork", () => {
 test("Report Favicon Uses Only Captured Image Data", () => {
   const head = documentHead();
   const logo = { variant: LogoVariant.CONTAINED_ON_LIGHT, dataUri: LIGHT };
-  const appearance: AppearanceSnapshot = { appName: "Organization", themes: [], logos: [logo] };
+  const appearance: AppearanceSnapshot = { appName: "Organization", logos: [logo] };
   applyReportAppearance(appearance);
   assert.equal(head.icon.href, LIGHT);
   assert.equal(head.append.mock.calls.length, 1);
@@ -106,7 +106,7 @@ test("Host Appearance Carries Inline Logos", async () => {
     { variant: LogoVariant.TRANSPARENT_ON_LIGHT, dataUri: LIGHT },
     { variant: LogoVariant.TRANSPARENT_ON_DARK, dataUri: DARK },
   ];
-  hostAppearance.mockResolvedValue({ appearance: { appName: "Fixture", logos, themes: [] } });
+  hostAppearance.mockResolvedValue({ appearance: { appName: "Fixture", logos } });
   const brand = brandFromAppearance(await loadAppearance(session));
   assert.equal(selectLogo(brand, "transparent", "light")?.src, LIGHT);
   assert.equal(selectLogo(brand, "transparent", "dark")?.src, DARK);

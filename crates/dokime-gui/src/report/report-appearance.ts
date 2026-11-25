@@ -9,7 +9,7 @@
 
 /* === Local Imports === */
 
-import { type AppearanceSnapshot, appearanceStylesheet, type Brand, brandFromAppearance, defaultBrand } from "@/lib/brand";
+import { type AppearanceSnapshot, type Brand, brandFromAppearance, defaultBrand } from "@/lib/brand";
 import { applyBrandFavicon } from "@/lib/favicon";
 import { applyThemeStylesheet, type ResolvedTheme } from "@/lib/theme";
 
@@ -35,9 +35,8 @@ export function applyReportAppearance(appearance: AppearanceSnapshot | null): Br
     return defaultBrand;
   }
 
-  const stylesheet = appearanceStylesheet(appearance);
-  if (stylesheet) {
-    applyThemeStylesheet(stylesheet);
+  if (appearance.stylesheet) {
+    applyThemeStylesheet(appearance.stylesheet);
     applySystemColorMode();
   }
 

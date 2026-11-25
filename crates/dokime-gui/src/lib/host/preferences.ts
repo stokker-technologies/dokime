@@ -66,7 +66,6 @@ export async function savePreferences(scope: SettingsScope, update: PreferencesU
     value: create(ApplicationSettingsSchema, {
       appearance: create(ApplicationAppearanceSchema, {
         themeMode: themeModes[settings.appearance.theme_mode],
-        themeFamily: settings.appearance.theme_family ?? undefined,
         density: densities[settings.appearance.density],
       }),
       client: create(ClientPreferencesSchema, {
@@ -109,7 +108,7 @@ function snapshot(bytes: ArrayBuffer): PreferencesSnapshot {
   return {
     revision: [...reply.revision],
     settings: {
-      appearance: { theme_mode: themeMode, theme_family: settings.appearance.themeFamily ?? null, density },
+      appearance: { theme_mode: themeMode, density },
       client: {
         connect_timeout_ms: safeNumber(settings.client.connectTimeoutMs, "Connect Timeout"),
         request_timeout_ms: safeNumber(settings.client.requestTimeoutMs, "Request Timeout"),

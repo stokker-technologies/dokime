@@ -93,7 +93,6 @@ from dokime_sdk._wire.host.v1.backend_pb2 import (
     BackendAppearanceResponse,
     LogoVariant,
     OrganizationIdentity,
-    ThemeFamily,
 )
 from dokime_sdk._wire.host.v1.cases_pb2 import (
     CASE_STATUS_BLOCKED,
@@ -708,8 +707,6 @@ BackendAppearanceResponse.__module__ = "dokime_sdk.client"
 BackendAppearanceResponse.__qualname__ = "BackendAppearanceResponse"
 OrganizationIdentity.__module__ = "dokime_sdk.client"
 OrganizationIdentity.__qualname__ = "OrganizationIdentity"
-ThemeFamily.__module__ = "dokime_sdk.client"
-ThemeFamily.__qualname__ = "ThemeFamily"
 CaseActions.__module__ = "dokime_sdk.client"
 CaseActions.__qualname__ = "CaseActions"
 CaseDetail.__module__ = "dokime_sdk.client"
@@ -1889,7 +1886,6 @@ __all__ = [
     "TelemetryRole",
     "TelemetrySample",
     "TelemetrySchema",
-    "ThemeFamily",
     "ThemeMode",
     "TraceEventsListResponse",
     "TraceEventsWatchResponse",

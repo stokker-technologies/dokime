@@ -1,18 +1,10 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
-import {
-  type AppearanceSnapshot,
-  appearanceStylesheet,
-  brandFromAppearance,
-  defaultBrand,
-  defaultTitleTemplate,
-  organizationPack,
-} from "../lib/brand";
+import { type AppearanceSnapshot, brandFromAppearance, defaultBrand, defaultTitleTemplate } from "../lib/brand";
 
-/** The installation's boot pack already styled the page; only a shell without one takes the host's appearance. */
-export function desktopAppearance(snapshot: AppearanceSnapshot | null) {
-  const host = organizationPack ? null : snapshot;
+/** The host's appearance, read only by a shell without a local pack; otherwise the boot or build-time brand stands. */
+export function desktopAppearance(host: AppearanceSnapshot | null) {
   const brand = host ? brandFromAppearance(host) : defaultBrand;
   const template = host ? host.titleTemplate : defaultTitleTemplate;
   const title = (template?.trim() || "{app}").replaceAll("{app}", brand.label);
-  return { brand, title, stylesheet: host ? appearanceStylesheet(host) : null };
+  return { brand, title, stylesheet: host?.stylesheet ?? null };
 }

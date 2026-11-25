@@ -1606,10 +1606,8 @@ pub struct AppearanceSnapshot {
     pub title_template: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, repeated, tag = "4")]
     pub logos: ::prost::alloc::vec::Vec<AppearanceLogo>,
-    #[prost(message, repeated, tag = "5")]
-    pub themes: ::prost::alloc::vec::Vec<ThemeFamily>,
-    #[prost(string, optional, tag = "6")]
-    pub active_theme: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "11")]
+    pub stylesheet: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1626,20 +1624,8 @@ pub struct OrganizationIdentity {
 pub struct AppearanceLogo {
     #[prost(enumeration = "LogoVariant", tag = "1")]
     pub variant: i32,
-    #[prost(string, optional, tag = "3")]
-    pub alt: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, tag = "4")]
     pub data_uri: ::prost::alloc::string::String,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ThemeFamily {
-    #[prost(string, tag = "2")]
-    pub theme_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub label: ::prost::alloc::string::String,
-    #[prost(string, optional, tag = "5")]
-    pub stylesheet: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -13666,12 +13652,10 @@ pub struct SettingsSchemaResponse {
     pub resolved_at: ::core::option::Option<::harmos_protocol::model::ReadCut>,
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ApplicationAppearance {
     #[prost(enumeration = "ThemeMode", tag = "1")]
     pub theme_mode: i32,
-    #[prost(string, optional, tag = "2")]
-    pub theme_family: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(enumeration = "Density", tag = "3")]
     pub density: i32,
 }

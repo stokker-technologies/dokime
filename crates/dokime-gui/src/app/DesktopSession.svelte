@@ -1,11 +1,10 @@
 <!-- Dokime — SPDX-License-Identifier: Apache-2.0 -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import ErrorCard from "../components/ErrorCard.svelte";
-  import Button from "../components/ui/Button.svelte";
   import { releaseNativeMedia } from "../lib/api/native-delivery";
-  import type { AppearanceSnapshot } from "../lib/brand";
+  import { type AppearanceSnapshot, organizationPack } from "../lib/brand";
   import { failureOf } from "../lib/notification-details";
+  import { toast } from "../lib/notifications";
   import { loadAppearance } from "../lib/rpc/appearance";
   import DesktopPresentation from "./DesktopPresentation.svelte";
   import DesktopRoutes from "./DesktopRoutes.svelte";
@@ -13,8 +12,6 @@
 
   let { owner, session }: { owner: NativeSession; session: ConnectedSession } = $props();
   let appearance = $state.raw<AppearanceSnapshot | null>(null);
-  let error = $state.raw<unknown>();
-  let attempt = $state(0);
 
   onMount(() => {
     const generation = session.identity.generation;
@@ -23,11 +20,11 @@
     };
   });
 
+  // The Shell's Local Pack Already Styled the Page; Only a Shell Without One Reads the Host's Appearance.
   $effect(() => {
-    void attempt;
+    if (organizationPack) return;
     const current = session;
     let active = true;
-    error = undefined;
     void loadAppearance(current.identity)
       .catch((error: unknown) => {
         if (active && current.identity.isCurrent() && needsAppearanceRefresh(error)) {
@@ -40,10 +37,12 @@
           appearance = snapshot;
         }
       })
-      .catch((failure: unknown) => {
-        if (active && current.identity.isCurrent()) {
-          error = failure;
-        }
+      .catch((error: unknown) => {
+        if (!active || !current.identity.isCurrent()) return;
+        // The Build-Time Brand Stands In; Only a Failure That Names an Action Reaches the User.
+        appearance = null;
+        const failure = failureOf(error, "Host Appearance Not Applied");
+        if (failure.action) toast.error(failure, { context: "background" });
       });
     return () => {
       active = false;
@@ -63,14 +62,6 @@
   {#snippet children(
     presentation,
   )}
-    {#if error}
-      <main class="mx-auto max-w-xl space-y-4 p-8">
-        <h1 class="font-heading text-2xl">Appearance Unavailable</h1>
-        <ErrorCard failure={failureOf(error, "Appearance Unavailable")} onRetry={() => (attempt += 1)} />
-        <div class="flex gap-3"><Button variant="outline" onclick={() => void owner.disconnect()}>Disconnect</Button></div>
-      </main>
-    {:else}
-      <DesktopRoutes {owner} {session} {presentation} />
-    {/if}
+    <DesktopRoutes {owner} {session} {presentation} />
   {/snippet}
 </DesktopPresentation>

@@ -221,7 +221,6 @@ pub use crate::wire::host::TelemetryColumn;
 pub use crate::wire::host::TelemetryPreferences;
 pub use crate::wire::host::TelemetryRole;
 pub use crate::wire::host::TelemetrySchema;
-pub use crate::wire::host::ThemeFamily;
 pub use crate::wire::host::ThemeMode;
 pub use crate::wire::host::UnevaluatedOutcome;
 pub use crate::wire::host::UnitFamily;

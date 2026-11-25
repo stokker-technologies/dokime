@@ -422,8 +422,7 @@ test("Embedded Organization Appearance Styles the Report in Both Schemes", async
     appearance: {
       appName: "Example Lab",
       logos: [{ variant: LogoVariant.TRANSPARENT_ON_LIGHT, dataUri: "data:image/svg+xml;base64,PHN2Zy8+" }],
-      themes: [{ themeId: "organization", label: "Example Lab", stylesheet: css }],
-      activeTheme: "organization",
+      stylesheet: css,
     },
   });
   const { appearance } = await materializeReport(capture);

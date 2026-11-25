@@ -227,7 +227,7 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             let capture = decode_report(&html)?;
             let appearance = capture.appearance.as_ref().and_then(|reply| reply.appearance.as_ref()).ok_or("Report Has No Appearance")?;
             assert_eq!(appearance.app_name, "Example Lab");
-            assert!(appearance.themes[0].stylesheet().contains("url(\"data:font/woff2;base64,AAEC\")"));
+            assert!(appearance.stylesheet().contains("url(\"data:font/woff2;base64,AAEC\")"));
             assert!(appearance.logos[0].data_uri.starts_with("data:image/svg+xml;base64,"));
             assert_eq!(capture.executions.len(), 1);
             let captured = &capture.executions[0];

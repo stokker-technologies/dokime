@@ -63,7 +63,6 @@ type UiStoreState = {
   sidebarCollapsed: Partial<Record<DensityPreference, boolean>>;
   sidebarWidth: number;
   showAdvancedSettings: boolean;
-  themeFamily: string | null;
   traceabilityLocation: string;
   traceabilityLocationDraft: string;
 };
@@ -104,7 +103,6 @@ const initialUiStoreState: UiStoreState = {
   sidebarCollapsed: {},
   sidebarWidth: 256,
   showAdvancedSettings: false,
-  themeFamily: null,
   traceabilityLocation: "",
   traceabilityLocationDraft: "",
 };
@@ -139,7 +137,6 @@ const persistedUiStateSchema = z.object({
     .catch({})
     .default({}),
   showAdvancedSettings: z.boolean().catch(false),
-  themeFamily: z.string().nullable().optional(),
 });
 
 /* === Private Functions === */
@@ -161,7 +158,6 @@ export const uiStore = createStore<UiStore>()(
           ...initialUiStoreState,
           density: state.density,
           showAdvancedSettings: state.showAdvancedSettings,
-          themeFamily: state.themeFamily,
         })),
       setUiState: (patch) => set((state) => ({ ...state, ...patch })),
     }),
@@ -171,9 +167,9 @@ export const uiStore = createStore<UiStore>()(
         if (!parsed.success) {
           return current;
         }
-        // Desktop settings own density and the theme family under Tauri, so a
-        // stale local copy must not win the first frame. The sidebar has no
-        // backend home, so its collapsed state is restored on both surfaces.
+        // Desktop settings own density under Tauri, so a stale local copy must
+        // not win the first frame. The sidebar has no backend home, so its
+        // collapsed state is restored on both surfaces.
         const desktop = isTauriDesktop();
         return {
           ...current,
@@ -183,7 +179,6 @@ export const uiStore = createStore<UiStore>()(
           sidebarCollapsed: parsed.data.sidebarCollapsed,
           sidebarWidth: parsed.data.sidebarWidth,
           showAdvancedSettings: parsed.data.showAdvancedSettings,
-          themeFamily: desktop ? current.themeFamily : (parsed.data.themeFamily ?? null),
         };
       },
       name: "dokime-test-hub.ui",
@@ -198,12 +193,11 @@ export const uiStore = createStore<UiStore>()(
         sidebarCollapsed: state.sidebarCollapsed,
         sidebarWidth: state.sidebarWidth,
         showAdvancedSettings: state.showAdvancedSettings,
-        themeFamily: state.themeFamily,
       }),
-      /* Desktop settings own density and the theme family, so under Tauri the
-         WebView keeps only what has no backend home: the sidebar, the
-         console drawer's geometry and the active cycle. In a browser
-         there is no other home for any of it, so the whole slice is kept. */
+      /* Desktop settings own density, so under Tauri the WebView keeps only
+         what has no backend home: the sidebar, the console drawer's geometry
+         and the active cycle. In a browser there is no other home for any of
+         it, so the whole slice is kept. */
       storage: createJSONStorage(() => ({
         getItem: (name) => window.localStorage.getItem(storageKey(name)),
         removeItem: (name) => window.localStorage.removeItem(storageKey(name)),

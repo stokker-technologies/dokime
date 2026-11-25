@@ -464,7 +464,6 @@ using ::dokime::host::v1::AppearanceSnapshot;
 using ::dokime::host::v1::BackendAppearanceResponse;
 using ::dokime::host::v1::LogoVariant;
 using ::dokime::host::v1::OrganizationIdentity;
-using ::dokime::host::v1::ThemeFamily;
 using ::dokime::host::v1::backend::EvidenceCounts;
 using ::dokime::host::v1::backend::OverviewGetResponse;
 using ::dokime::host::v1::backend::OverviewWatchResponse;

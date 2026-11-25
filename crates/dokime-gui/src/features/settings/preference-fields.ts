@@ -25,12 +25,6 @@ export const PREFERENCE_FIELDS: PreferenceField[] = [
   },
   {
     group: "appearance",
-    key: "theme_family",
-    label: "Theme Family",
-    help: "Use a theme family, or leave empty for the organization default.",
-  },
-  {
-    group: "appearance",
     key: "density",
     label: "Density",
     help: "Set the space around desktop controls.",

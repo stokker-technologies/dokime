@@ -62,8 +62,7 @@ export function preferencesMutation(scope: SettingsScope, session: ConnectedSess
     onSuccess: (snapshot: ScopedPreferencesSnapshot) => {
       client.setQueryData(preferencesKey(scope, session?.identity.generation), snapshot);
       if (scope === "local") {
-        const appearance = snapshot.settings.appearance;
-        uiStore.getState().setUiState({ density: appearance.density, themeFamily: appearance.theme_family });
+        uiStore.getState().setUiState({ density: snapshot.settings.appearance.density });
       }
       void client.invalidateQueries({ queryKey: ["settings", "application"] });
       void client.invalidateQueries({ queryKey: ["settings", "firewall"] });

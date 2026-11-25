@@ -125,7 +125,7 @@
   });
   $effect(() => {
     if (current) {
-      uiStore.getState().setUiState({ density: current.density, themeFamily: current.theme_family });
+      uiStore.getState().setUiState({ density: current.density });
     }
   });
   $effect(() => {

@@ -91,9 +91,6 @@ pub(crate) async fn read(context: &Context, at: Option<ReadCut>) -> Result<Setti
 
 pub(crate) fn validate(settings: &ApplicationSettings) -> Result<()> {
     let appearance = settings.appearance.as_ref().ok_or_else(|| invalid("Supply Appearance Preferences"))?;
-    if appearance.theme_family.as_ref().is_some_and(|name| name.is_empty() || name.len() > 256) {
-        return Err(invalid("Choose a Theme Family of 1 to 256 Bytes"));
-    }
     if ThemeMode::try_from(appearance.theme_mode).is_err()
         || appearance.theme_mode == 0
         || Density::try_from(appearance.density).is_err()

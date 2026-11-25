@@ -66,15 +66,13 @@ class AppearanceSnapshot(_message.Message, metaclass=GeneratedProtocolMessageTyp
     ORGANIZATION_FIELD_NUMBER: _ClassVar[int]
     TITLE_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
     LOGOS_FIELD_NUMBER: _ClassVar[int]
-    THEMES_FIELD_NUMBER: _ClassVar[int]
-    ACTIVE_THEME_FIELD_NUMBER: _ClassVar[int]
+    STYLESHEET_FIELD_NUMBER: _ClassVar[int]
     app_name: str
     organization: OrganizationIdentity
     title_template: str
     logos: _containers.RepeatedCompositeFieldContainer[AppearanceLogo]
-    themes: _containers.RepeatedCompositeFieldContainer[ThemeFamily]
-    active_theme: str
-    def __init__(self, app_name: _Optional[str] = ..., organization: _Optional[_Union[OrganizationIdentity, _Mapping]] = ..., title_template: _Optional[str] = ..., logos: _Optional[_Iterable[_Union[AppearanceLogo, _Mapping]]] = ..., themes: _Optional[_Iterable[_Union[ThemeFamily, _Mapping]]] = ..., active_theme: _Optional[str] = ...) -> None: ...
+    stylesheet: str
+    def __init__(self, app_name: _Optional[str] = ..., organization: _Optional[_Union[OrganizationIdentity, _Mapping]] = ..., title_template: _Optional[str] = ..., logos: _Optional[_Iterable[_Union[AppearanceLogo, _Mapping]]] = ..., stylesheet: _Optional[str] = ...) -> None: ...
 
 @final
 class OrganizationIdentity(_message.Message, metaclass=GeneratedProtocolMessageType):
@@ -91,20 +89,7 @@ class OrganizationIdentity(_message.Message, metaclass=GeneratedProtocolMessageT
 class AppearanceLogo(_message.Message, metaclass=GeneratedProtocolMessageType):
     __slots__: tuple[str, ...]
     VARIANT_FIELD_NUMBER: _ClassVar[int]
-    ALT_FIELD_NUMBER: _ClassVar[int]
     DATA_URI_FIELD_NUMBER: _ClassVar[int]
     variant: LogoVariant
-    alt: str
     data_uri: str
-    def __init__(self, variant: _Optional[_Union[LogoVariant, str]] = ..., alt: _Optional[str] = ..., data_uri: _Optional[str] = ...) -> None: ...
-
-@final
-class ThemeFamily(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__: tuple[str, ...]
-    THEME_ID_FIELD_NUMBER: _ClassVar[int]
-    LABEL_FIELD_NUMBER: _ClassVar[int]
-    STYLESHEET_FIELD_NUMBER: _ClassVar[int]
-    theme_id: str
-    label: str
-    stylesheet: str
-    def __init__(self, theme_id: _Optional[str] = ..., label: _Optional[str] = ..., stylesheet: _Optional[str] = ...) -> None: ...
+    def __init__(self, variant: _Optional[_Union[LogoVariant, str]] = ..., data_uri: _Optional[str] = ...) -> None: ...
