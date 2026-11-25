@@ -59,7 +59,7 @@ use dokime_protocol::{
     model::{EvidenceScope, Metadata, Value, origin, value},
 };
 use dokime_runtime::{
-    CaptureSettings, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings,
+    CaptureSettings, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PLUGIN_LOAD, PlacementSettings,
     services::{self, ClientSettings, WallClock},
     storage_defaults,
 };
@@ -193,6 +193,7 @@ async fn main() -> BenchResult<()> {
                 interval_window: INTERVAL_WINDOW,
                 interval_lag: INTERVAL_LAG,
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                plugin_load: PLUGIN_LOAD,
             },
         },
         ClientSettings {

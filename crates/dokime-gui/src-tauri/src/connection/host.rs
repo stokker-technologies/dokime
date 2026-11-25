@@ -642,6 +642,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
                 interval_window: dokime_runtime::INTERVAL_WINDOW,
                 interval_lag: dokime_runtime::INTERVAL_LAG,
                 message_bytes,
+                plugin_load: dokime_runtime::PLUGIN_LOAD,
             },
         },
         services: services::ClientSettings {

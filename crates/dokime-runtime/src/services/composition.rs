@@ -205,7 +205,7 @@ pub(super) async fn launch(
             .storage(&storage)
             .managed_storage(recovery)
             .plugins(plugins.clone())
-            .grpc_plugin_settings(plugin_settings());
+            .grpc_plugin_settings(plugin_settings(placement));
         setup.settings().operation_settings(operations::Settings {
             preparation_bytes: Some(bytes),
             ..Default::default()

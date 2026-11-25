@@ -49,11 +49,16 @@ use process::OwnedChild;
 
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
-/// The Plugins Operation Timeout: It Bounds a Plugin's Load and a Whole Managed Plugin Teardown.
+/// The Plugins Operation Timeout: It Bounds a Plugin Connection and a Whole Managed Plugin Teardown.
 pub const PLUGINS_TIMEOUT: Duration = <Delete as ProtobufOperation>::POLICY.timeout;
 
 /// The Bound of Each Teardown Phase: Settle, Stop and Exit, Then Kill and Reap.
 pub const STOP_GRACE: Duration = PLUGINS_TIMEOUT.checked_div(3).unwrap();
+
+/// The Default Startup Deadline of a Plugin: Start, Describe and Load.
+///
+/// A first start may build the plugin's environment, so it allows far longer than one operation.
+pub const PLUGIN_LOAD: Duration = Duration::from_secs(300);
 
 /// The Default Interval Window: How Much Sampling Time One Host Grant Covers.
 ///
@@ -85,6 +90,9 @@ pub struct PlacementSettings {
     pub interval_lag: NonZeroU32,
 
     pub message_bytes: NonZeroUsize,
+
+    /// Startup Deadline of a Plugin: Start, Describe and Load, Default [`PLUGIN_LOAD`].
+    pub plugin_load: Duration,
 }
 
 pub struct PluginProcess {
@@ -152,7 +160,7 @@ impl PluginProcess {
                 time::sleep(PROCESS_POLL_INTERVAL).await;
             }
         };
-        let announced = time::timeout(PLUGINS_TIMEOUT, async {
+        let announced = time::timeout(settings.plugin_load, async {
             tokio::select! {
                 address = launch.announced() => address.map_err(|source| Error::Invalid(format!("Start Plugin: {source}"))),
                 status = exited => Err(Error::Invalid(format!("Start Plugin: It Exited With {}; Check Its Startup Logs", status?))),
@@ -265,10 +273,11 @@ pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Re
     Ok(response.into_inner())
 }
 
-/// The gRPC Plugin Policies: Each Plugin Load Is Bounded by the Plugins Operation Timeout.
-pub fn plugin_settings() -> GrpcPluginSettings {
+/// The gRPC Plugin Policies: Each Plugin Load, and Its Single Attempt, Is Bounded by the Placement's Startup Deadline.
+pub fn plugin_settings(placement: &PlacementSettings) -> GrpcPluginSettings {
     let mut policy = GrpcPluginPolicy::default();
-    policy.load.timeout = PLUGINS_TIMEOUT;
+    policy.load.timeout = placement.plugin_load;
+    policy.load.attempt_timeout = placement.plugin_load;
     GrpcPluginSettings { policy, ..Default::default() }
 }
 

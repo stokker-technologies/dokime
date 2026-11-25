@@ -100,6 +100,7 @@ impl Fixture {
             interval_window: dokime_runtime::INTERVAL_WINDOW,
             interval_lag: dokime_runtime::INTERVAL_LAG,
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            plugin_load: dokime_runtime::PLUGIN_LOAD,
         };
         let plugin = dokime_runtime::PluginProcess::start(&executable, true, &placement).await.unwrap();
         let session = self.client().await;

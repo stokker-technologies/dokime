@@ -158,6 +158,7 @@ fn live_plot_pages_retain_views_only_when_a_later_read_needs_them() -> Result<()
                 interval_window: crate::INTERVAL_WINDOW,
                 interval_lag: crate::INTERVAL_LAG,
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                plugin_load: crate::PLUGIN_LOAD,
             },
             storage: storage_defaults(),
             clock: Arc::new(ControlledClock::manual(1_000_000_000)),

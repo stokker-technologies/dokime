@@ -62,6 +62,7 @@ fn client_follows_a_long_stream_without_receiving_it_again() -> Result<(), Box<d
                 interval_window: crate::INTERVAL_WINDOW,
                 interval_lag: crate::INTERVAL_LAG,
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                plugin_load: crate::PLUGIN_LOAD,
             },
             storage: storage_defaults(),
             clock: Arc::new(ControlledClock::manual(1_000_000_000)),
