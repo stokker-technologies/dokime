@@ -41,12 +41,11 @@ use super::{Host, lock};
 use crate::{Error, Result};
 use dokime_operations::host::files::delete;
 use dokime_packaging::{bundle, installation, organization};
-use dokime_protocol::host::{AppearanceLogo, AppearanceSnapshot, FilesDeleteRequest, LogoVariant, OrganizationIdentity, ThemeFamily};
+use dokime_protocol::host::{AppearanceLogo, AppearanceSnapshot, FilesDeleteRequest, LogoVariant, OrganizationIdentity};
 
 /* === Constants === */
 
 const INSTALLATION_ORIGIN: &str = "installation";
-const ORGANIZATION_THEME: &str = "organization";
 
 /* === Macros === */
 
@@ -327,7 +326,7 @@ impl Host {
 
 /* === Private Functions === */
 
-// The Pack Is One Theme Family Carrying Its Self-Contained Stylesheet, Active Unless the Pack Has No Theme.
+// The Pack's Identity, Inline Logos and Self-Contained Stylesheet, Absent When the Pack Has No Theme.
 fn snapshot(appearance: organization::Appearance) -> AppearanceSnapshot {
     let logos = appearance.logos.into_iter().map(|(variant, data_uri)| {
         let variant = match variant.as_str() {
@@ -337,17 +336,7 @@ fn snapshot(appearance: organization::Appearance) -> AppearanceSnapshot {
             "contained_on_dark" => LogoVariant::ContainedOnDark,
             _ => LogoVariant::Unspecified,
         };
-        AppearanceLogo {
-            variant: variant as i32,
-            alt: None,
-            data_uri,
-        }
-    });
-    let theme = (!appearance.css.is_empty()).then(|| ThemeFamily {
-        theme_id: ORGANIZATION_THEME.into(),
-        label: appearance.label.clone(),
-        stylesheet: Some(appearance.css),
-        ..Default::default()
+        AppearanceLogo { variant: variant as i32, data_uri }
     });
     AppearanceSnapshot {
         organization: appearance.organization.map(|organization| OrganizationIdentity {
@@ -357,8 +346,7 @@ fn snapshot(appearance: organization::Appearance) -> AppearanceSnapshot {
         }),
         title_template: Some(appearance.title_template),
         logos: logos.collect(),
-        active_theme: theme.as_ref().map(|theme| theme.theme_id.clone()),
-        themes: theme.into_iter().collect(),
+        stylesheet: (!appearance.css.is_empty()).then_some(appearance.css),
         app_name: appearance.label,
     }
 }

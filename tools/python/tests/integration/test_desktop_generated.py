@@ -82,7 +82,6 @@ writeFileSync(process.argv[1], toBinary(type, value));
             settings = json.loads((output / "application-settings.json").read_text(encoding="utf-8"))
             self.assertEqual(settings["client"]["connect_timeout_ms"], 4321)
             self.assertEqual(settings["client"]["request_timeout_ms"], 8765)
-            self.assertIsNone(settings["appearance"]["theme_family"])
             self.assertEqual(settings["listener"]["certificate_names"], ["fixture.local"])
         finally:
             scratch_directory.cleanup()

@@ -66,10 +66,10 @@ message AppearanceSnapshot {
   .dokime.host.v1.OrganizationIdentity organization = 2;
   optional string title_template = 3;
   repeated .dokime.host.v1.AppearanceLogo logos = 4;
-  repeated .dokime.host.v1.ThemeFamily themes = 5;
-  optional string active_theme = 6;
-  reserved 7 to 10;
-  reserved "theme_family_locked", "mode_policy", "mode_locked", "source_plugin_id";
+  // The pack's theme stylesheet with fonts and images inlined; absent when the pack has no theme.
+  optional string stylesheet = 11;
+  reserved 5 to 10;
+  reserved "themes", "active_theme", "theme_family_locked", "mode_policy", "mode_locked", "source_plugin_id";
 }
 
 // OrganizationIdentity value owned by this resource.
@@ -82,19 +82,9 @@ message OrganizationIdentity {
 // AppearanceLogo value owned by this resource; its data: URI carries the content type and bytes.
 message AppearanceLogo {
   .dokime.host.v1.LogoVariant variant = 1;
-  reserved 2;
-  reserved "asset";
-  optional string alt = 3;
+  reserved 2, 3;
+  reserved "asset", "alt";
   string data_uri = 4;
-}
-
-// ThemeFamily value owned by this resource.
-message ThemeFamily {
-  reserved 1, 4, 6 to 9;
-  reserved "plugin_id", "description", "variables", "corner_radii", "light", "dark";
-  string theme_id = 2;
-  string label = 3;
-  optional string stylesheet = 5;
 }
 
 // === Enums === //

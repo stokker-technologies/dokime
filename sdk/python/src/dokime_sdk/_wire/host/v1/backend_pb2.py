@@ -26,7 +26,7 @@ from harmos._wire.model.v1 import callers_pb2 as harmos_dot_model_dot_v1_dot_cal
 from harmos._wire.model.v1 import position_pb2 as harmos_dot_model_dot_v1_dot_position__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x64okime/host/v1/backend.proto\x12\x0e\x64okime.host.v1\x1a\x1dharmos/model/v1/callers.proto\x1a\x1eharmos/model/v1/position.proto\"L\n\x18\x42\x61\x63kendAppearanceRequest\x12)\n\x02\x61t\x18\x01 \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\x82\x01\n\x19\x42\x61\x63kendAppearanceResponse\x12\x36\n\nappearance\x18\x01 \x01(\x0b\x32\".dokime.host.v1.AppearanceSnapshot\x12-\n\x0bresolved_at\x18\x02 \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"N\n\x19\x42\x61\x63kendEnvironmentRequest\x12*\n\x02\x61t\x18\x01 \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x00\x88\x01\x01\x42\x05\n\x03_at\"r\n\x1a\x42\x61\x63kendEnvironmentResponse\x12\x13\n\x0b\x62\x61\x63kend_pid\x18\x01 \x01(\r\x12\x0f\n\x07in_step\x18\x02 \x01(\x08\x12.\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x19.harmos.model.v1.Position\"\xe1\x02\n\x12\x41ppearanceSnapshot\x12\x10\n\x08\x61pp_name\x18\x01 \x01(\t\x12:\n\x0corganization\x18\x02 \x01(\x0b\x32$.dokime.host.v1.OrganizationIdentity\x12\x1b\n\x0etitle_template\x18\x03 \x01(\tH\x00\x88\x01\x01\x12-\n\x05logos\x18\x04 \x03(\x0b\x32\x1e.dokime.host.v1.AppearanceLogo\x12+\n\x06themes\x18\x05 \x03(\x0b\x32\x1b.dokime.host.v1.ThemeFamily\x12\x19\n\x0c\x61\x63tive_theme\x18\x06 \x01(\tH\x01\x88\x01\x01\x42\x11\n\x0f_title_templateB\x0f\n\r_active_themeJ\x04\x08\x07\x10\x0bR\x13theme_family_lockedR\x0bmode_policyR\x0bmode_lockedR\x10source_plugin_id\"b\n\x14OrganizationIdentity\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\x04unit\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\x14\n\x07website\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x07\n\x05_unitB\n\n\x08_website\"w\n\x0e\x41ppearanceLogo\x12,\n\x07variant\x18\x01 \x01(\x0e\x32\x1b.dokime.host.v1.LogoVariant\x12\x10\n\x03\x61lt\x18\x03 \x01(\tH\x00\x88\x01\x01\x12\x10\n\x08\x64\x61ta_uri\x18\x04 \x01(\tB\x06\n\x04_altJ\x04\x08\x02\x10\x03R\x05\x61sset\"\xa6\x01\n\x0bThemeFamily\x12\x10\n\x08theme_id\x18\x02 \x01(\t\x12\r\n\x05label\x18\x03 \x01(\t\x12\x17\n\nstylesheet\x18\x05 \x01(\tH\x00\x88\x01\x01\x42\r\n\x0b_stylesheetJ\x04\x08\x01\x10\x02J\x04\x08\x04\x10\x05J\x04\x08\x06\x10\nR\tplugin_idR\x0b\x64\x65scriptionR\tvariablesR\x0c\x63orner_radiiR\x05lightR\x04\x64\x61rk*\xc1\x01\n\x0bLogoVariant\x12\x1c\n\x18LOGO_VARIANT_UNSPECIFIED\x10\x00\x12%\n!LOGO_VARIANT_TRANSPARENT_ON_LIGHT\x10\x01\x12$\n LOGO_VARIANT_TRANSPARENT_ON_DARK\x10\x02\x12#\n\x1fLOGO_VARIANT_CONTAINED_ON_LIGHT\x10\x03\x12\"\n\x1eLOGO_VARIANT_CONTAINED_ON_DARK\x10\x04\x32\xde\x01\n\x07\x42\x61\x63kend\x12g\n\nAppearance\x12(.dokime.host.v1.BackendAppearanceRequest\x1a).dokime.host.v1.BackendAppearanceResponse\"\x04\xc8\xf3\x18\x01\x12j\n\x0b\x45nvironment\x12).dokime.host.v1.BackendEnvironmentRequest\x1a*.dokime.host.v1.BackendEnvironmentResponse\"\x04\xc8\xf3\x18\x02\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x64okime/host/v1/backend.proto\x12\x0e\x64okime.host.v1\x1a\x1dharmos/model/v1/callers.proto\x1a\x1eharmos/model/v1/position.proto\"L\n\x18\x42\x61\x63kendAppearanceRequest\x12)\n\x02\x61t\x18\x01 \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\x82\x01\n\x19\x42\x61\x63kendAppearanceResponse\x12\x36\n\nappearance\x18\x01 \x01(\x0b\x32\".dokime.host.v1.AppearanceSnapshot\x12-\n\x0bresolved_at\x18\x02 \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"N\n\x19\x42\x61\x63kendEnvironmentRequest\x12*\n\x02\x61t\x18\x01 \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x00\x88\x01\x01\x42\x05\n\x03_at\"r\n\x1a\x42\x61\x63kendEnvironmentResponse\x12\x13\n\x0b\x62\x61\x63kend_pid\x18\x01 \x01(\r\x12\x0f\n\x07in_step\x18\x02 \x01(\x08\x12.\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x19.harmos.model.v1.Position\"\xc6\x02\n\x12\x41ppearanceSnapshot\x12\x10\n\x08\x61pp_name\x18\x01 \x01(\t\x12:\n\x0corganization\x18\x02 \x01(\x0b\x32$.dokime.host.v1.OrganizationIdentity\x12\x1b\n\x0etitle_template\x18\x03 \x01(\tH\x00\x88\x01\x01\x12-\n\x05logos\x18\x04 \x03(\x0b\x32\x1e.dokime.host.v1.AppearanceLogo\x12\x17\n\nstylesheet\x18\x0b \x01(\tH\x01\x88\x01\x01\x42\x11\n\x0f_title_templateB\r\n\x0b_stylesheetJ\x04\x08\x05\x10\x0bR\x06themesR\x0c\x61\x63tive_themeR\x13theme_family_lockedR\x0bmode_policyR\x0bmode_lockedR\x10source_plugin_id\"b\n\x14OrganizationIdentity\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\x04unit\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\x14\n\x07website\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x07\n\x05_unitB\n\n\x08_website\"h\n\x0e\x41ppearanceLogo\x12,\n\x07variant\x18\x01 \x01(\x0e\x32\x1b.dokime.host.v1.LogoVariant\x12\x10\n\x08\x64\x61ta_uri\x18\x04 \x01(\tJ\x04\x08\x02\x10\x03J\x04\x08\x03\x10\x04R\x05\x61ssetR\x03\x61lt*\xc1\x01\n\x0bLogoVariant\x12\x1c\n\x18LOGO_VARIANT_UNSPECIFIED\x10\x00\x12%\n!LOGO_VARIANT_TRANSPARENT_ON_LIGHT\x10\x01\x12$\n LOGO_VARIANT_TRANSPARENT_ON_DARK\x10\x02\x12#\n\x1fLOGO_VARIANT_CONTAINED_ON_LIGHT\x10\x03\x12\"\n\x1eLOGO_VARIANT_CONTAINED_ON_DARK\x10\x04\x32\xde\x01\n\x07\x42\x61\x63kend\x12g\n\nAppearance\x12(.dokime.host.v1.BackendAppearanceRequest\x1a).dokime.host.v1.BackendAppearanceResponse\"\x04\xc8\xf3\x18\x01\x12j\n\x0b\x45nvironment\x12).dokime.host.v1.BackendEnvironmentRequest\x1a*.dokime.host.v1.BackendEnvironmentResponse\"\x04\xc8\xf3\x18\x02\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -38,8 +38,8 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_BACKEND'].methods_by_name['Appearance']._serialized_options = b'\310\363\030\001'
   _globals['_BACKEND'].methods_by_name['Environment']._loaded_options = None
   _globals['_BACKEND'].methods_by_name['Environment']._serialized_options = b'\310\363\030\002'
-  _globals['_LOGOVARIANT']._serialized_start=1265
-  _globals['_LOGOVARIANT']._serialized_end=1458
+  _globals['_LOGOVARIANT']._serialized_start=1054
+  _globals['_LOGOVARIANT']._serialized_end=1247
   _globals['_BACKENDAPPEARANCEREQUEST']._serialized_start=111
   _globals['_BACKENDAPPEARANCEREQUEST']._serialized_end=187
   _globals['_BACKENDAPPEARANCERESPONSE']._serialized_start=190
@@ -49,13 +49,11 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_BACKENDENVIRONMENTRESPONSE']._serialized_start=402
   _globals['_BACKENDENVIRONMENTRESPONSE']._serialized_end=516
   _globals['_APPEARANCESNAPSHOT']._serialized_start=519
-  _globals['_APPEARANCESNAPSHOT']._serialized_end=872
-  _globals['_ORGANIZATIONIDENTITY']._serialized_start=874
-  _globals['_ORGANIZATIONIDENTITY']._serialized_end=972
-  _globals['_APPEARANCELOGO']._serialized_start=974
-  _globals['_APPEARANCELOGO']._serialized_end=1093
-  _globals['_THEMEFAMILY']._serialized_start=1096
-  _globals['_THEMEFAMILY']._serialized_end=1262
-  _globals['_BACKEND']._serialized_start=1461
-  _globals['_BACKEND']._serialized_end=1683
+  _globals['_APPEARANCESNAPSHOT']._serialized_end=845
+  _globals['_ORGANIZATIONIDENTITY']._serialized_start=847
+  _globals['_ORGANIZATIONIDENTITY']._serialized_end=945
+  _globals['_APPEARANCELOGO']._serialized_start=947
+  _globals['_APPEARANCELOGO']._serialized_end=1051
+  _globals['_BACKEND']._serialized_start=1250
+  _globals['_BACKEND']._serialized_end=1472
 # @@protoc_insertion_point(module_scope)

@@ -83,8 +83,9 @@ message SettingsSchemaResponse {
 // ApplicationAppearance value owned by this resource.
 message ApplicationAppearance {
   .dokime.host.v1.ThemeMode theme_mode = 1;
-  optional string theme_family = 2;
   .dokime.host.v1.Density density = 3;
+  reserved 2;
+  reserved "theme_family";
 }
 
 // ApplicationSettings value owned by this resource.

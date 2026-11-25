@@ -75,14 +75,9 @@ export function brandFromAppearance(appearance: AppearanceSnapshot, accepts: (ur
   const logos: Brand["logos"] = {};
   for (const logo of appearance.logos) {
     const variant = HOST_LOGO_VARIANTS[logo.variant];
-    if (variant && accepts(logo.dataUri)) logos[variant] = { src: logo.dataUri, alt: logo.alt ?? label };
+    if (variant && accepts(logo.dataUri)) logos[variant] = { src: logo.dataUri };
   }
   return { label, logos };
-}
-
-/** The stylesheet of the theme family the host marks active. */
-export function appearanceStylesheet(appearance: AppearanceSnapshot): string | null {
-  return appearance.themes.find((theme) => theme.themeId === appearance.activeTheme)?.stylesheet ?? null;
 }
 
 export function selectLogo(brand: Brand, treatment: "transparent" | "contained", surface: "light" | "dark"): BrandLogo | undefined {

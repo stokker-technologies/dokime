@@ -128,12 +128,10 @@ class SettingsSchemaResponse(_message.Message, metaclass=GeneratedProtocolMessag
 class ApplicationAppearance(_message.Message, metaclass=GeneratedProtocolMessageType):
     __slots__: tuple[str, ...]
     THEME_MODE_FIELD_NUMBER: _ClassVar[int]
-    THEME_FAMILY_FIELD_NUMBER: _ClassVar[int]
     DENSITY_FIELD_NUMBER: _ClassVar[int]
     theme_mode: ThemeMode
-    theme_family: str
     density: Density
-    def __init__(self, theme_mode: _Optional[_Union[ThemeMode, str]] = ..., theme_family: _Optional[str] = ..., density: _Optional[_Union[Density, str]] = ...) -> None: ...
+    def __init__(self, theme_mode: _Optional[_Union[ThemeMode, str]] = ..., density: _Optional[_Union[Density, str]] = ...) -> None: ...
 
 @final
 class ApplicationSettings(_message.Message, metaclass=GeneratedProtocolMessageType):

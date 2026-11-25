@@ -70,7 +70,7 @@ function snapshot(): PreferencesSnapshot {
   return {
     revision: [7],
     settings: {
-      appearance: { theme_mode: "dark", theme_family: "fixture", density: "compact" },
+      appearance: { theme_mode: "dark", density: "compact" },
       report: { ...defaults.report, plot_points: 3210, plot_downsample: "lttb" },
       client: { connect_timeout_ms: 1234, request_timeout_ms: 5678 },
       telemetry: { interval_ms: 42 },
@@ -122,7 +122,6 @@ test("Advanced Reveals Additional Preference Fields", async () => {
   const advanced = advancedView.container.innerHTML + advancedRemote.container.innerHTML;
   const visible = [
     "local-appearance.theme_mode",
-    "local-appearance.theme_family",
     "local-appearance.density",
     "backend-report.plot_points",
     "backend-report.plot_downsample",
@@ -144,7 +143,7 @@ test("Advanced Reveals Additional Preference Fields", async () => {
     assert.ok(!simple.includes(`id="${id}"`), id);
     assert.ok(advanced.includes(`id="${id}"`), id);
   }
-  for (const value of ["fixture", "3210", "1234", "5678", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"]) {
+  for (const value of ["3210", "1234", "5678", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"]) {
     const inputs = [...advancedView.container.querySelectorAll("input"), ...advancedRemote.container.querySelectorAll("input")];
     assert.ok(
       inputs.some((input) => input.value === value),
@@ -160,7 +159,7 @@ test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
     const previous = snapshot();
     const settings = structuredClone(previous.settings);
     if (scope === "local") {
-      settings.appearance = { theme_mode: "light", theme_family: "other", density: "touch" };
+      settings.appearance = { theme_mode: "light", density: "touch" };
       settings.client = { connect_timeout_ms: 2000, request_timeout_ms: 9000 };
     } else {
       settings.report = { ...settings.report, plot_points: 4000, plot_downsample: "raw" };
@@ -182,7 +181,7 @@ test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
     assert.deepEqual(previous, snapshot());
   }
   assert.equal(fixture.appearance.mock.calls.length, 1);
-  assert.deepEqual(fixture.appearance.mock.calls[0], [{ density: "touch", themeFamily: "other" }]);
+  assert.deepEqual(fixture.appearance.mock.calls[0], [{ density: "touch" }]);
 });
 
 test("Offline Local Edits Remain Available While Backend Reads Fail", async () => {
@@ -462,10 +461,10 @@ test("Shared Preference Failure Occupies Its Content Slot", async () => {
   fixture.update.mockRejectedValueOnce(error);
   const client = newQueryClient();
   const view = showPreferences({ advanced: true, localOnly: true }, client);
-  const input = await view.findByRole("textbox", { name: "Theme Family" });
+  const input = await view.findByRole("spinbutton", { name: /Connect Timeout/ });
   vi.useFakeTimers();
   try {
-    await fireEvent.input(input, { target: { value: "other" } });
+    await fireEvent.input(input, { target: { value: "2000" } });
     await vi.advanceTimersByTimeAsync(100);
     await tick();
     assert.ok(view.getAllByRole("alert").some((alert) => alert.textContent?.includes(error.message)));

@@ -796,7 +796,6 @@ using ::dokime::detail::payloads::client::TelemetryColumn;
 using ::dokime::detail::payloads::client::TelemetryRole;
 using ::dokime::detail::payloads::client::TelemetrySample;
 using ::dokime::detail::payloads::client::TelemetrySchema;
-using ::dokime::detail::payloads::client::ThemeFamily;
 using ::dokime::detail::payloads::client::TraceabilityWatchResponse;
 using ::dokime::detail::payloads::client::UnevaluatedOutcome;
 using ::dokime::detail::payloads::client::UNIT_FAMILY_COUNT;
