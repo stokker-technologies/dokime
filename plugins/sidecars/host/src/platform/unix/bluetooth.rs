@@ -50,7 +50,13 @@ const BYTE_TX: usize = 9;
 pub struct Link {
     bus: Option<Connection>,
     hci: Option<OwnedFd>,
-    baseline: Option<(Instant, BTreeMap<u16, (u32, u32)>)>,
+    baseline: Option<Baseline>,
+}
+
+/// The Received and Transmitted Byte Counters of Every HCI Device Id at One Read.
+struct Baseline {
+    at: Instant,
+    counters: BTreeMap<u16, (u32, u32)>,
 }
 
 /// The Kernel's `struct hci_dev_info` From `include/net/bluetooth/hci_sock.h`, Byte for Byte.
@@ -99,15 +105,15 @@ impl Link {
             let info = statistics(hci, dev_id)?;
             let (received, transmitted) = (info.stat[BYTE_RX], info.stat[BYTE_TX]);
             counters.insert(info.dev_id, (received, transmitted));
-            if let Some((at, previous)) = &self.baseline
-                && let Some((previous_received, previous_transmitted)) = previous.get(&info.dev_id)
+            if let Some(baseline) = &self.baseline
+                && let Some((previous_received, previous_transmitted)) = baseline.counters.get(&info.dev_id)
             {
-                let elapsed_s = now.duration_since(*at).max(options.minimum_rate_window).as_secs_f64();
+                let elapsed_s = now.duration_since(baseline.at).max(options.minimum_rate_window).as_secs_f64();
                 radio.received = Some(rate(*previous_received, received, elapsed_s));
                 radio.transmitted = Some(rate(*previous_transmitted, transmitted, elapsed_s));
             }
         }
-        self.baseline = Some((now, counters));
+        self.baseline = Some(Baseline { at: now, counters });
         Ok(radios)
     }
 
