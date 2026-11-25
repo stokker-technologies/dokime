@@ -42,7 +42,6 @@ import { plotWindowOptions, plotWindows } from "@/features/cycle/plot-window";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import { normalizeRpcError } from "@/lib/rpc/errors";
-import type { RuntimeAppearanceFrame, RuntimeThemeFamily } from "@/lib/types/appearance";
 import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
 import { jsonToNativeValue } from "@/lib/host/values";
 import {
@@ -54,7 +53,6 @@ import {
   toggleTrace,
   type SeriesSummary,
 } from "@/lib/statistics";
-import { applyThemeVariables } from "@/lib/theme";
 import type {
   DocumentViewPlot,
   HubRecord,
@@ -94,10 +92,7 @@ import PlaybackFixture from "./PlaybackFixture.svelte";
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { DEFAULT_PLOT_MAX_POINTS, m4Indices } from "@/plots/reduce";
-import { materializeThemeFamilyVariables } from "@/lib/theme-family";
-import { desktopPlotPalette } from "@/plots/desktop-plot-palette";
 import { heldViewport } from "@/plots/viewport";
-import { applyReportAppearance } from "@/report/report-appearance";
 import { summaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Re-Exports === */
@@ -1278,47 +1273,6 @@ test("Legend Rows Contain Only Traces on Both Surfaces", () => {
       zoom,
     );
     assert.doesNotMatch(withoutStatistics, /<table\b/);
-  }
-});
-
-test("Application Theme Selects the Plot Palette Without a Browser Theme Provider", async () => {
-  const light = ["#123456", "#654321"];
-  const dark = ["#abcdef", "#fedcba"];
-  const family: RuntimeThemeFamily = {
-    theme_id: "plot-visibility",
-    label: "Plot Visibility",
-    light: { variables: {}, plot_palette: light },
-    dark: { variables: {}, plot_palette: dark },
-  };
-  const frame: RuntimeAppearanceFrame = {
-    app_name: "Plot Test",
-    logos: [],
-    themes: [family],
-    active_theme: family.theme_id,
-    theme_family_locked: false,
-    mode_policy: "user_or_system",
-    mode_locked: false,
-  };
-  for (const mode of ["light", "dark"] as const) {
-    assert.deepEqual(desktopPlotPalette(materializeThemeFamilyVariables(family, mode)), family[mode].plot_palette);
-  }
-
-  // Frozen Reports Read the Palette Already Applied for Their Displayed Mode.
-  const originalClass = document.documentElement.className;
-  const originalStyle = document.documentElement.style.cssText;
-  const originalTitle = document.title;
-  onTestFinished(() => {
-    applyThemeVariables(null);
-    document.documentElement.className = originalClass;
-    document.documentElement.style.cssText = originalStyle;
-    document.title = originalTitle;
-    vi.unstubAllGlobals();
-  });
-  for (const mode of ["light", "dark"] as const) {
-    vi.stubGlobal("matchMedia", () => ({ matches: mode === "dark" }));
-    applyReportAppearance(frame);
-    assert.equal(document.documentElement.style.colorScheme, mode);
-    assert.deepEqual(desktopPlotPalette(null), family[mode].plot_palette);
   }
 });
 

@@ -16,15 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
 
 // Third Party Imports
+use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime_client_internal::BackendAppearanceOptions;
-use dokime_client_internal::Client;
-use dokime_client_internal::ThemeModePolicy;
-use std::error::Error;
-use tonic::transport::Endpoint;
+use dokime_client_internal::{BackendAppearanceOptions, Client};
 
 /* === Constants === */
 
@@ -61,17 +59,8 @@ fn client_reads_appearance() -> Result<(), Box<dyn Error>> {
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                     .backend
                     .clone();
-            let snapshot =
-                Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
-                    .backend
-                    .clone()
-                    .appearance()
-                    .await?
-                    .appearance
-                    .unwrap();
-            assert!(!snapshot.app_name.trim().is_empty());
-            assert!(ThemeModePolicy::try_from(snapshot.mode_policy).is_ok());
             let reply = appearance.appearance().await?;
+            assert!(!reply.appearance.as_ref().unwrap().app_name.trim().is_empty());
             let replay = appearance
                 .appearance_with(BackendAppearanceOptions {
                     at: reply.resolved_at.clone(),

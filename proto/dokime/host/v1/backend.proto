@@ -68,11 +68,8 @@ message AppearanceSnapshot {
   repeated .dokime.host.v1.AppearanceLogo logos = 4;
   repeated .dokime.host.v1.ThemeFamily themes = 5;
   optional string active_theme = 6;
-  bool theme_family_locked = 7;
-  .dokime.host.v1.ThemeModePolicy mode_policy = 8;
-  bool mode_locked = 9;
-  reserved 10;
-  reserved "source_plugin_id";
+  reserved 7 to 10;
+  reserved "theme_family_locked", "mode_policy", "mode_locked", "source_plugin_id";
 }
 
 // OrganizationIdentity value owned by this resource.
@@ -93,35 +90,11 @@ message AppearanceLogo {
 
 // ThemeFamily value owned by this resource.
 message ThemeFamily {
-  reserved 1;
-  reserved "plugin_id";
+  reserved 1, 4, 6 to 9;
+  reserved "plugin_id", "description", "variables", "corner_radii", "light", "dark";
   string theme_id = 2;
   string label = 3;
-  optional string description = 4;
-
   optional string stylesheet = 5;
-  map<string, string> variables = 6;
-  .dokime.host.v1.ThemeCornerRadii corner_radii = 7;
-  .dokime.host.v1.ThemeVariant light = 8;
-  .dokime.host.v1.ThemeVariant dark = 9;
-}
-
-// ThemeCornerRadii value owned by this resource.
-message ThemeCornerRadii {
-  optional string base = 1;
-  optional string sm = 2;
-  optional string md = 3;
-  optional string lg = 4;
-  optional string xl = 5;
-  optional string two_xl = 6;
-  optional string three_xl = 7;
-  optional string four_xl = 8;
-}
-
-// ThemeVariant value owned by this resource.
-message ThemeVariant {
-  map<string, string> variables = 1;
-  repeated string plot_palette = 2;
 }
 
 // === Enums === //
@@ -133,13 +106,4 @@ enum LogoVariant {
   LOGO_VARIANT_TRANSPARENT_ON_DARK = 2;
   LOGO_VARIANT_CONTAINED_ON_LIGHT = 3;
   LOGO_VARIANT_CONTAINED_ON_DARK = 4;
-}
-
-// ThemeModePolicy choices.
-enum ThemeModePolicy {
-  THEME_MODE_POLICY_UNSPECIFIED = 0;
-  THEME_MODE_POLICY_USER_OR_SYSTEM = 1;
-  THEME_MODE_POLICY_FORCE_SYSTEM = 2;
-  THEME_MODE_POLICY_FORCE_LIGHT = 3;
-  THEME_MODE_POLICY_FORCE_DARK = 4;
 }

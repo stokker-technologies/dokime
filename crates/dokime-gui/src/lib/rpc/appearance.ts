@@ -1,5 +1,5 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
-import type { AppearanceSnapshot } from "@/lib/native-appearance";
+import type { AppearanceSnapshot } from "@/lib/brand";
 import { required } from "@/lib/rpc/canonical";
 import * as rpc from "../host/client";
 import type { SessionIdentity } from "./transport.js";

@@ -104,7 +104,6 @@ pub(super) fn prepare(
     let pack_dir = scratch.join("organization");
     pack.write_to(&pack_dir)?;
     let label = pack.label().to_owned();
-    validate_label(&label)?;
     let windows = distribution.target.contains("windows");
     let suffix = if windows { ".exe" } else { "" };
     let installed_resource_prefix = if windows { String::new() } else { format!("usr/lib/{}/", identity.slug) };
@@ -379,23 +378,6 @@ fn validate_signing_with_provider(manifest: &Manifest, requested: bool, provider
     }
     if let Some(updater) = &signing.updater {
         validate_updater_signing(manifest, updater)?;
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_label(label: &str) -> Result<(), Error> {
-    let trimmed = label.trim();
-    let invalid_start = trimmed.is_empty() || trimmed != label || label.ends_with('.');
-    let invalid = invalid_start
-        || [".", ".."].contains(&label)
-        || label.chars().any(|character| {
-            let control = character.is_control();
-            let reserved = "/\\:*?\"<>|".contains(character);
-            control || reserved
-        });
-    if invalid {
-        let error = Error::Invalid("distribution label must be a safe native filename; slashes, control characters and reserved filename characters are not allowed".into());
-        return Err(error);
     }
     Ok(())
 }

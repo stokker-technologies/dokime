@@ -85,10 +85,6 @@ export function normalizePlotPalette(palette: readonly string[] | null | undefin
   return colors.length ? colors : null;
 }
 
-export function plotPaletteFromVariables(variables: Record<string, string> | null | undefined): string[] | null {
-  return normalizePlotPalette(PLOT_PALETTE_VARIABLES.map((name) => variables?.[name.slice(2)] ?? variables?.[name] ?? ""));
-}
-
 /** Resolves the CSS custom properties needed by canvas-backed plots. */
 export function resolvePlotThemeColors(element?: Element | null): ResolvedPlotThemeColors {
   const styles = computedStyles(element);

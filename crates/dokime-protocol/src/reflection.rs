@@ -344,16 +344,6 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.ThemeFamily").expect("generated protocol descriptor")
 }
 }
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::ThemeCornerRadii {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.ThemeCornerRadii").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::ThemeVariant {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.ThemeVariant").expect("generated protocol descriptor")
-}
-}
 impl prost_reflect::ReflectMessage for crate::dokime::host::v1::RecordSchemasGetRequest {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.RecordSchemasGetRequest").expect("generated protocol descriptor")

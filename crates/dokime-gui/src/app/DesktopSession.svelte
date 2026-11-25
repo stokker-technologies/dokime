@@ -4,7 +4,7 @@
   import ErrorCard from "../components/ErrorCard.svelte";
   import Button from "../components/ui/Button.svelte";
   import { releaseNativeMedia } from "../lib/api/native-delivery";
-  import type { AppearanceSnapshot } from "../lib/native-appearance";
+  import type { AppearanceSnapshot } from "../lib/brand";
   import { failureOf } from "../lib/notification-details";
   import { loadAppearance } from "../lib/rpc/appearance";
   import DesktopPresentation from "./DesktopPresentation.svelte";

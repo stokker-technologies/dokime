@@ -1610,12 +1610,6 @@ pub struct AppearanceSnapshot {
     pub themes: ::prost::alloc::vec::Vec<ThemeFamily>,
     #[prost(string, optional, tag = "6")]
     pub active_theme: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(bool, tag = "7")]
-    pub theme_family_locked: bool,
-    #[prost(enumeration = "ThemeModePolicy", tag = "8")]
-    pub mode_policy: i32,
-    #[prost(bool, tag = "9")]
-    pub mode_locked: bool,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1638,58 +1632,14 @@ pub struct AppearanceLogo {
     pub data_uri: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ThemeFamily {
     #[prost(string, tag = "2")]
     pub theme_id: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub label: ::prost::alloc::string::String,
-    #[prost(string, optional, tag = "4")]
-    pub description: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "5")]
     pub stylesheet: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(map = "string, string", tag = "6")]
-    pub variables: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
-    #[prost(message, optional, tag = "7")]
-    pub corner_radii: ::core::option::Option<ThemeCornerRadii>,
-    #[prost(message, optional, tag = "8")]
-    pub light: ::core::option::Option<ThemeVariant>,
-    #[prost(message, optional, tag = "9")]
-    pub dark: ::core::option::Option<ThemeVariant>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ThemeCornerRadii {
-    #[prost(string, optional, tag = "1")]
-    pub base: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "2")]
-    pub sm: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "3")]
-    pub md: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "4")]
-    pub lg: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "5")]
-    pub xl: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "6")]
-    pub two_xl: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "7")]
-    pub three_xl: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "8")]
-    pub four_xl: ::core::option::Option<::prost::alloc::string::String>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ThemeVariant {
-    #[prost(map = "string, string", tag = "1")]
-    pub variables: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
-    #[prost(string, repeated, tag = "2")]
-    pub plot_palette: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -1723,42 +1673,6 @@ impl LogoVariant {
             "LOGO_VARIANT_TRANSPARENT_ON_DARK" => Some(Self::TransparentOnDark),
             "LOGO_VARIANT_CONTAINED_ON_LIGHT" => Some(Self::ContainedOnLight),
             "LOGO_VARIANT_CONTAINED_ON_DARK" => Some(Self::ContainedOnDark),
-            _ => None,
-        }
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum ThemeModePolicy {
-    Unspecified = 0,
-    UserOrSystem = 1,
-    ForceSystem = 2,
-    ForceLight = 3,
-    ForceDark = 4,
-}
-impl ThemeModePolicy {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            Self::Unspecified => "THEME_MODE_POLICY_UNSPECIFIED",
-            Self::UserOrSystem => "THEME_MODE_POLICY_USER_OR_SYSTEM",
-            Self::ForceSystem => "THEME_MODE_POLICY_FORCE_SYSTEM",
-            Self::ForceLight => "THEME_MODE_POLICY_FORCE_LIGHT",
-            Self::ForceDark => "THEME_MODE_POLICY_FORCE_DARK",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "THEME_MODE_POLICY_UNSPECIFIED" => Some(Self::Unspecified),
-            "THEME_MODE_POLICY_USER_OR_SYSTEM" => Some(Self::UserOrSystem),
-            "THEME_MODE_POLICY_FORCE_SYSTEM" => Some(Self::ForceSystem),
-            "THEME_MODE_POLICY_FORCE_LIGHT" => Some(Self::ForceLight),
-            "THEME_MODE_POLICY_FORCE_DARK" => Some(Self::ForceDark),
             _ => None,
         }
     }

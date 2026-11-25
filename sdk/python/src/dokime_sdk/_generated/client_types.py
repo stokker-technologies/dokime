@@ -88,20 +88,12 @@ from dokime_sdk._wire.host.v1.backend_pb2 import (
     LOGO_VARIANT_TRANSPARENT_ON_DARK,
     LOGO_VARIANT_TRANSPARENT_ON_LIGHT,
     LOGO_VARIANT_UNSPECIFIED,
-    THEME_MODE_POLICY_FORCE_DARK,
-    THEME_MODE_POLICY_FORCE_LIGHT,
-    THEME_MODE_POLICY_FORCE_SYSTEM,
-    THEME_MODE_POLICY_UNSPECIFIED,
-    THEME_MODE_POLICY_USER_OR_SYSTEM,
     AppearanceLogo,
     AppearanceSnapshot,
     BackendAppearanceResponse,
     LogoVariant,
     OrganizationIdentity,
-    ThemeCornerRadii,
     ThemeFamily,
-    ThemeModePolicy,
-    ThemeVariant,
 )
 from dokime_sdk._wire.host.v1.cases_pb2 import (
     CASE_STATUS_BLOCKED,
@@ -716,12 +708,8 @@ BackendAppearanceResponse.__module__ = "dokime_sdk.client"
 BackendAppearanceResponse.__qualname__ = "BackendAppearanceResponse"
 OrganizationIdentity.__module__ = "dokime_sdk.client"
 OrganizationIdentity.__qualname__ = "OrganizationIdentity"
-ThemeCornerRadii.__module__ = "dokime_sdk.client"
-ThemeCornerRadii.__qualname__ = "ThemeCornerRadii"
 ThemeFamily.__module__ = "dokime_sdk.client"
 ThemeFamily.__qualname__ = "ThemeFamily"
-ThemeVariant.__module__ = "dokime_sdk.client"
-ThemeVariant.__qualname__ = "ThemeVariant"
 CaseActions.__module__ = "dokime_sdk.client"
 CaseActions.__qualname__ = "CaseActions"
 CaseDetail.__module__ = "dokime_sdk.client"
@@ -1535,11 +1523,6 @@ __all__ = [
     "TELEMETRY_ROLE_VALUE",
     "THEME_MODE_DARK",
     "THEME_MODE_LIGHT",
-    "THEME_MODE_POLICY_FORCE_DARK",
-    "THEME_MODE_POLICY_FORCE_LIGHT",
-    "THEME_MODE_POLICY_FORCE_SYSTEM",
-    "THEME_MODE_POLICY_UNSPECIFIED",
-    "THEME_MODE_POLICY_USER_OR_SYSTEM",
     "THEME_MODE_SYSTEM",
     "THEME_MODE_UNSPECIFIED",
     "TUPLE",
@@ -1906,11 +1889,8 @@ __all__ = [
     "TelemetryRole",
     "TelemetrySample",
     "TelemetrySchema",
-    "ThemeCornerRadii",
     "ThemeFamily",
     "ThemeMode",
-    "ThemeModePolicy",
-    "ThemeVariant",
     "TraceEventsListResponse",
     "TraceEventsWatchResponse",
     "TraceabilityWatchResponse",
