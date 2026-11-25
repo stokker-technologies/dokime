@@ -59,7 +59,6 @@ pub(crate) fn initial() -> SettingsGetResponse {
             appearance: Some(ApplicationAppearance {
                 theme_mode: ThemeMode::System as i32,
                 density: Density::Comfortable as i32,
-                ..Default::default()
             }),
             report: Some(ReportDefaults {
                 source_bytes: 64 * 1024 * 1024,
