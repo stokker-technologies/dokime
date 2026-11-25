@@ -44,6 +44,7 @@ use dokime_operations::{
     Error, Result,
     host::{self, Progress, RunAction, StartedCycle},
 };
+use dokime_protocol::host::AppearanceSnapshot;
 use dokime_protocol::host::BootstrapPaths;
 use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ExecutionControls;
@@ -77,6 +78,7 @@ pub(super) struct State {
     pub status: Arc<Status>,
     pub root: PathBuf,
     pub identity: HostIdentity,
+    pub appearance: AppearanceSnapshot,
 }
 
 /* === Enums === */
@@ -162,6 +164,9 @@ impl host::Host for State {
             return Cow::Owned(bytes);
         }
         Cow::Borrowed(include_bytes!(template!()))
+    }
+    fn appearance(&self) -> AppearanceSnapshot {
+        self.appearance.clone()
     }
     async fn plugins(&self) -> Result<Vec<PluginEntry>> {
         let reply = self

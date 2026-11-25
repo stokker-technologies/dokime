@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::error::Error;
+use std::{error::Error, fs};
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -36,7 +36,7 @@ use dokime_protocol::host::{
     document_binding_result, document_frame_frame, report_subject,
 };
 use dokime_protocol::model::{Downsample, PlotHistogramOptions, PlotKind, card};
-use dokime_runtime::{Host, services};
+use dokime_runtime::{Host, HostSettings, services};
 use dokime_storage::Store;
 
 /* === Constants === */
@@ -92,10 +92,19 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             host.shutdown().await?;
             drop(host);
 
-            // Preview the Named Document Through the Active Host Without Publication.
-            let server =
-                services::serve(([127, 0, 0, 1], 0).into(), root.path(), super::support::settings(), super::support::service_settings())
-                    .await?;
+            // Preview the Named Document Through a Host Whose Installation Brands Its Reports.
+            let installation = super::support::tempdir()?;
+            let pack = installation.path().join("organization");
+            fs::create_dir_all(pack.join("theme"))?;
+            fs::write(pack.join("organization.toml"), "[app]\nlabel = 'Example Lab'\n[app.logos.transparent]\non_light = 'mark.svg'\n")?;
+            fs::write(pack.join("mark.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>")?;
+            fs::write(pack.join("sans.woff2"), [0, 1, 2])?;
+            fs::write(pack.join("theme/typography.css"), "@font-face { font-family: Example; src: url(sans.woff2) }")?;
+            let settings = HostSettings {
+                installation: Some(installation.path().to_path_buf()),
+                ..super::support::settings()
+            };
+            let server = services::serve(([127, 0, 0, 1], 0).into(), root.path(), settings, super::support::service_settings()).await?;
             let endpoint = format!("http://{}", server.endpoint());
             let mut reports = ReportsClient::connect(endpoint.clone()).await?;
             let mut files = FilesClient::connect(endpoint.clone()).await?;
@@ -216,6 +225,10 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
                 html.extend(reply.data);
             }
             let capture = decode_report(&html)?;
+            let appearance = capture.appearance.as_ref().and_then(|reply| reply.appearance.as_ref()).ok_or("Report Has No Appearance")?;
+            assert_eq!(appearance.app_name, "Example Lab");
+            assert!(appearance.themes[0].stylesheet().contains("url(\"data:font/woff2;base64,AAEC\")"));
+            assert!(appearance.logos[0].data_uri.starts_with("data:image/svg+xml;base64,"));
             assert_eq!(capture.executions.len(), 1);
             let captured = &capture.executions[0];
             assert_eq!(captured.detail.as_ref().unwrap().execution.as_ref().unwrap().summary.as_ref().unwrap().execution_id, execution);

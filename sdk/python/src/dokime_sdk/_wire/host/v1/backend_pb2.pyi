@@ -2,7 +2,6 @@ from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
-from harmos._wire.model.v1 import file_pb2 as _file_pb2
 from harmos._wire.model.v1 import position_pb2 as _position_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -28,15 +27,6 @@ class ThemeModePolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     THEME_MODE_POLICY_FORCE_SYSTEM: _ClassVar[ThemeModePolicy]
     THEME_MODE_POLICY_FORCE_LIGHT: _ClassVar[ThemeModePolicy]
     THEME_MODE_POLICY_FORCE_DARK: _ClassVar[ThemeModePolicy]
-
-class AppearanceFailureKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    APPEARANCE_FAILURE_KIND_UNSPECIFIED: _ClassVar[AppearanceFailureKind]
-    APPEARANCE_FAILURE_KIND_ASSET_MISSING: _ClassVar[AppearanceFailureKind]
-    APPEARANCE_FAILURE_KIND_ASSET_CHANGED: _ClassVar[AppearanceFailureKind]
-    APPEARANCE_FAILURE_KIND_TOO_LARGE: _ClassVar[AppearanceFailureKind]
-    APPEARANCE_FAILURE_KIND_INVALID_REFERENCE: _ClassVar[AppearanceFailureKind]
-    APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE: _ClassVar[AppearanceFailureKind]
 LOGO_VARIANT_UNSPECIFIED: LogoVariant
 LOGO_VARIANT_TRANSPARENT_ON_LIGHT: LogoVariant
 LOGO_VARIANT_TRANSPARENT_ON_DARK: LogoVariant
@@ -47,12 +37,6 @@ THEME_MODE_POLICY_USER_OR_SYSTEM: ThemeModePolicy
 THEME_MODE_POLICY_FORCE_SYSTEM: ThemeModePolicy
 THEME_MODE_POLICY_FORCE_LIGHT: ThemeModePolicy
 THEME_MODE_POLICY_FORCE_DARK: ThemeModePolicy
-APPEARANCE_FAILURE_KIND_UNSPECIFIED: AppearanceFailureKind
-APPEARANCE_FAILURE_KIND_ASSET_MISSING: AppearanceFailureKind
-APPEARANCE_FAILURE_KIND_ASSET_CHANGED: AppearanceFailureKind
-APPEARANCE_FAILURE_KIND_TOO_LARGE: AppearanceFailureKind
-APPEARANCE_FAILURE_KIND_INVALID_REFERENCE: AppearanceFailureKind
-APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE: AppearanceFailureKind
 
 @final
 class BackendAppearanceRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
@@ -100,7 +84,6 @@ class AppearanceSnapshot(_message.Message, metaclass=GeneratedProtocolMessageTyp
     THEME_FAMILY_LOCKED_FIELD_NUMBER: _ClassVar[int]
     MODE_POLICY_FIELD_NUMBER: _ClassVar[int]
     MODE_LOCKED_FIELD_NUMBER: _ClassVar[int]
-    SOURCE_PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     app_name: str
     organization: OrganizationIdentity
     title_template: str
@@ -110,8 +93,7 @@ class AppearanceSnapshot(_message.Message, metaclass=GeneratedProtocolMessageTyp
     theme_family_locked: bool
     mode_policy: ThemeModePolicy
     mode_locked: bool
-    source_plugin_id: str
-    def __init__(self, app_name: _Optional[str] = ..., organization: _Optional[_Union[OrganizationIdentity, _Mapping]] = ..., title_template: _Optional[str] = ..., logos: _Optional[_Iterable[_Union[AppearanceLogo, _Mapping]]] = ..., themes: _Optional[_Iterable[_Union[ThemeFamily, _Mapping]]] = ..., active_theme: _Optional[str] = ..., theme_family_locked: _Optional[bool] = ..., mode_policy: _Optional[_Union[ThemeModePolicy, str]] = ..., mode_locked: _Optional[bool] = ..., source_plugin_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, app_name: _Optional[str] = ..., organization: _Optional[_Union[OrganizationIdentity, _Mapping]] = ..., title_template: _Optional[str] = ..., logos: _Optional[_Iterable[_Union[AppearanceLogo, _Mapping]]] = ..., themes: _Optional[_Iterable[_Union[ThemeFamily, _Mapping]]] = ..., active_theme: _Optional[str] = ..., theme_family_locked: _Optional[bool] = ..., mode_policy: _Optional[_Union[ThemeModePolicy, str]] = ..., mode_locked: _Optional[bool] = ...) -> None: ...
 
 @final
 class OrganizationIdentity(_message.Message, metaclass=GeneratedProtocolMessageType):
@@ -128,12 +110,12 @@ class OrganizationIdentity(_message.Message, metaclass=GeneratedProtocolMessageT
 class AppearanceLogo(_message.Message, metaclass=GeneratedProtocolMessageType):
     __slots__: tuple[str, ...]
     VARIANT_FIELD_NUMBER: _ClassVar[int]
-    ASSET_FIELD_NUMBER: _ClassVar[int]
     ALT_FIELD_NUMBER: _ClassVar[int]
+    DATA_URI_FIELD_NUMBER: _ClassVar[int]
     variant: LogoVariant
-    asset: AppearanceAssetMetadata
     alt: str
-    def __init__(self, variant: _Optional[_Union[LogoVariant, str]] = ..., asset: _Optional[_Union[AppearanceAssetMetadata, _Mapping]] = ..., alt: _Optional[str] = ...) -> None: ...
+    data_uri: str
+    def __init__(self, variant: _Optional[_Union[LogoVariant, str]] = ..., alt: _Optional[str] = ..., data_uri: _Optional[str] = ...) -> None: ...
 
 @final
 class ThemeFamily(_message.Message, metaclass=GeneratedProtocolMessageType):
@@ -146,7 +128,6 @@ class ThemeFamily(_message.Message, metaclass=GeneratedProtocolMessageType):
         key: str
         value: str
         def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
-    PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     THEME_ID_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
@@ -155,7 +136,6 @@ class ThemeFamily(_message.Message, metaclass=GeneratedProtocolMessageType):
     CORNER_RADII_FIELD_NUMBER: _ClassVar[int]
     LIGHT_FIELD_NUMBER: _ClassVar[int]
     DARK_FIELD_NUMBER: _ClassVar[int]
-    plugin_id: str
     theme_id: str
     label: str
     description: str
@@ -164,7 +144,7 @@ class ThemeFamily(_message.Message, metaclass=GeneratedProtocolMessageType):
     corner_radii: ThemeCornerRadii
     light: ThemeVariant
     dark: ThemeVariant
-    def __init__(self, plugin_id: _Optional[str] = ..., theme_id: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ..., stylesheet: _Optional[str] = ..., variables: _Optional[_Mapping[str, str]] = ..., corner_radii: _Optional[_Union[ThemeCornerRadii, _Mapping]] = ..., light: _Optional[_Union[ThemeVariant, _Mapping]] = ..., dark: _Optional[_Union[ThemeVariant, _Mapping]] = ...) -> None: ...
+    def __init__(self, theme_id: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ..., stylesheet: _Optional[str] = ..., variables: _Optional[_Mapping[str, str]] = ..., corner_radii: _Optional[_Union[ThemeCornerRadii, _Mapping]] = ..., light: _Optional[_Union[ThemeVariant, _Mapping]] = ..., dark: _Optional[_Union[ThemeVariant, _Mapping]] = ...) -> None: ...
 
 @final
 class ThemeCornerRadii(_message.Message, metaclass=GeneratedProtocolMessageType):
@@ -203,34 +183,3 @@ class ThemeVariant(_message.Message, metaclass=GeneratedProtocolMessageType):
     variables: _containers.ScalarMap[str, str]
     plot_palette: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, variables: _Optional[_Mapping[str, str]] = ..., plot_palette: _Optional[_Iterable[str]] = ...) -> None: ...
-
-@final
-class AppearanceFailure(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__: tuple[str, ...]
-    KIND_FIELD_NUMBER: _ClassVar[int]
-    kind: AppearanceFailureKind
-    def __init__(self, kind: _Optional[_Union[AppearanceFailureKind, str]] = ...) -> None: ...
-
-@final
-class AppearanceAssetReference(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__: tuple[str, ...]
-    PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
-    ASSET_ID_FIELD_NUMBER: _ClassVar[int]
-    SHA256_FIELD_NUMBER: _ClassVar[int]
-    plugin_id: str
-    asset_id: str
-    sha256: str
-    def __init__(self, plugin_id: _Optional[str] = ..., asset_id: _Optional[str] = ..., sha256: _Optional[str] = ...) -> None: ...
-
-@final
-class AppearanceAssetMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__: tuple[str, ...]
-    REFERENCE_FIELD_NUMBER: _ClassVar[int]
-    CONTENT_TYPE_FIELD_NUMBER: _ClassVar[int]
-    SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
-    FILE_FIELD_NUMBER: _ClassVar[int]
-    reference: AppearanceAssetReference
-    content_type: str
-    size_bytes: int
-    file: _file_pb2.FileReference
-    def __init__(self, reference: _Optional[_Union[AppearanceAssetReference, _Mapping]] = ..., content_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ...) -> None: ...

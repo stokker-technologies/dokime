@@ -1616,8 +1616,6 @@ pub struct AppearanceSnapshot {
     pub mode_policy: i32,
     #[prost(bool, tag = "9")]
     pub mode_locked: bool,
-    #[prost(string, optional, tag = "10")]
-    pub source_plugin_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1634,16 +1632,14 @@ pub struct OrganizationIdentity {
 pub struct AppearanceLogo {
     #[prost(enumeration = "LogoVariant", tag = "1")]
     pub variant: i32,
-    #[prost(message, optional, tag = "2")]
-    pub asset: ::core::option::Option<AppearanceAssetMetadata>,
     #[prost(string, optional, tag = "3")]
     pub alt: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "4")]
+    pub data_uri: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ThemeFamily {
-    #[prost(string, tag = "1")]
-    pub plugin_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub theme_id: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
@@ -1694,34 +1690,6 @@ pub struct ThemeVariant {
     >,
     #[prost(string, repeated, tag = "2")]
     pub plot_palette: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct AppearanceFailure {
-    #[prost(enumeration = "AppearanceFailureKind", tag = "1")]
-    pub kind: i32,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct AppearanceAssetReference {
-    #[prost(string, tag = "1")]
-    pub plugin_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub asset_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub sha256: ::prost::alloc::string::String,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct AppearanceAssetMetadata {
-    #[prost(message, optional, tag = "1")]
-    pub reference: ::core::option::Option<AppearanceAssetReference>,
-    #[prost(string, tag = "2")]
-    pub content_type: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "3")]
-    pub size_bytes: u64,
-    #[prost(message, optional, tag = "4")]
-    pub file: ::core::option::Option<::harmos_protocol::model::FileReference>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -1791,45 +1759,6 @@ impl ThemeModePolicy {
             "THEME_MODE_POLICY_FORCE_SYSTEM" => Some(Self::ForceSystem),
             "THEME_MODE_POLICY_FORCE_LIGHT" => Some(Self::ForceLight),
             "THEME_MODE_POLICY_FORCE_DARK" => Some(Self::ForceDark),
-            _ => None,
-        }
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum AppearanceFailureKind {
-    Unspecified = 0,
-    AssetMissing = 1,
-    AssetChanged = 2,
-    TooLarge = 3,
-    InvalidReference = 4,
-    AssetUnavailable = 5,
-}
-impl AppearanceFailureKind {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            Self::Unspecified => "APPEARANCE_FAILURE_KIND_UNSPECIFIED",
-            Self::AssetMissing => "APPEARANCE_FAILURE_KIND_ASSET_MISSING",
-            Self::AssetChanged => "APPEARANCE_FAILURE_KIND_ASSET_CHANGED",
-            Self::TooLarge => "APPEARANCE_FAILURE_KIND_TOO_LARGE",
-            Self::InvalidReference => "APPEARANCE_FAILURE_KIND_INVALID_REFERENCE",
-            Self::AssetUnavailable => "APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "APPEARANCE_FAILURE_KIND_UNSPECIFIED" => Some(Self::Unspecified),
-            "APPEARANCE_FAILURE_KIND_ASSET_MISSING" => Some(Self::AssetMissing),
-            "APPEARANCE_FAILURE_KIND_ASSET_CHANGED" => Some(Self::AssetChanged),
-            "APPEARANCE_FAILURE_KIND_TOO_LARGE" => Some(Self::TooLarge),
-            "APPEARANCE_FAILURE_KIND_INVALID_REFERENCE" => Some(Self::InvalidReference),
-            "APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE" => Some(Self::AssetUnavailable),
             _ => None,
         }
     }

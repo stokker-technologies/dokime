@@ -15,6 +15,7 @@ pub mod installation;
 #[cfg(feature = "installer")]
 pub mod installer;
 
+pub mod organization;
 pub mod project;
 
 /* === Re-Exports === */

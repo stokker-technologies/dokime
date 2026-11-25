@@ -13,26 +13,16 @@
 
 /* === Imports === */
 
-import type * as appearance from "@/lib/types/appearance";
-
-import type { RuntimeAppLogo } from "@/lib/types/appearance";
-
-import { LogoVariant } from "@generated/host/model";
-
-import { defaultBrand } from "./brand";
-
-import type { BackendAppearanceResponse } from "@generated/host/model";
-import type { Wire } from "@/lib/rpc/canonical";
-
-import type { RuntimeAppearanceFrame } from "@/lib/types/appearance";
-
-import { ThemeModePolicy } from "@generated/host/model";
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
+import type { Wire } from "@/lib/rpc/canonical";
+import type * as appearance from "@/lib/types/appearance";
+import type { RuntimeAppearanceFrame, RuntimeAppLogo } from "@/lib/types/appearance";
+import { type BackendAppearanceResponse, LogoVariant, ThemeModePolicy } from "@generated/host/model";
+import { defaultBrand } from "./brand";
 
 /* === Re-Exports === */
 
@@ -40,21 +30,13 @@ import { ThemeModePolicy } from "@generated/host/model";
 
 /* === Types === */
 
-type AppearanceSnapshot = Wire<NonNullable<BackendAppearanceResponse["appearance"]>>;
-
-export interface AppearanceResource {
-  appearance: AppearanceSnapshot;
-  logos: RuntimeAppLogo[];
-  unavailableReason?: string;
-  dispose(): void;
-}
+export type AppearanceSnapshot = Wire<NonNullable<BackendAppearanceResponse["appearance"]>>;
 
 /* === Classes === */
 
 /* === Public Functions === */
 
-export function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppearanceFrame {
-  const snapshot = resource.appearance;
+export function appearanceFrameFromNative(snapshot: AppearanceSnapshot): RuntimeAppearanceFrame {
   return {
     app_name: snapshot.appName || defaultBrand.label,
     organization: snapshot.organization
@@ -65,9 +47,8 @@ export function appearanceFrameFromNative(resource: AppearanceResource): Runtime
         }
       : null,
     title_template: snapshot.titleTemplate ?? "{app}",
-    logos: resource.logos,
+    logos: snapshot.logos.map((logo) => ({ variant: logoVariant(logo), url: logo.dataUri, alt: logo.alt ?? null })),
     themes: snapshot.themes.map((theme) => ({
-      plugin_id: theme.pluginId,
       theme_id: theme.themeId,
       label: theme.label,
       description: theme.description ?? null,
@@ -98,11 +79,12 @@ export function appearanceFrameFromNative(resource: AppearanceResource): Runtime
     theme_family_locked: snapshot.themeFamilyLocked,
     mode_policy: nativeModePolicy(snapshot.modePolicy),
     mode_locked: snapshot.modeLocked,
-    source_plugin_id: snapshot.sourcePluginId ?? null,
   };
 }
 
-export function logoVariant(logo: AppearanceSnapshot["logos"][number]): RuntimeAppLogo["variant"] {
+/* === Private Functions === */
+
+function logoVariant(logo: AppearanceSnapshot["logos"][number]): RuntimeAppLogo["variant"] {
   switch (logo.variant) {
     case LogoVariant.TRANSPARENT_ON_LIGHT:
       return "transparent_on_light";
@@ -117,9 +99,7 @@ export function logoVariant(logo: AppearanceSnapshot["logos"][number]): RuntimeA
   }
 }
 
-/* === Private Functions === */
-
-function nativeModePolicy(policy: AppearanceResource["appearance"]["modePolicy"]): appearance.ThemeModePolicy {
+function nativeModePolicy(policy: AppearanceSnapshot["modePolicy"]): appearance.ThemeModePolicy {
   switch (policy) {
     case ThemeModePolicy.FORCE_SYSTEM:
       return "force_system";

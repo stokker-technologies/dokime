@@ -18,11 +18,10 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_gui::testing::policy::Source;
-use dokime_gui::testing::policy::{Mode, UpdatePolicy};
 #[cfg(feature = "updater")]
 use dokime_gui::testing::update_client;
 use dokime_gui::testing::{UpdateProbe, UpdateSelection};
+use dokime_packaging::organization::policy::{Mode, Source, UpdatePolicy};
 #[cfg(feature = "updater")]
 use std::{sync::Arc, time::Duration};
 #[cfg(feature = "updater")]

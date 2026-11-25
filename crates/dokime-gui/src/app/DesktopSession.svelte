@@ -4,7 +4,7 @@
   import ErrorCard from "../components/ErrorCard.svelte";
   import Button from "../components/ui/Button.svelte";
   import { releaseNativeMedia } from "../lib/api/native-delivery";
-  import type { AppearanceResource } from "../lib/native-appearance";
+  import type { AppearanceSnapshot } from "../lib/native-appearance";
   import { failureOf } from "../lib/notification-details";
   import { loadAppearance } from "../lib/rpc/appearance";
   import DesktopPresentation from "./DesktopPresentation.svelte";
@@ -12,7 +12,7 @@
   import type { ConnectedSession, NativeSession } from "./native-session/session";
 
   let { owner, session }: { owner: NativeSession; session: ConnectedSession } = $props();
-  let appearance = $state.raw<AppearanceResource | null>(null);
+  let appearance = $state.raw<AppearanceSnapshot | null>(null);
   let error = $state.raw<unknown>();
   let attempt = $state(0);
 
@@ -27,7 +27,6 @@
     void attempt;
     const current = session;
     let active = true;
-    let release: (() => void) | undefined;
     error = undefined;
     void loadAppearance(current.identity)
       .catch((error: unknown) => {
@@ -36,13 +35,10 @@
         }
         throw error;
       })
-      .then((resource) => {
-        if (!active || !current.identity.isCurrent()) {
-          resource.dispose();
-          return;
+      .then((snapshot) => {
+        if (active && current.identity.isCurrent()) {
+          appearance = snapshot;
         }
-        release = current.own(() => resource.dispose());
-        appearance = resource;
       })
       .catch((failure: unknown) => {
         if (active && current.identity.isCurrent()) {
@@ -51,7 +47,6 @@
       });
     return () => {
       active = false;
-      release?.();
     };
   });
 
@@ -68,9 +63,6 @@
   {#snippet children(
     presentation,
   )}
-    {#if appearance?.unavailableReason}
-      <div class="border-b p-3 text-sm text-muted-foreground" role="status">{appearance.unavailableReason}</div>
-    {/if}
     {#if error}
       <main class="mx-auto max-w-xl space-y-4 p-8">
         <h1 class="font-heading text-2xl">Appearance Unavailable</h1>

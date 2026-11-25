@@ -332,6 +332,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         operations: runtime.operations.clone(),
         catalogs: catalogs.clone(),
         identity,
+        appearance: host.installed_appearance(settings.message_bytes),
     };
     let context = Arc::new(Context {
         administration,

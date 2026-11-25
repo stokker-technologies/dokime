@@ -57,7 +57,7 @@ pub(super) fn write_ico(image: &DynamicImage, path: &Path) -> Result<(), Error> 
 }
 
 pub(super) fn sidebar(pack: &super::pack::ResolvedPack, path: &Path) -> Result<(), Error> {
-    let color = pack.installer_sidebar_color()?;
+    let color = pack.installer_sidebar_color().map_err(Error::Invalid)?;
     let bitmap = match pack.installer_sidebar_image() {
         Some((_, bytes)) => {
             let image = image::load_from_memory_with_format(bytes, ImageFormat::Png).map_err(image_error)?;

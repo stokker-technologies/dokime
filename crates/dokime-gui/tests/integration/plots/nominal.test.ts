@@ -1285,7 +1285,6 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
   const light = ["#123456", "#654321"];
   const dark = ["#abcdef", "#fedcba"];
   const family: RuntimeThemeFamily = {
-    plugin_id: "organization",
     theme_id: "plot-visibility",
     label: "Plot Visibility",
     light: { variables: {}, plot_palette: light },
@@ -1299,7 +1298,6 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     theme_family_locked: false,
     mode_policy: "user_or_system",
     mode_locked: false,
-    source_plugin_id: null,
   };
   for (const mode of ["light", "dark"] as const) {
     assert.deepEqual(desktopPlotPalette(materializeThemeFamilyVariables(family, mode)), family[mode].plot_palette);

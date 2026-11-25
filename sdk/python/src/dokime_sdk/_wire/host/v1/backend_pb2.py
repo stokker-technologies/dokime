@@ -23,11 +23,10 @@ _sym_db = _symbol_database.Default()
 
 
 from harmos._wire.model.v1 import callers_pb2 as harmos_dot_model_dot_v1_dot_callers__pb2
-from harmos._wire.model.v1 import file_pb2 as harmos_dot_model_dot_v1_dot_file__pb2
 from harmos._wire.model.v1 import position_pb2 as harmos_dot_model_dot_v1_dot_position__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x64okime/host/v1/backend.proto\x12\x0e\x64okime.host.v1\x1a\x1dharmos/model/v1/callers.proto\x1a\x1aharmos/model/v1/file.proto\x1a\x1eharmos/model/v1/position.proto\"L\n\x18\x42\x61\x63kendAppearanceRequest\x12)\n\x02\x61t\x18\x01 \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\x82\x01\n\x19\x42\x61\x63kendAppearanceResponse\x12\x36\n\nappearance\x18\x01 \x01(\x0b\x32\".dokime.host.v1.AppearanceSnapshot\x12-\n\x0bresolved_at\x18\x02 \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"N\n\x19\x42\x61\x63kendEnvironmentRequest\x12*\n\x02\x61t\x18\x01 \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x00\x88\x01\x01\x42\x05\n\x03_at\"r\n\x1a\x42\x61\x63kendEnvironmentResponse\x12\x13\n\x0b\x62\x61\x63kend_pid\x18\x01 \x01(\r\x12\x0f\n\x07in_step\x18\x02 \x01(\x08\x12.\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x19.harmos.model.v1.Position\"\xb6\x03\n\x12\x41ppearanceSnapshot\x12\x10\n\x08\x61pp_name\x18\x01 \x01(\t\x12:\n\x0corganization\x18\x02 \x01(\x0b\x32$.dokime.host.v1.OrganizationIdentity\x12\x1b\n\x0etitle_template\x18\x03 \x01(\tH\x00\x88\x01\x01\x12-\n\x05logos\x18\x04 \x03(\x0b\x32\x1e.dokime.host.v1.AppearanceLogo\x12+\n\x06themes\x18\x05 \x03(\x0b\x32\x1b.dokime.host.v1.ThemeFamily\x12\x19\n\x0c\x61\x63tive_theme\x18\x06 \x01(\tH\x01\x88\x01\x01\x12\x1b\n\x13theme_family_locked\x18\x07 \x01(\x08\x12\x34\n\x0bmode_policy\x18\x08 \x01(\x0e\x32\x1f.dokime.host.v1.ThemeModePolicy\x12\x13\n\x0bmode_locked\x18\t \x01(\x08\x12\x1d\n\x10source_plugin_id\x18\n \x01(\tH\x02\x88\x01\x01\x42\x11\n\x0f_title_templateB\x0f\n\r_active_themeB\x13\n\x11_source_plugin_id\"b\n\x14OrganizationIdentity\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\x04unit\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\x14\n\x07website\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x07\n\x05_unitB\n\n\x08_website\"\x90\x01\n\x0e\x41ppearanceLogo\x12,\n\x07variant\x18\x01 \x01(\x0e\x32\x1b.dokime.host.v1.LogoVariant\x12\x36\n\x05\x61sset\x18\x02 \x01(\x0b\x32\'.dokime.host.v1.AppearanceAssetMetadata\x12\x10\n\x03\x61lt\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\x06\n\x04_alt\"\x95\x03\n\x0bThemeFamily\x12\x11\n\tplugin_id\x18\x01 \x01(\t\x12\x10\n\x08theme_id\x18\x02 \x01(\t\x12\r\n\x05label\x18\x03 \x01(\t\x12\x18\n\x0b\x64\x65scription\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x17\n\nstylesheet\x18\x05 \x01(\tH\x01\x88\x01\x01\x12=\n\tvariables\x18\x06 \x03(\x0b\x32*.dokime.host.v1.ThemeFamily.VariablesEntry\x12\x36\n\x0c\x63orner_radii\x18\x07 \x01(\x0b\x32 .dokime.host.v1.ThemeCornerRadii\x12+\n\x05light\x18\x08 \x01(\x0b\x32\x1c.dokime.host.v1.ThemeVariant\x12*\n\x04\x64\x61rk\x18\t \x01(\x0b\x32\x1c.dokime.host.v1.ThemeVariant\x1a\x30\n\x0eVariablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x0e\n\x0c_descriptionB\r\n\x0b_stylesheet\"\xf4\x01\n\x10ThemeCornerRadii\x12\x11\n\x04\x62\x61se\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x0f\n\x02sm\x18\x02 \x01(\tH\x01\x88\x01\x01\x12\x0f\n\x02md\x18\x03 \x01(\tH\x02\x88\x01\x01\x12\x0f\n\x02lg\x18\x04 \x01(\tH\x03\x88\x01\x01\x12\x0f\n\x02xl\x18\x05 \x01(\tH\x04\x88\x01\x01\x12\x13\n\x06two_xl\x18\x06 \x01(\tH\x05\x88\x01\x01\x12\x15\n\x08three_xl\x18\x07 \x01(\tH\x06\x88\x01\x01\x12\x14\n\x07\x66our_xl\x18\x08 \x01(\tH\x07\x88\x01\x01\x42\x07\n\x05_baseB\x05\n\x03_smB\x05\n\x03_mdB\x05\n\x03_lgB\x05\n\x03_xlB\t\n\x07_two_xlB\x0b\n\t_three_xlB\n\n\x08_four_xl\"\x96\x01\n\x0cThemeVariant\x12>\n\tvariables\x18\x01 \x03(\x0b\x32+.dokime.host.v1.ThemeVariant.VariablesEntry\x12\x14\n\x0cplot_palette\x18\x02 \x03(\t\x1a\x30\n\x0eVariablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"H\n\x11\x41ppearanceFailure\x12\x33\n\x04kind\x18\x01 \x01(\x0e\x32%.dokime.host.v1.AppearanceFailureKind\"O\n\x18\x41ppearanceAssetReference\x12\x11\n\tplugin_id\x18\x01 \x01(\t\x12\x10\n\x08\x61sset_id\x18\x02 \x01(\t\x12\x0e\n\x06sha256\x18\x03 \x01(\t\"\xae\x01\n\x17\x41ppearanceAssetMetadata\x12;\n\treference\x18\x01 \x01(\x0b\x32(.dokime.host.v1.AppearanceAssetReference\x12\x14\n\x0c\x63ontent_type\x18\x02 \x01(\t\x12\x12\n\nsize_bytes\x18\x03 \x01(\x04\x12,\n\x04\x66ile\x18\x04 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference*\xc1\x01\n\x0bLogoVariant\x12\x1c\n\x18LOGO_VARIANT_UNSPECIFIED\x10\x00\x12%\n!LOGO_VARIANT_TRANSPARENT_ON_LIGHT\x10\x01\x12$\n LOGO_VARIANT_TRANSPARENT_ON_DARK\x10\x02\x12#\n\x1fLOGO_VARIANT_CONTAINED_ON_LIGHT\x10\x03\x12\"\n\x1eLOGO_VARIANT_CONTAINED_ON_DARK\x10\x04*\xc3\x01\n\x0fThemeModePolicy\x12!\n\x1dTHEME_MODE_POLICY_UNSPECIFIED\x10\x00\x12$\n THEME_MODE_POLICY_USER_OR_SYSTEM\x10\x01\x12\"\n\x1eTHEME_MODE_POLICY_FORCE_SYSTEM\x10\x02\x12!\n\x1dTHEME_MODE_POLICY_FORCE_LIGHT\x10\x03\x12 \n\x1cTHEME_MODE_POLICY_FORCE_DARK\x10\x04*\x9b\x02\n\x15\x41ppearanceFailureKind\x12\'\n#APPEARANCE_FAILURE_KIND_UNSPECIFIED\x10\x00\x12)\n%APPEARANCE_FAILURE_KIND_ASSET_MISSING\x10\x01\x12)\n%APPEARANCE_FAILURE_KIND_ASSET_CHANGED\x10\x02\x12%\n!APPEARANCE_FAILURE_KIND_TOO_LARGE\x10\x03\x12-\n)APPEARANCE_FAILURE_KIND_INVALID_REFERENCE\x10\x04\x12-\n)APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE\x10\x05\x32\xde\x01\n\x07\x42\x61\x63kend\x12g\n\nAppearance\x12(.dokime.host.v1.BackendAppearanceRequest\x1a).dokime.host.v1.BackendAppearanceResponse\"\x04\xc8\xf3\x18\x01\x12j\n\x0b\x45nvironment\x12).dokime.host.v1.BackendEnvironmentRequest\x1a*.dokime.host.v1.BackendEnvironmentResponse\"\x04\xc8\xf3\x18\x02\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x64okime/host/v1/backend.proto\x12\x0e\x64okime.host.v1\x1a\x1dharmos/model/v1/callers.proto\x1a\x1eharmos/model/v1/position.proto\"L\n\x18\x42\x61\x63kendAppearanceRequest\x12)\n\x02\x61t\x18\x01 \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\x82\x01\n\x19\x42\x61\x63kendAppearanceResponse\x12\x36\n\nappearance\x18\x01 \x01(\x0b\x32\".dokime.host.v1.AppearanceSnapshot\x12-\n\x0bresolved_at\x18\x02 \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"N\n\x19\x42\x61\x63kendEnvironmentRequest\x12*\n\x02\x61t\x18\x01 \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x00\x88\x01\x01\x42\x05\n\x03_at\"r\n\x1a\x42\x61\x63kendEnvironmentResponse\x12\x13\n\x0b\x62\x61\x63kend_pid\x18\x01 \x01(\r\x12\x0f\n\x07in_step\x18\x02 \x01(\x08\x12.\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x19.harmos.model.v1.Position\"\x9a\x03\n\x12\x41ppearanceSnapshot\x12\x10\n\x08\x61pp_name\x18\x01 \x01(\t\x12:\n\x0corganization\x18\x02 \x01(\x0b\x32$.dokime.host.v1.OrganizationIdentity\x12\x1b\n\x0etitle_template\x18\x03 \x01(\tH\x00\x88\x01\x01\x12-\n\x05logos\x18\x04 \x03(\x0b\x32\x1e.dokime.host.v1.AppearanceLogo\x12+\n\x06themes\x18\x05 \x03(\x0b\x32\x1b.dokime.host.v1.ThemeFamily\x12\x19\n\x0c\x61\x63tive_theme\x18\x06 \x01(\tH\x01\x88\x01\x01\x12\x1b\n\x13theme_family_locked\x18\x07 \x01(\x08\x12\x34\n\x0bmode_policy\x18\x08 \x01(\x0e\x32\x1f.dokime.host.v1.ThemeModePolicy\x12\x13\n\x0bmode_locked\x18\t \x01(\x08\x42\x11\n\x0f_title_templateB\x0f\n\r_active_themeJ\x04\x08\n\x10\x0bR\x10source_plugin_id\"b\n\x14OrganizationIdentity\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\x04unit\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\x14\n\x07website\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x07\n\x05_unitB\n\n\x08_website\"w\n\x0e\x41ppearanceLogo\x12,\n\x07variant\x18\x01 \x01(\x0e\x32\x1b.dokime.host.v1.LogoVariant\x12\x10\n\x03\x61lt\x18\x03 \x01(\tH\x00\x88\x01\x01\x12\x10\n\x08\x64\x61ta_uri\x18\x04 \x01(\tB\x06\n\x04_altJ\x04\x08\x02\x10\x03R\x05\x61sset\"\x93\x03\n\x0bThemeFamily\x12\x10\n\x08theme_id\x18\x02 \x01(\t\x12\r\n\x05label\x18\x03 \x01(\t\x12\x18\n\x0b\x64\x65scription\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x17\n\nstylesheet\x18\x05 \x01(\tH\x01\x88\x01\x01\x12=\n\tvariables\x18\x06 \x03(\x0b\x32*.dokime.host.v1.ThemeFamily.VariablesEntry\x12\x36\n\x0c\x63orner_radii\x18\x07 \x01(\x0b\x32 .dokime.host.v1.ThemeCornerRadii\x12+\n\x05light\x18\x08 \x01(\x0b\x32\x1c.dokime.host.v1.ThemeVariant\x12*\n\x04\x64\x61rk\x18\t \x01(\x0b\x32\x1c.dokime.host.v1.ThemeVariant\x1a\x30\n\x0eVariablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x0e\n\x0c_descriptionB\r\n\x0b_stylesheetJ\x04\x08\x01\x10\x02R\tplugin_id\"\xf4\x01\n\x10ThemeCornerRadii\x12\x11\n\x04\x62\x61se\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x0f\n\x02sm\x18\x02 \x01(\tH\x01\x88\x01\x01\x12\x0f\n\x02md\x18\x03 \x01(\tH\x02\x88\x01\x01\x12\x0f\n\x02lg\x18\x04 \x01(\tH\x03\x88\x01\x01\x12\x0f\n\x02xl\x18\x05 \x01(\tH\x04\x88\x01\x01\x12\x13\n\x06two_xl\x18\x06 \x01(\tH\x05\x88\x01\x01\x12\x15\n\x08three_xl\x18\x07 \x01(\tH\x06\x88\x01\x01\x12\x14\n\x07\x66our_xl\x18\x08 \x01(\tH\x07\x88\x01\x01\x42\x07\n\x05_baseB\x05\n\x03_smB\x05\n\x03_mdB\x05\n\x03_lgB\x05\n\x03_xlB\t\n\x07_two_xlB\x0b\n\t_three_xlB\n\n\x08_four_xl\"\x96\x01\n\x0cThemeVariant\x12>\n\tvariables\x18\x01 \x03(\x0b\x32+.dokime.host.v1.ThemeVariant.VariablesEntry\x12\x14\n\x0cplot_palette\x18\x02 \x03(\t\x1a\x30\n\x0eVariablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01*\xc1\x01\n\x0bLogoVariant\x12\x1c\n\x18LOGO_VARIANT_UNSPECIFIED\x10\x00\x12%\n!LOGO_VARIANT_TRANSPARENT_ON_LIGHT\x10\x01\x12$\n LOGO_VARIANT_TRANSPARENT_ON_DARK\x10\x02\x12#\n\x1fLOGO_VARIANT_CONTAINED_ON_LIGHT\x10\x03\x12\"\n\x1eLOGO_VARIANT_CONTAINED_ON_DARK\x10\x04*\xc3\x01\n\x0fThemeModePolicy\x12!\n\x1dTHEME_MODE_POLICY_UNSPECIFIED\x10\x00\x12$\n THEME_MODE_POLICY_USER_OR_SYSTEM\x10\x01\x12\"\n\x1eTHEME_MODE_POLICY_FORCE_SYSTEM\x10\x02\x12!\n\x1dTHEME_MODE_POLICY_FORCE_LIGHT\x10\x03\x12 \n\x1cTHEME_MODE_POLICY_FORCE_DARK\x10\x04\x32\xde\x01\n\x07\x42\x61\x63kend\x12g\n\nAppearance\x12(.dokime.host.v1.BackendAppearanceRequest\x1a).dokime.host.v1.BackendAppearanceResponse\"\x04\xc8\xf3\x18\x01\x12j\n\x0b\x45nvironment\x12).dokime.host.v1.BackendEnvironmentRequest\x1a*.dokime.host.v1.BackendEnvironmentResponse\"\x04\xc8\xf3\x18\x02\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -43,42 +42,34 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_BACKEND'].methods_by_name['Appearance']._serialized_options = b'\310\363\030\001'
   _globals['_BACKEND'].methods_by_name['Environment']._loaded_options = None
   _globals['_BACKEND'].methods_by_name['Environment']._serialized_options = b'\310\363\030\002'
-  _globals['_LOGOVARIANT']._serialized_start=2375
-  _globals['_LOGOVARIANT']._serialized_end=2568
-  _globals['_THEMEMODEPOLICY']._serialized_start=2571
-  _globals['_THEMEMODEPOLICY']._serialized_end=2766
-  _globals['_APPEARANCEFAILUREKIND']._serialized_start=2769
-  _globals['_APPEARANCEFAILUREKIND']._serialized_end=3052
-  _globals['_BACKENDAPPEARANCEREQUEST']._serialized_start=139
-  _globals['_BACKENDAPPEARANCEREQUEST']._serialized_end=215
-  _globals['_BACKENDAPPEARANCERESPONSE']._serialized_start=218
-  _globals['_BACKENDAPPEARANCERESPONSE']._serialized_end=348
-  _globals['_BACKENDENVIRONMENTREQUEST']._serialized_start=350
-  _globals['_BACKENDENVIRONMENTREQUEST']._serialized_end=428
-  _globals['_BACKENDENVIRONMENTRESPONSE']._serialized_start=430
-  _globals['_BACKENDENVIRONMENTRESPONSE']._serialized_end=544
-  _globals['_APPEARANCESNAPSHOT']._serialized_start=547
-  _globals['_APPEARANCESNAPSHOT']._serialized_end=985
-  _globals['_ORGANIZATIONIDENTITY']._serialized_start=987
-  _globals['_ORGANIZATIONIDENTITY']._serialized_end=1085
-  _globals['_APPEARANCELOGO']._serialized_start=1088
-  _globals['_APPEARANCELOGO']._serialized_end=1232
-  _globals['_THEMEFAMILY']._serialized_start=1235
-  _globals['_THEMEFAMILY']._serialized_end=1640
-  _globals['_THEMEFAMILY_VARIABLESENTRY']._serialized_start=1561
-  _globals['_THEMEFAMILY_VARIABLESENTRY']._serialized_end=1609
-  _globals['_THEMECORNERRADII']._serialized_start=1643
-  _globals['_THEMECORNERRADII']._serialized_end=1887
-  _globals['_THEMEVARIANT']._serialized_start=1890
-  _globals['_THEMEVARIANT']._serialized_end=2040
-  _globals['_THEMEVARIANT_VARIABLESENTRY']._serialized_start=1561
-  _globals['_THEMEVARIANT_VARIABLESENTRY']._serialized_end=1609
-  _globals['_APPEARANCEFAILURE']._serialized_start=2042
-  _globals['_APPEARANCEFAILURE']._serialized_end=2114
-  _globals['_APPEARANCEASSETREFERENCE']._serialized_start=2116
-  _globals['_APPEARANCEASSETREFERENCE']._serialized_end=2195
-  _globals['_APPEARANCEASSETMETADATA']._serialized_start=2198
-  _globals['_APPEARANCEASSETMETADATA']._serialized_end=2372
-  _globals['_BACKEND']._serialized_start=3055
-  _globals['_BACKEND']._serialized_end=3277
+  _globals['_LOGOVARIANT']._serialized_start=1959
+  _globals['_LOGOVARIANT']._serialized_end=2152
+  _globals['_THEMEMODEPOLICY']._serialized_start=2155
+  _globals['_THEMEMODEPOLICY']._serialized_end=2350
+  _globals['_BACKENDAPPEARANCEREQUEST']._serialized_start=111
+  _globals['_BACKENDAPPEARANCEREQUEST']._serialized_end=187
+  _globals['_BACKENDAPPEARANCERESPONSE']._serialized_start=190
+  _globals['_BACKENDAPPEARANCERESPONSE']._serialized_end=320
+  _globals['_BACKENDENVIRONMENTREQUEST']._serialized_start=322
+  _globals['_BACKENDENVIRONMENTREQUEST']._serialized_end=400
+  _globals['_BACKENDENVIRONMENTRESPONSE']._serialized_start=402
+  _globals['_BACKENDENVIRONMENTRESPONSE']._serialized_end=516
+  _globals['_APPEARANCESNAPSHOT']._serialized_start=519
+  _globals['_APPEARANCESNAPSHOT']._serialized_end=929
+  _globals['_ORGANIZATIONIDENTITY']._serialized_start=931
+  _globals['_ORGANIZATIONIDENTITY']._serialized_end=1029
+  _globals['_APPEARANCELOGO']._serialized_start=1031
+  _globals['_APPEARANCELOGO']._serialized_end=1150
+  _globals['_THEMEFAMILY']._serialized_start=1153
+  _globals['_THEMEFAMILY']._serialized_end=1556
+  _globals['_THEMEFAMILY_VARIABLESENTRY']._serialized_start=1460
+  _globals['_THEMEFAMILY_VARIABLESENTRY']._serialized_end=1508
+  _globals['_THEMECORNERRADII']._serialized_start=1559
+  _globals['_THEMECORNERRADII']._serialized_end=1803
+  _globals['_THEMEVARIANT']._serialized_start=1806
+  _globals['_THEMEVARIANT']._serialized_end=1956
+  _globals['_THEMEVARIANT_VARIABLESENTRY']._serialized_start=1460
+  _globals['_THEMEVARIANT_VARIABLESENTRY']._serialized_end=1508
+  _globals['_BACKEND']._serialized_start=2353
+  _globals['_BACKEND']._serialized_end=2575
 # @@protoc_insertion_point(module_scope)

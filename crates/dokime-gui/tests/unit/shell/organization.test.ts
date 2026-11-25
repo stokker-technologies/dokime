@@ -21,6 +21,7 @@ import { afterEach, test, vi } from "vitest";
 
 // Local Imports
 import { brandFromLogos, selectLogo, type Brand } from "@/lib/brand";
+import { appearanceFrameFromNative } from "@/lib/native-appearance";
 import { loadAppearance } from "@/lib/rpc/appearance";
 import { LogoVariant } from "@generated/host/model";
 import type { RuntimeThemeFamily } from "@/lib/types/appearance";
@@ -35,9 +36,7 @@ import { applyReportAppearance } from "@/report/report-appearance";
 const LIGHT = "data:image/svg+xml;base64,PHN2Zy8+";
 const DARK = "data:image/png;base64,iVBORw==";
 const hostAppearance = vi.hoisted(() => vi.fn());
-const fileMetadata = vi.hoisted(() => vi.fn());
-const fileRead = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/host/client", () => ({ backendAppearance: hostAppearance, filesGet: fileMetadata, filesRead: fileRead }));
+vi.mock("@/lib/host/client", () => ({ backendAppearance: hostAppearance }));
 
 /* === Types === */
 
@@ -51,7 +50,6 @@ test.each(["light", "dark"] as const)("Red Organization Palettes Keep %s Focus D
   for (const destructive of ["#d2051e", "#b42318"]) {
     const palette = { primary: "#d2051e", destructive, ring: "var(--primary)" };
     const theme: RuntimeThemeFamily = {
-      plugin_id: "organization",
       theme_id: "red-brand",
       label: "Red Brand",
       light: { variables: palette },
@@ -76,7 +74,6 @@ test.each(["light", "dark"] as const)("Red Organization Palettes Keep %s Focus D
 
 test("Explicit Focus Colors Respect Shared and Mode Theme Precedence", () => {
   const theme: RuntimeThemeFamily = {
-    plugin_id: "organization",
     theme_id: "custom-focus",
     label: "Custom Focus",
     variables: { "focus-ring": "#005577", destructive: "#d2051e" },
@@ -171,64 +168,16 @@ function documentHead(dark = false) {
 
 /* === Entry Point === */
 
-test("Host Appearance Preserves Declarations Without Inventing Asset Delivery", async () => {
+test("Host Appearance Carries Inline Logos", async () => {
   const session = { generation: "1", isCurrent: () => true };
   const logos = [
-    LogoVariant.TRANSPARENT_ON_LIGHT,
-    LogoVariant.TRANSPARENT_ON_DARK,
-    LogoVariant.CONTAINED_ON_LIGHT,
-    LogoVariant.CONTAINED_ON_DARK,
-  ].map((variant) => ({ variant }));
-  hostAppearance.mockResolvedValue({ appearance: { logos } });
-  const resource = await loadAppearance(session);
-  assert.equal(resource.appearance.logos.length, 4);
-  assert.deepEqual(resource.logos, []);
-  assert.equal(typeof resource.unavailableReason, "string");
-  resource.dispose();
-  resource.dispose();
-
-  // Installed Logo Selection Remains Independent of Connected-Host Delivery.
-  const installed = [
-    { plugin_id: "fixture", asset_id: "light", variant: "transparent_on_light" as const, url: LIGHT },
-    { plugin_id: "fixture", asset_id: "dark", variant: "transparent_on_dark" as const, url: DARK },
+    { variant: LogoVariant.TRANSPARENT_ON_LIGHT, dataUri: LIGHT },
+    { variant: LogoVariant.TRANSPARENT_ON_DARK, dataUri: DARK },
   ];
-  const brand = brandFromLogos("Fixture", installed);
+  hostAppearance.mockResolvedValue({ appearance: { appName: "Fixture", logos, themes: [] } });
+  const frame = appearanceFrameFromNative(await loadAppearance(session));
+  const brand = brandFromLogos(frame.app_name, frame.logos);
   assert.equal(selectLogo(brand, "transparent", "light")?.src, LIGHT);
   assert.equal(selectLogo(brand, "transparent", "dark")?.src, DARK);
-  hostAppearance.mockResolvedValue({ appearance: { logos: [logos[0], logos[0]] } });
-  await assert.rejects(loadAppearance(session));
-  hostAppearance.mockResolvedValue({ appearance: { logos: [] } });
-  const empty = await loadAppearance(session);
-  assert.equal(empty.unavailableReason, undefined);
-  empty.dispose();
   await assert.rejects(loadAppearance({ ...session, isCurrent: () => false }), (error: { kind: string }) => error.kind === "session");
-});
-
-test("Host Appearance Reads Verified Product Files and Releases Object URLs", async () => {
-  const session = { generation: "asset", isCurrent: () => true };
-  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  const file = { length: BigInt(bytes.length), sha256: digest, metadata: { id: "published-logo" } };
-  const at = { positions: [{ history: { store: "assets", epoch: "files" }, sequence: 1n }] };
-  hostAppearance.mockResolvedValue({
-    appearance: {
-      logos: [
-        {
-          variant: LogoVariant.TRANSPARENT_ON_LIGHT,
-          asset: { reference: { pluginId: "fixture", assetId: "logo" }, file, contentType: "image/svg+xml" },
-        },
-      ],
-    },
-  });
-  fileMetadata.mockResolvedValue({ file, chunkBytes: BigInt(bytes.length), messageBytes: 1024n, resolvedAt: at });
-  fileRead.mockResolvedValue({ data: bytes, totalLength: BigInt(bytes.length), sha256: digest, resolvedAt: at });
-  const revoke = vi.spyOn(URL, "revokeObjectURL");
-  const resource = await loadAppearance(session);
-  assert.equal(resource.logos[0].asset_id, "logo");
-  assert.ok(resource.logos[0].url.startsWith("blob:"));
-  assert.equal(resource.unavailableReason, undefined);
-  resource.dispose();
-  resource.dispose();
-  assert.deepEqual(revoke.mock.calls, [[resource.logos[0].url]]);
-  revoke.mockRestore();
 });

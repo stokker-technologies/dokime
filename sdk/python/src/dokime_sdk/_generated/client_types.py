@@ -83,12 +83,6 @@ from dokime_sdk._wire.host.v1.aggregates_pb2 import (
 )
 from dokime_sdk._wire.host.v1.backend.overview_pb2 import EvidenceCounts, OverviewGetResponse, OverviewWatchResponse, RuntimeShellSnapshot
 from dokime_sdk._wire.host.v1.backend_pb2 import (
-    APPEARANCE_FAILURE_KIND_ASSET_CHANGED,
-    APPEARANCE_FAILURE_KIND_ASSET_MISSING,
-    APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE,
-    APPEARANCE_FAILURE_KIND_INVALID_REFERENCE,
-    APPEARANCE_FAILURE_KIND_TOO_LARGE,
-    APPEARANCE_FAILURE_KIND_UNSPECIFIED,
     LOGO_VARIANT_CONTAINED_ON_DARK,
     LOGO_VARIANT_CONTAINED_ON_LIGHT,
     LOGO_VARIANT_TRANSPARENT_ON_DARK,
@@ -99,10 +93,6 @@ from dokime_sdk._wire.host.v1.backend_pb2 import (
     THEME_MODE_POLICY_FORCE_SYSTEM,
     THEME_MODE_POLICY_UNSPECIFIED,
     THEME_MODE_POLICY_USER_OR_SYSTEM,
-    AppearanceAssetMetadata,
-    AppearanceAssetReference,
-    AppearanceFailure,
-    AppearanceFailureKind,
     AppearanceLogo,
     AppearanceSnapshot,
     BackendAppearanceResponse,
@@ -718,12 +708,6 @@ OverviewWatchResponse.__module__ = "dokime_sdk.client"
 OverviewWatchResponse.__qualname__ = "OverviewWatchResponse"
 RuntimeShellSnapshot.__module__ = "dokime_sdk.client"
 RuntimeShellSnapshot.__qualname__ = "RuntimeShellSnapshot"
-AppearanceAssetMetadata.__module__ = "dokime_sdk.client"
-AppearanceAssetMetadata.__qualname__ = "AppearanceAssetMetadata"
-AppearanceAssetReference.__module__ = "dokime_sdk.client"
-AppearanceAssetReference.__qualname__ = "AppearanceAssetReference"
-AppearanceFailure.__module__ = "dokime_sdk.client"
-AppearanceFailure.__qualname__ = "AppearanceFailure"
 AppearanceLogo.__module__ = "dokime_sdk.client"
 AppearanceLogo.__qualname__ = "AppearanceLogo"
 AppearanceSnapshot.__module__ = "dokime_sdk.client"
@@ -1263,12 +1247,6 @@ SuitesListResponse.__qualname__ = "SuitesListResponse"
 
 __all__ = [
     "ADJACENT",
-    "APPEARANCE_FAILURE_KIND_ASSET_CHANGED",
-    "APPEARANCE_FAILURE_KIND_ASSET_MISSING",
-    "APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE",
-    "APPEARANCE_FAILURE_KIND_INVALID_REFERENCE",
-    "APPEARANCE_FAILURE_KIND_TOO_LARGE",
-    "APPEARANCE_FAILURE_KIND_UNSPECIFIED",
     "ARCHIVE_SCOPE_ALL",
     "ARCHIVE_SCOPE_ARCHIVED",
     "ARCHIVE_SCOPE_UNARCHIVED",
@@ -1591,10 +1569,6 @@ __all__ = [
     "AnnotationOwnerOwner",
     "AnnotationSelection",
     "AnswersCreateResponse",
-    "AppearanceAssetMetadata",
-    "AppearanceAssetReference",
-    "AppearanceFailure",
-    "AppearanceFailureKind",
     "AppearanceLogo",
     "AppearanceSnapshot",
     "ApplicationAppearance",

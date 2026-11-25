@@ -2,10 +2,6 @@
 pub use crate::wire::host::AbsoluteTimeFormat;
 pub use crate::wire::host::AggregateReply;
 pub use crate::wire::host::AggregatesGetResponse;
-pub use crate::wire::host::AppearanceAssetMetadata;
-pub use crate::wire::host::AppearanceAssetReference;
-pub use crate::wire::host::AppearanceFailure;
-pub use crate::wire::host::AppearanceFailureKind;
 pub use crate::wire::host::AppearanceLogo;
 pub use crate::wire::host::AppearanceSnapshot;
 pub use crate::wire::host::ApplicationAppearance;

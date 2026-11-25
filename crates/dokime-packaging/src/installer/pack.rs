@@ -13,6 +13,8 @@
 
 /* === Re-Exports === */
 
+pub(super) use crate::organization::ResolvedPack;
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -23,8 +25,8 @@ use std::{collections::BTreeMap, fs, path::Path};
 use image::ImageFormat;
 
 // Local Imports
-use super::policy::UpdatePolicy;
 use super::{Error, distribution};
+use crate::organization::policy::UpdatePolicy;
 
 /* === Constants === */
 
@@ -33,11 +35,6 @@ use super::{Error, distribution};
 /* === Type Aliases === */
 
 /* === Structs === */
-
-pub(super) struct ResolvedPack {
-    pub manifest: toml::Value,
-    pub files: BTreeMap<String, Vec<u8>>,
-}
 
 /* === Enums === */
 
@@ -51,24 +48,6 @@ impl ResolvedPack {
     }
     pub fn organization_name(&self) -> Option<&str> {
         self.manifest.get("app")?.get("organization")?.get("name")?.as_str()
-    }
-    pub fn asset(&self, role: &str) -> Option<(&str, &[u8])> {
-        let path = self.manifest.get("app")?.get("artwork")?.get(role)?.as_str()?;
-        Some((path, self.files.get(path)?.as_slice()))
-    }
-    pub fn installer_sidebar_color(&self) -> Result<[u8; 3], Error> {
-        let Some(value) = self.manifest.get("installer").and_then(|value| value.get("sidebar_color")) else {
-            return Ok([0x1b, 0x19, 0x15]);
-        };
-        let color = value.as_str().ok_or_else(|| Error::Invalid("Set installer.sidebar_color to #RRGGBB".into()))?;
-        if color.len() != 7 || !color.starts_with('#') || !color.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit) {
-            return Err(Error::Invalid("Set installer.sidebar_color to #RRGGBB".into()));
-        }
-        let mut channels = [0; 3];
-        for (index, channel) in channels.iter_mut().enumerate() {
-            *channel = u8::from_str_radix(&color[1 + index * 2..3 + index * 2], 16).map_err(|error| Error::Invalid(error.to_string()))?;
-        }
-        Ok(channels)
     }
     pub fn installer_sidebar_image(&self) -> Option<(&str, &[u8])> {
         let path = self.manifest.get("installer")?.get("sidebar_image")?.as_str()?;
@@ -148,7 +127,7 @@ pub(super) fn read(directory: &Path) -> Result<ResolvedPack, Error> {
     }
     if let Some(installer) = pack.manifest.get("installer") {
         let installer = installer.as_table().ok_or_else(|| Error::Invalid("Use an installer Table in organization.toml".into()))?;
-        pack.installer_sidebar_color()?;
+        pack.installer_sidebar_color().map_err(Error::Invalid)?;
         if let Some(value) = installer.get("sidebar_image") {
             image_asset(&pack, value)?;
         }

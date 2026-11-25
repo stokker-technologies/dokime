@@ -9,7 +9,6 @@ package dokime.host.v1;
 // === Imports === //
 
 import "harmos/model/v1/callers.proto";
-import "harmos/model/v1/file.proto";
 import "harmos/model/v1/position.proto";
 
 // === Options === //
@@ -72,7 +71,8 @@ message AppearanceSnapshot {
   bool theme_family_locked = 7;
   .dokime.host.v1.ThemeModePolicy mode_policy = 8;
   bool mode_locked = 9;
-  optional string source_plugin_id = 10;
+  reserved 10;
+  reserved "source_plugin_id";
 }
 
 // OrganizationIdentity value owned by this resource.
@@ -82,16 +82,19 @@ message OrganizationIdentity {
   optional string website = 3;
 }
 
-// AppearanceLogo value owned by this resource.
+// AppearanceLogo value owned by this resource; its data: URI carries the content type and bytes.
 message AppearanceLogo {
   .dokime.host.v1.LogoVariant variant = 1;
-  .dokime.host.v1.AppearanceAssetMetadata asset = 2;
+  reserved 2;
+  reserved "asset";
   optional string alt = 3;
+  string data_uri = 4;
 }
 
 // ThemeFamily value owned by this resource.
 message ThemeFamily {
-  string plugin_id = 1;
+  reserved 1;
+  reserved "plugin_id";
   string theme_id = 2;
   string label = 3;
   optional string description = 4;
@@ -121,27 +124,6 @@ message ThemeVariant {
   repeated string plot_palette = 2;
 }
 
-// AppearanceFailure value owned by this resource.
-message AppearanceFailure {
-  .dokime.host.v1.AppearanceFailureKind kind = 1;
-}
-
-// AppearanceAssetReference value owned by this resource.
-message AppearanceAssetReference {
-  string plugin_id = 1;
-  string asset_id = 2;
-  string sha256 = 3;
-}
-
-// AppearanceAssetMetadata value owned by this resource.
-message AppearanceAssetMetadata {
-  .dokime.host.v1.AppearanceAssetReference reference = 1;
-  string content_type = 2;
-  uint64 size_bytes = 3;
-
-  .harmos.model.v1.FileReference file = 4;
-}
-
 // === Enums === //
 
 // LogoVariant choices.
@@ -160,14 +142,4 @@ enum ThemeModePolicy {
   THEME_MODE_POLICY_FORCE_SYSTEM = 2;
   THEME_MODE_POLICY_FORCE_LIGHT = 3;
   THEME_MODE_POLICY_FORCE_DARK = 4;
-}
-
-// AppearanceFailureKind choices.
-enum AppearanceFailureKind {
-  APPEARANCE_FAILURE_KIND_UNSPECIFIED = 0;
-  APPEARANCE_FAILURE_KIND_ASSET_MISSING = 1;
-  APPEARANCE_FAILURE_KIND_ASSET_CHANGED = 2;
-  APPEARANCE_FAILURE_KIND_TOO_LARGE = 3;
-  APPEARANCE_FAILURE_KIND_INVALID_REFERENCE = 4;
-  APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE = 5;
 }

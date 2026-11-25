@@ -459,10 +459,6 @@ inline constexpr auto RESULT_STATUS_PASSED = static_cast<::dokime::host::v1::Res
 inline constexpr auto RESULT_STATUS_FAILED = static_cast<::dokime::host::v1::ResultStatus>(3);
 inline constexpr auto RESULT_STATUS_BLOCKED = static_cast<::dokime::host::v1::ResultStatus>(4);
 inline constexpr auto RESULT_STATUS_CANCELLED = static_cast<::dokime::host::v1::ResultStatus>(5);
-using ::dokime::host::v1::AppearanceAssetMetadata;
-using ::dokime::host::v1::AppearanceAssetReference;
-using ::dokime::host::v1::AppearanceFailure;
-using ::dokime::host::v1::AppearanceFailureKind;
 using ::dokime::host::v1::AppearanceLogo;
 using ::dokime::host::v1::AppearanceSnapshot;
 using ::dokime::host::v1::BackendAppearanceResponse;
@@ -486,12 +482,6 @@ inline constexpr auto THEME_MODE_POLICY_USER_OR_SYSTEM = static_cast<::dokime::h
 inline constexpr auto THEME_MODE_POLICY_FORCE_SYSTEM = static_cast<::dokime::host::v1::ThemeModePolicy>(2);
 inline constexpr auto THEME_MODE_POLICY_FORCE_LIGHT = static_cast<::dokime::host::v1::ThemeModePolicy>(3);
 inline constexpr auto THEME_MODE_POLICY_FORCE_DARK = static_cast<::dokime::host::v1::ThemeModePolicy>(4);
-inline constexpr auto APPEARANCE_FAILURE_KIND_UNSPECIFIED = static_cast<::dokime::host::v1::AppearanceFailureKind>(0);
-inline constexpr auto APPEARANCE_FAILURE_KIND_ASSET_MISSING = static_cast<::dokime::host::v1::AppearanceFailureKind>(1);
-inline constexpr auto APPEARANCE_FAILURE_KIND_ASSET_CHANGED = static_cast<::dokime::host::v1::AppearanceFailureKind>(2);
-inline constexpr auto APPEARANCE_FAILURE_KIND_TOO_LARGE = static_cast<::dokime::host::v1::AppearanceFailureKind>(3);
-inline constexpr auto APPEARANCE_FAILURE_KIND_INVALID_REFERENCE = static_cast<::dokime::host::v1::AppearanceFailureKind>(4);
-inline constexpr auto APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE = static_cast<::dokime::host::v1::AppearanceFailureKind>(5);
 using ::dokime::host::v1::AbsoluteTimeFormat;
 using ::dokime::host::v1::ElapsedFormat;
 using ::dokime::host::v1::ElapsedUnit;

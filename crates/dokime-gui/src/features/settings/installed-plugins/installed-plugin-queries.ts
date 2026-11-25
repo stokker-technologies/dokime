@@ -19,7 +19,6 @@ import { settingsQueryKeys } from "@/features/settings/settings-queries";
 import { admittedPluginRecords } from "@/lib/api/native-plugins";
 import { pluginsListQueryOptions } from "../plugins/plugin-queries";
 import { getNativePluginSettings, updateNativePluginSettings } from "@/lib/api/native-settings";
-import { appearanceQueryKey } from "@/app/desktop-appearance";
 
 /* === Query Keys === */
 
@@ -59,7 +58,6 @@ export function installedPluginSettingsOptions(session: ConnectedSession) {
         queryClient.invalidateQueries({ queryKey: pluginsListQueryOptions(session).queryKey }),
         queryClient.invalidateQueries({ queryKey: settingsQueryKeys.frame() }),
         queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId, session.identity.generation) }),
-        queryClient.invalidateQueries({ queryKey: appearanceQueryKey }),
       ]);
     },
   };
