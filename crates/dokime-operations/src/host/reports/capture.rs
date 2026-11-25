@@ -471,15 +471,6 @@ pub(super) async fn collect(
         }
     }
     tracing::debug!(phase = "artifacts", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
-    let phase = Instant::now();
-    if let Some(appearance) = capture.appearance.as_ref().and_then(|reply| reply.appearance.as_ref()) {
-        for logo in &appearance.logos {
-            if let Some(file) = logo.asset.as_ref().and_then(|asset| asset.file.as_ref()) {
-                capture.files.push(read_file(context, file).await?);
-            }
-        }
-    }
-    tracing::debug!(phase = "logos", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let mut embedded = BTreeSet::new();
     capture.files.retain(|file| embedded.insert(file.file.as_ref().map(|file| (file.length, file.sha256.clone()))));
     Ok((capture, resolved_at, prepared))

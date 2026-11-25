@@ -42,13 +42,12 @@ export function materializeThemeFamilyVariables(
   }
 
   const variant = theme[mode];
-  const variables: ThemeVariableMap = {
-    ...(theme.variables ?? {}),
-    ...variant.variables,
-    ...themeCornerRadiusVariables(theme.corner_radii),
-  };
-  // Keyboard Focus Is Independent Of The Brand And Destructive Palettes.
-  variables["focus-ring"] ||= mode === "dark" ? "#93c5fd" : "#001b4a";
+  const palette: ThemeVariableMap = { ...(theme.variables ?? {}), ...variant.variables };
+  const variables: ThemeVariableMap = { ...palette, ...themeCornerRadiusVariables(theme.corner_radii) };
+  // Keyboard Focus Is Independent Of A Variable Palette's Brand And Destructive Colors; A Stylesheet Owns Its Own.
+  if (Object.keys(palette).length) {
+    variables["focus-ring"] ||= mode === "dark" ? "#93c5fd" : "#001b4a";
+  }
   variant.plot_palette?.forEach((color, index) => {
     if (color.trim()) {
       variables[`chart-${index + 1}`] = color;

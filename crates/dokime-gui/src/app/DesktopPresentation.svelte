@@ -31,7 +31,7 @@
   import { setDesktopWindowTitle } from "../lib/desktop-title";
   import { failureRecovery } from "../lib/failure-recovery";
   import { applyBrandFavicon } from "../lib/favicon";
-  import type { AppearanceResource } from "../lib/native-appearance";
+  import type { AppearanceSnapshot } from "../lib/native-appearance";
   import { failureOf } from "../lib/notification-details";
   import { toast } from "../lib/notifications";
   import { isTauriDesktop } from "../lib/surface-environment";
@@ -53,7 +53,7 @@
   }: {
     session: ConnectedSession | null;
     client: QueryClient;
-    resource: AppearanceResource | null;
+    resource: AppearanceSnapshot | null;
     children: Snippet<[Presentation]>;
   } = $props();
 

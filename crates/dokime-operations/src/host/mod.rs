@@ -166,6 +166,8 @@ pub trait Host: Send + Sync {
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
     fn report_template(&self) -> std::borrow::Cow<'static, [u8]>;
+    /// The Appearance the Host Resolved From Its Installation When It Opened.
+    fn appearance(&self) -> dokime_protocol::host::AppearanceSnapshot;
     async fn plugins(&self) -> Result<Vec<PluginEntry>>;
     fn plugin_admission_failures(&self) -> Result<Vec<(String, String)>>;
     async fn refresh_plugin_states(&self) -> Result<()>;

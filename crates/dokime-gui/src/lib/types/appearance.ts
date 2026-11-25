@@ -8,8 +8,6 @@ export type OrganizationIdentity = {
 
 export type RuntimeAppLogo = {
   variant: "transparent_on_light" | "transparent_on_dark" | "contained_on_light" | "contained_on_dark";
-  plugin_id: string;
-  asset_id: string;
   url: string;
   alt?: string | null;
 };
@@ -24,11 +22,9 @@ export type RuntimeAppearanceFrame = {
   theme_family_locked: boolean;
   mode_policy: ThemeModePolicy;
   mode_locked: boolean;
-  source_plugin_id?: string | null;
 };
 
 export type RuntimeThemeFamily = {
-  plugin_id: string;
   theme_id: string;
   label: string;
   description?: string | null;

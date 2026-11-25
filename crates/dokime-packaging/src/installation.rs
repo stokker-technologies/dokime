@@ -24,6 +24,7 @@ use std::{io, path::Path};
 
 /* === Constants === */
 
+pub const ORGANIZATION: &str = "organization";
 pub const PLUGINS: &str = "plugins";
 
 /* === Macros === */

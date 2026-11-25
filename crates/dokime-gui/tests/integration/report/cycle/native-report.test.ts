@@ -30,13 +30,17 @@ import ReportCycleWorkspace from "@/report/ReportCycleWorkspace.svelte";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { defaultBrand } from "@/lib/brand";
 import { materializeReport, readReportCapture, reportOutcome } from "@/report/native-report";
+import { applyReportAppearance } from "@/report/report-appearance";
 import {
-  AppearanceLogoSchema,
+  BackendAppearanceResponseSchema,
   CaseStatus,
   CyclePhase,
   CycleStatus,
   DocumentCardKind,
   DocumentsGetResponseSchema,
+  ExecutionFileKind,
+  ExecutionFileState,
+  ExecutionFilesGetResponseSchema,
   PlotCartesianMode,
   PlotKind,
   ExecutionState,
@@ -397,22 +401,47 @@ test("Embedded File Bytes Retain Their Resource Media Type and Digest", async ()
     reads: [{ data, totalLength: 3n, sha256 }],
   });
   capture.files.push(captured);
-  const logo = create(AppearanceLogoSchema, {
-    variant: LogoVariant.TRANSPARENT_ON_LIGHT,
-    asset: {
-      reference: { pluginId: "provider", assetId: "logo", sha256: "" },
-      sizeBytes: 3n,
-      contentType: "image/png",
-      file,
-    },
-  });
-  const appearance = capture.appearance?.appearance;
-  assert.ok(appearance);
-  appearance.logos.push(logo);
+  const metadata = {
+    relativePath: "frame.png",
+    contentType: "image/png",
+    kind: ExecutionFileKind.MEDIA,
+    state: ExecutionFileState.FINALIZED,
+    sizeBytes: 3n,
+  };
+  capture.executions[0].files.push(create(ExecutionFilesGetResponseSchema, { metadata, file }));
   const report = await materializeReport(capture);
-  assert.equal(report.appearance.logos[0].url, "data:image/png;base64,AQID");
+  assert.equal(report.source.executionFiles("execution")[0].href, "data:image/png;base64,AQID");
   data[0] ^= 1;
   await assert.rejects(materializeReport(capture));
+});
+
+test("Embedded Organization Appearance Styles the Report in Both Schemes", async () => {
+  const capture = await nativeReport();
+  const css = '@font-face{font-family:"Example Sans";src:url("data:font/woff2;base64,AAEC")}';
+  capture.appearance = create(BackendAppearanceResponseSchema, {
+    appearance: {
+      appName: "Example Lab",
+      logos: [{ variant: LogoVariant.TRANSPARENT_ON_LIGHT, dataUri: "data:image/svg+xml;base64,PHN2Zy8+" }],
+      themes: [{ themeId: "organization", label: "Example Lab", stylesheet: css }],
+      activeTheme: "organization",
+    },
+  });
+  const { appearance } = await materializeReport(capture);
+  const originalTitle = document.title;
+  onTestFinished(() => {
+    document.title = originalTitle;
+    vi.unstubAllGlobals();
+  });
+  for (const dark of [false, true]) {
+    vi.stubGlobal("matchMedia", () => ({ matches: dark }));
+    const brand = applyReportAppearance(appearance);
+    assert.equal(brand.label, "Example Lab");
+    assert.equal(brand.logos.transparent_on_light?.src, "data:image/svg+xml;base64,PHN2Zy8+");
+    assert.equal(document.getElementById("dokime-host-theme")?.textContent, css);
+    assert.equal(document.documentElement.classList.contains("dark"), dark);
+    assert.equal(document.documentElement.style.getPropertyValue("--focus-ring"), "");
+  }
+  assert.equal(document.title, "Example Lab Report");
 });
 
 test("Report Shell Navigation Follows the Subject Even with One Execution", async () => {

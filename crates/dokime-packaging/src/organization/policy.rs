@@ -168,3 +168,50 @@ fn validate_name(value: &str) -> Result<(), String> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_selection_requires_trusted_public_locations() {
+        let value = serde_json::json!({
+            "mode": "manual", "source": "team",
+            "connections": {"office": {"host": "https://gitlab.example.test"}},
+            "sources": {"team": {"kind": "gitlab", "connection": "office", "project": "lab/instruments"}}
+        });
+        let policy: UpdatePolicy = serde_json::from_value(value.clone()).unwrap();
+        policy.validate().unwrap();
+        for (pointer, replacement) in [
+            ("/source", "missing"),
+            ("/sources/team/connection", "missing"),
+            ("/connections/office/host", "http://gitlab.example.test"),
+            ("/connections/office/host", "https://gitlab.example.test/private"),
+        ] {
+            let mut invalid = value.clone();
+            *invalid.pointer_mut(pointer).unwrap() = replacement.into();
+            assert!(serde_json::from_value::<UpdatePolicy>(invalid).unwrap().validate().is_err());
+        }
+        let mut secret = value;
+        secret["connections"]["office"]["access_token"] = "forbidden".into();
+        assert!(serde_json::from_value::<UpdatePolicy>(secret).is_err());
+        UpdatePolicy::default().validate().unwrap();
+    }
+
+    #[test]
+    fn public_sources_reject_credentials_and_non_https_urls() {
+        for source in [
+            serde_json::json!({"kind": "github", "repository": "org/product"}),
+            serde_json::json!({"kind": "direct", "manifest": "https://example.test/release.json"}),
+        ] {
+            let policy: UpdatePolicy = serde_json::from_value(serde_json::json!({
+                "mode": "manual", "source": "public", "sources": {"public": source}
+            }))
+            .unwrap();
+            policy.validate().unwrap();
+        }
+        for url in ["file:///tmp/release.json", "https://user:password@example.test/release.json", "https://example.test/#fragment"] {
+            assert!(https_url(url).is_err());
+        }
+    }
+}

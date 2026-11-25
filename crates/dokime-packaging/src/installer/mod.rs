@@ -18,7 +18,6 @@ mod native;
 mod observer;
 mod pack;
 mod plugins;
-mod policy;
 mod release;
 mod signing;
 

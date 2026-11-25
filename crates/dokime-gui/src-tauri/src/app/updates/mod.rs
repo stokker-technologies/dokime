@@ -10,7 +10,6 @@
 /* === Modules === */
 
 pub(crate) mod plugins;
-pub mod policy;
 mod sources;
 
 /* === Re-Exports === */
@@ -31,9 +30,9 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 
 // Local Imports
-use self::policy::{Mode, UpdatePolicy};
 use super::organization::OrganizationState;
 use crate::settings::{self, Store, UpdateSelection};
+use dokime_packaging::organization::policy::{self, Mode, UpdatePolicy};
 
 /* === Constants === */
 

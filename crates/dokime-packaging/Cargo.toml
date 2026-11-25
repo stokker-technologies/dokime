@@ -17,10 +17,10 @@ version = { workspace = true }
 [features]
 default = []
 installer = [
-  "dep:base64",
   "dep:flate2",
   "dep:handlebars",
-  "dep:image",
+  "image/bmp",
+  "image/ico",
   "dep:rustls",
   "dep:sha2",
   "dep:tar",
@@ -55,7 +55,7 @@ spdx = { workspace = true }
 time = { workspace = true, optional = true }
 
 # Serialization
-base64 = { workspace = true, optional = true }
+base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
@@ -83,7 +83,7 @@ rustls = { workspace = true, optional = true, features = ["ring"] }
 # Storage
 
 # UI
-image = { workspace = true, optional = true, features = ["png", "ico", "bmp"] }
+image = { workspace = true, features = ["png"] }
 tauri-bundler = { workspace = true, optional = true }
 tauri-utils = { workspace = true, optional = true }
 

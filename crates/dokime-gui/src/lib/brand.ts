@@ -70,12 +70,12 @@ export function selectLogo(brand: Brand, treatment: "transparent" | "contained",
   return brand.logos[`${treatment}_on_${surface}`] ?? brand.logos[`${alternative}_on_${surface}`];
 }
 
+/* === Private Functions === */
+
 /** Logo variants of a pack in the frontend's shape. */
-export function packLogos(pack: BootOrganizationPack): Brand["logos"] {
+function packLogos(pack: BootOrganizationPack): Brand["logos"] {
   return Object.fromEntries(Object.entries(pack.logos).map(([variant, src]) => [variant, { src, alt: pack.label }]));
 }
-
-/* === Private Functions === */
 
 /** Reads the shell's boot organization once and applies the pack theme before the first render. */
 function startBootOrganization(): BootOrganization {

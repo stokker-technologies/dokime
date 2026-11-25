@@ -7,7 +7,7 @@
  * ***
  */
 
-// Reconcile Installation Plugin Bundles
+// Reconcile Installation Plugin Bundles and the Organization Appearance
 
 /* === Modules === */
 
@@ -16,7 +16,15 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeSet, env, fmt::Display, fs, io::ErrorKind, path::Path, sync::Weak};
+use std::{
+    collections::BTreeSet,
+    env,
+    fmt::Display,
+    fs,
+    io::{self, ErrorKind},
+    path::{Path, PathBuf},
+    sync::Weak,
+};
 
 // Third Party Imports
 use harmos_operations::plugins::{List, Replace};
@@ -24,6 +32,7 @@ use harmos_protocol::host::status::Event;
 use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginsListRequest, PluginsReplaceRequest, plugin_placement};
 use harmos_protocol::model::{FileMetadata, FileReference};
 use harmos_runtime::bundle::Bundle;
+use prost::Message;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -31,12 +40,15 @@ use uuid::Uuid;
 use super::{Host, lock};
 use crate::{Error, Result};
 use dokime_operations::host::files::delete;
-use dokime_packaging::{bundle, installation};
-use dokime_protocol::host::FilesDeleteRequest;
+use dokime_packaging::{bundle, installation, organization};
+use dokime_protocol::host::{
+    AppearanceLogo, AppearanceSnapshot, FilesDeleteRequest, LogoVariant, OrganizationIdentity, ThemeFamily, ThemeModePolicy,
+};
 
 /* === Constants === */
 
 const INSTALLATION_ORIGIN: &str = "installation";
+const ORGANIZATION_THEME: &str = "organization";
 
 /* === Macros === */
 
@@ -51,18 +63,42 @@ const INSTALLATION_ORIGIN: &str = "installation";
 /* === Implementations === */
 
 impl Host {
-    pub(super) async fn reconcile_installation_plugins(&self) {
-        let directory = match &self.settings.installation {
-            Some(directory) => directory.clone(),
-            None => match env::current_exe().and_then(|executable| installation::directory(&executable).map(Path::to_path_buf)) {
-                Ok(directory) => directory,
-                Err(error) => {
-                    self.report_plugin_admission_failure(Path::new(installation::PLUGINS), error);
-                    return;
-                }
-            },
+    /// The Installed Organization Pack's Appearance; Without a Loadable Pack the Host Keeps the Default.
+    pub(crate) fn installed_appearance(&self, message_bytes: usize) -> AppearanceSnapshot {
+        let default = || AppearanceSnapshot {
+            app_name: "Dokime".into(),
+            mode_policy: ThemeModePolicy::UserOrSystem as i32,
+            ..Default::default()
         };
-        let directory = directory.join(installation::PLUGINS);
+        let pack = match self.installation_directory() {
+            Ok(directory) => organization::installed(&directory),
+            Err(error) => {
+                tracing::error!(%error, "Load Organization Pack: Run the Host From Its Installation Folder");
+                return default();
+            }
+        };
+        let Some(pack) = pack else { return default() };
+        let loaded = organization::read(&pack).and_then(|resolved| resolved.appearance()).map(snapshot).and_then(|snapshot| {
+            if snapshot.encoded_len() > message_bytes {
+                return Err(format!("its appearance exceeds the {message_bytes}-byte message budget"));
+            }
+            Ok(snapshot)
+        });
+        loaded.unwrap_or_else(|error| {
+            let message = format!("Load Organization Pack {}: {error}; Correct the Pack and Restart the Host", pack.display());
+            tracing::error!(pack = %pack.display(), %message, "Organization Pack Not Applied");
+            default()
+        })
+    }
+
+    pub(super) async fn reconcile_installation_plugins(&self) {
+        let directory = match self.installation_directory() {
+            Ok(directory) => directory.join(installation::PLUGINS),
+            Err(error) => {
+                self.report_plugin_admission_failure(Path::new(installation::PLUGINS), error);
+                return;
+            }
+        };
         if let Err(error) = self.reconcile_directory(&directory).await {
             self.report_plugin_admission_failure(&directory, error);
         }
@@ -255,6 +291,14 @@ impl Host {
         Ok(())
     }
 
+    // The Configured Installation Folder, Else the Folder Beside the Running Product Executable.
+    fn installation_directory(&self) -> io::Result<PathBuf> {
+        match &self.settings.installation {
+            Some(directory) => Ok(directory.clone()),
+            None => env::current_exe().and_then(|executable| installation::directory(&executable).map(Path::to_path_buf)),
+        }
+    }
+
     fn report_plugin_admission_failure(&self, path: &Path, reason: impl Display) {
         let message = format!("Admit Installation Plugin {}: {reason}; Repair or Remove This Bundle and Restart the Host", path.display());
         tracing::error!(file = %path.display(), %message, "Installation Plugin Admission Failed");
@@ -285,6 +329,44 @@ impl Host {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+// The Pack Is One Theme Family Carrying Its Self-Contained Stylesheet, Active Unless the Pack Has No Theme.
+fn snapshot(appearance: organization::Appearance) -> AppearanceSnapshot {
+    let logos = appearance.logos.into_iter().map(|(variant, data_uri)| {
+        let variant = match variant.as_str() {
+            "transparent_on_light" => LogoVariant::TransparentOnLight,
+            "transparent_on_dark" => LogoVariant::TransparentOnDark,
+            "contained_on_light" => LogoVariant::ContainedOnLight,
+            "contained_on_dark" => LogoVariant::ContainedOnDark,
+            _ => LogoVariant::Unspecified,
+        };
+        AppearanceLogo {
+            variant: variant as i32,
+            alt: None,
+            data_uri,
+        }
+    });
+    let theme = (!appearance.css.is_empty()).then(|| ThemeFamily {
+        theme_id: ORGANIZATION_THEME.into(),
+        label: appearance.label.clone(),
+        stylesheet: Some(appearance.css),
+        ..Default::default()
+    });
+    AppearanceSnapshot {
+        organization: appearance.organization.map(|organization| OrganizationIdentity {
+            name: organization.name,
+            unit: organization.unit,
+            website: organization.website,
+        }),
+        title_template: Some(appearance.title_template),
+        logos: logos.collect(),
+        active_theme: theme.as_ref().map(|theme| theme.theme_id.clone()),
+        themes: theme.into_iter().collect(),
+        mode_policy: ThemeModePolicy::UserOrSystem as i32,
+        app_name: appearance.label,
+        ..Default::default()
+    }
+}
 
 fn managed(entry: &PluginEntry) -> Option<&PluginManaged> {
     match entry.placement.as_ref()?.kind.as_ref()? {

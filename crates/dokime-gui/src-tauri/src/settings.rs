@@ -31,7 +31,7 @@ use harmos_runtime::filesystem::publication;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use crate::app::updates::policy::Mode;
+use dokime_packaging::organization::policy::Mode;
 use dokime_runtime::{INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings};
 
 /* === Constants === */
@@ -227,7 +227,7 @@ fn invalid(message: String) -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::{DesktopSettings, Store, UpdateSelection, Value, load, path};
-    use crate::app::updates::policy::Mode;
+    use dokime_packaging::organization::policy::Mode;
     use std::collections::BTreeMap;
     use std::fs;
     use std::num::NonZeroU32;
