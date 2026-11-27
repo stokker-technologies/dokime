@@ -35,6 +35,7 @@ from dokime_tools.release import (
     pins,
     registry,
     run,
+    version,
 )
 
 from .ci_gates_fixtures import ROOT
@@ -120,6 +121,35 @@ class PinTests(unittest.TestCase):
         )
         with patch.object(policy, "execute", return_value='{"packages": []}'):
             self.assertTrue(pins.check(self.directory))
+
+    def test_version_sync_moves_starter_registry_requirements(self) -> None:
+        # Sync Moves Each Starter's SDK Requirement, Keeping Their Own and Unrelated Versions.
+        policy_file = self.directory / "tools/project.toml"
+        policy_file.parent.mkdir()
+        requirements = '[version.requirements]\ndokime = ["rust/Cargo.toml"]\ndokime-sdk = ["python/pyproject.toml"]\n'
+        policy_file.write_text('[version]\nfiles = ["pyproject.toml"]\nvalue = "0.1.5"\n' + requirements, encoding="utf-8")
+        rust = self.directory / "rust/Cargo.toml"
+        python = self.directory / "python/pyproject.toml"
+        for path, text in [
+            (self.directory / "pyproject.toml", '[project]\nversion = "0.1.5"\n'),
+            (rust, '[package]\nversion = "0.1.0"\n[dependencies]\ndokime = "0.1.5"\nmy-dokime = "0.1.5"\n'),
+            (python, '[project]\nversion = "0.1.0"\ndependencies = ["dokime-sdk~=0.1.5", "rich"]\n'),
+        ]:
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        version.run(self.directory, "check")
+        version.run(self.directory, "sync", value="0.1.6")
+        self.assertEqual(
+            rust.read_text(encoding="utf-8"), '[package]\nversion = "0.1.0"\n[dependencies]\ndokime = "0.1.6"\nmy-dokime = "0.1.5"\n'
+        )
+        self.assertEqual(python.read_text(encoding="utf-8"), '[project]\nversion = "0.1.0"\ndependencies = ["dokime-sdk~=0.1.6", "rich"]\n')
+        # Check Refuses a Drifted or Missing Requirement.
+        policy_file.write_text('[version]\nfiles = ["pyproject.toml"]\nvalue = "0.1.6"\n' + requirements, encoding="utf-8")
+        version.run(self.directory, "check")
+        for text in ['dependencies = ["dokime-sdk~=0.1.5"]\n', 'dependencies = ["dokime-sdk"]\n']:
+            python.write_text("[project]\n" + text, encoding="utf-8")
+            with self.subTest(text=text), self.assertRaises(policy.ToolError):
+                version.run(self.directory, "check")
 
     def test_nightly_skips(self) -> None:
         with (

@@ -248,6 +248,13 @@ fn read_starter(root: &Path, language: Language) -> Result<Vec<(String, Vec<u8>)
 }
 
 fn local_dependency(language: Language, relative: &str, text: String, checkout: Option<&Path>) -> Result<String> {
+    // The Repository Starter Resolves Its Own Checkout; Created Projects Require the Published SDK.
+    let text = match (language, text.split_once("\n[tool.uv.sources]")) {
+        (Language::Python, Some((head, rest))) if relative == "pyproject.toml" => {
+            format!("{}\n{}", head.trim_end(), rest.find("\n[").map_or("", |end| &rest[end..]))
+        }
+        _ => text,
+    };
     let Some(checkout) = checkout else {
         return Ok(text);
     };
@@ -644,7 +651,12 @@ mod tests {
     fn checkout_writes_native_local_sdk_dependencies() -> Result<(), Box<dyn Error>> {
         let checkout = tempfile::tempdir()?;
         for (language, relative, input, expected) in [
-            (Language::Python, "pyproject.toml", "[project]\nname = 'example'\n", "dokime-sdk = { path = "),
+            (
+                Language::Python,
+                "pyproject.toml",
+                "[project]\nname = 'example'\n\n[tool.uv.sources]\ndokime-sdk = { path = '../..', editable = true }\n",
+                "dokime-sdk = { path = ",
+            ),
             (Language::Rust, "Cargo.toml", "[dependencies]\ndokime = '0.1.5'\n", "[dependencies.dokime]"),
             (
                 Language::Csharp,
@@ -659,6 +671,10 @@ mod tests {
             assert!(text.contains(&checkout.path().to_string_lossy().replace('\\', "/")), "{text}");
             assert!(!text.contains("PackageReference"));
             assert!(!text.contains("FetchContent"));
+            assert!(!text.contains("../.."), "{text}");
+            if matches!(language, Language::Python) {
+                text.parse::<toml::Table>()?;
+            }
         }
         Ok(())
     }
@@ -764,6 +780,8 @@ mod tests {
         let manifest = fs::read_to_string(project.join("pyproject.toml"))?;
         assert!(manifest.contains("name = \"My-Project\""));
         assert!(manifest.contains("module-name = \"my_project\""));
+        assert!(manifest.contains("\"dokime-sdk~="), "{manifest}");
+        assert!(!manifest.contains("[tool.uv.sources]") && !manifest.contains("git+"), "{manifest}");
         let launch = fs::read_to_string(project.join("dokime.toml"))?;
         assert!(launch.contains("my_project.plugin"));
         assert!(launch.contains("label = \"My Project\""));

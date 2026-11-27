@@ -81,7 +81,7 @@ def python_git_dependencies(directory: Path) -> set[str]:
             if "git+" in requirement:
                 name = re.split(r"[\s\[<>=!~@;]", requirement, maxsplit=1)[0]
                 names.add(f"{name} ({location})")
-        # Starters Ship Their uv Sources; the Wheel Carries Only Its Project Tables.
+        # Starter Sources May Name Only This Checkout; the Wheel Carries Only Its Project Tables.
         sources = {} if manifest == sdk else document.get("tool", {}).get("uv", {}).get("sources", {})
         for name, source in sources.items():
             if any("git" in entry for entry in (source if isinstance(source, list) else [source])):

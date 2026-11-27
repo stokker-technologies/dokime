@@ -15,7 +15,7 @@ description = "Run the shared thermal procedure."
 authors = [{ name = "Your Name", email = "you@example.com" }]
 license = "Apache-2.0"
 requires-python = ">=3.13"
-dependencies = ["dokime-sdk @ git+https://github.com/stokker-technologies/dokime@nightly#subdirectory=sdk/python", "rich"]
+dependencies = ["dokime-sdk~=0.1.5", "rich"]
 
 [project.urls]
 Repository = "https://github.com/your-organization/dokime-thermal-example"
@@ -41,3 +41,7 @@ select = ["E", "F", "I", "B", "UP"]
 # The CLI Substitutes Both the Project Name and This Import Package.
 [tool.uv.build-backend]
 module-name = "thermal_example"
+
+[tool.uv.sources]
+# Resolve This Checkout's SDK.
+dokime-sdk = { path = "../..", editable = true }
