@@ -104,7 +104,8 @@ class PinTests(unittest.TestCase):
         manifest.parent.mkdir(parents=True)
         manifest.write_text(
             '[project.optional-dependencies]\ntransport = ["transport @ git+https://example.test/transport"]\n'
-            '[dependency-groups]\nbuild = ["generator @ git+https://example.test/generator"]\n',
+            '[dependency-groups]\nbuild = ["generator @ git+https://example.test/generator"]\n'
+            '[tool.uv.sources]\ngenerator = { git = "https://example.test/generator" }\n',
             encoding="utf-8",
         )
         self.assertEqual(pins.python_git_dependencies(self.directory), {"transport (sdk/python/pyproject.toml)"})
