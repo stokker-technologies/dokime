@@ -99,34 +99,24 @@ class PinTests(unittest.TestCase):
             ):
                 pins.check(self.directory)
 
-    def test_optional_and_group_git_requirements_are_reported(self) -> None:
+    def test_wheel_optional_git_requirement_is_reported_without_development_groups(self) -> None:
         manifest = self.directory / "sdk/python/pyproject.toml"
         manifest.parent.mkdir(parents=True)
         manifest.write_text(
             '[project.optional-dependencies]\ntransport = ["transport @ git+https://example.test/transport"]\n'
-            '[dependency-groups]\nbuild = ["generator @ git+https://example.test/generator", {include-group = "base"}]\nbase = []\n',
+            '[dependency-groups]\nbuild = ["generator @ git+https://example.test/generator"]\n',
             encoding="utf-8",
         )
-        self.assertEqual(
-            pins.python_git_dependencies(self.directory),
-            {"transport (sdk/python/pyproject.toml)", "generator (sdk/python/pyproject.toml)"},
-        )
+        self.assertEqual(pins.python_git_dependencies(self.directory), {"transport (sdk/python/pyproject.toml)"})
 
-    def test_transitive_python_git_lock_is_rejected(self) -> None:
-        lock = self.directory / "sdk/python/uv.lock"
-        lock.parent.mkdir(parents=True)
-        lock.write_text(
-            '[[package]]\nname = "transport"\nsource = {git = "https://example.test/transport?rev=abc#abc"}\n', encoding="utf-8"
-        )
-        with patch.object(policy, "execute", return_value='{"packages": []}'), self.assertRaises(policy.ToolError):
-            pins.check(self.directory)
-
-    def test_registry_python_starter_and_lock_are_allowed(self) -> None:
+    def test_registry_starter_is_allowed_beside_a_git_lock(self) -> None:
         manifest = self.directory / "sdk/python/examples/test/pyproject.toml"
         manifest.parent.mkdir(parents=True)
         manifest.write_text('[project]\ndependencies = ["dokime-sdk==1.2.3"]\n', encoding="utf-8")
         lock = manifest.parent / "uv.lock"
-        lock.write_text('[[package]]\nname = "dokime-sdk"\nsource = {registry = "https://pypi.org/simple"}\n', encoding="utf-8")
+        lock.write_text(
+            '[[package]]\nname = "transport"\nsource = {git = "https://example.test/transport?rev=abc#abc"}\n', encoding="utf-8"
+        )
         with patch.object(policy, "execute", return_value='{"packages": []}'):
             self.assertTrue(pins.check(self.directory))
 

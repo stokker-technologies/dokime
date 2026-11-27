@@ -65,36 +65,27 @@ def check(directory: Path, *, warn: bool = False) -> bool:
 
 
 def python_git_dependencies(directory: Path) -> set[str]:
-    """Find Declared and Locked Git Sources in Python Packages and Starters."""
-    roots = [directory, directory / "tools/python", directory / "sdk/python"]
-    roots.extend(path.parent for path in sorted((directory / "sdk/python/examples").glob("*/pyproject.toml")))
+    """Find Git Sources in the Published SDK Wheel Metadata and the Starters `dokime new` Ships."""
+    sdk = directory / "sdk/python/pyproject.toml"
     names: set[str] = set()
-    for root in roots:
-        manifest = root / "pyproject.toml"
-        if manifest.is_file():
-            document = tomllib.loads(manifest.read_text(encoding="utf-8"))
-            project = document.get("project", {})
-            requirements = list(project.get("dependencies", []))
-            for group in project.get("optional-dependencies", {}).values():
-                requirements.extend(group)
-            for group in document.get("dependency-groups", {}).values():
-                requirements.extend(requirement for requirement in group if isinstance(requirement, str))
-            for requirement in requirements:
-                if "git+" in requirement:
-                    name = re.split(r"[\s\[<>=!~@;]", requirement, maxsplit=1)[0]
-                    names.add(f"{name} ({manifest.relative_to(directory).as_posix()})")
-            sources = document.get("tool", {}).get("uv", {}).get("sources", {})
-            for name, source in sources.items():
-                for entry in source if isinstance(source, list) else [source]:
-                    if "git" in entry:
-                        names.add(f"{name} ({manifest.relative_to(directory).as_posix()})")
-        lock = root / "uv.lock"
-        if not lock.is_file():
+    for manifest in [sdk, *sorted((directory / "sdk/python/examples").glob("*/pyproject.toml"))]:
+        if not manifest.is_file():
             continue
-        document = tomllib.loads(lock.read_text(encoding="utf-8"))
-        for package in document.get("package", []):
-            if "git" in package.get("source", {}):
-                names.add(f"{package['name']} ({lock.relative_to(directory).as_posix()})")
+        document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        location = manifest.relative_to(directory).as_posix()
+        project = document.get("project", {})
+        requirements = list(project.get("dependencies", []))
+        for group in project.get("optional-dependencies", {}).values():
+            requirements.extend(group)
+        for requirement in requirements:
+            if "git+" in requirement:
+                name = re.split(r"[\s\[<>=!~@;]", requirement, maxsplit=1)[0]
+                names.add(f"{name} ({location})")
+        # Starters Ship Their uv Sources; the Wheel Carries Only Its Project Tables.
+        sources = {} if manifest == sdk else document.get("tool", {}).get("uv", {}).get("sources", {})
+        for name, source in sources.items():
+            if any("git" in entry for entry in (source if isinstance(source, list) else [source])):
+                names.add(f"{name} ({location})")
     return names
 
 
