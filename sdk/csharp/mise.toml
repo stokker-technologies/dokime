@@ -42,8 +42,9 @@ run = [
 [tasks."generate"]
 description = "Verify Frozen C# Generation"
 usage = 'flag "--write"'
-depends = ["prepare:protocol"]
-run = ['uv run --no-sync --project ../../tools/python python tools/generate.py{% if usage.write %} --write{% endif %}']
+run = [
+  'uv run --no-sync --project ../../tools/python python -m dokime_tools.build.protocol --language csharp{% if not usage.write %} --check{% endif %}',
+]
 
 [tasks."build"]
 description = "Build the C# Solution or a Selected Project"
@@ -63,7 +64,7 @@ run = [
 description = "Check C# Formatting and Generated Clients"
 run = [
   'python tools/format.py "{{tools.dotnet.path}}/dotnet" --check',
-  'uv run --no-sync --project ../../tools/python python tools/generate.py',
+  'uv run --no-sync --project ../../tools/python python -m dokime_tools.build.protocol --language csharp --check',
   'python tools/check_clients.py',
   'uv run --no-sync --project ../../tools/python ruff check --select I,F401,E9 tools',
   'uv run --no-sync --project ../../tools/python ruff format --line-length 140 --check tools',

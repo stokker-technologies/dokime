@@ -96,7 +96,7 @@ class RecordingServer:
 def main() -> None:
     root = Path(__file__).resolve().parents[3]
     sources = root / "target/protocol"
-    manifest = json.loads(files("dokime_sdk").joinpath("_wire").joinpath("sources.json").read_text())
+    manifest = json.loads(files("dokime_sdk").joinpath("_generated").joinpath("sources.json").read_text())
     source_inventory = runpy.run_path(str(Path(__file__).with_name("generate.py")))["source_inventory"]
     expected = source_inventory(sources)
     if manifest != expected:
@@ -104,11 +104,11 @@ def main() -> None:
     channel = RecordingChannel()
     server = RecordingServer()
     services: set[str] = set()
-    descriptors = FileDescriptorSet.FromString(files("dokime_sdk").joinpath("_wire/surface.pb").read_bytes())
+    descriptors = FileDescriptorSet.FromString(files("dokime_sdk").joinpath("_generated/surface.pb").read_bytes())
     for definition in descriptors.file:
         if not definition.package.startswith("dokime.") or not definition.service:
             continue
-        module = definition.name.removesuffix(".proto").replace("/", ".").replace("dokime.", "dokime_sdk._wire.", 1)
+        module = definition.name.removesuffix(".proto").replace("/", ".").replace("dokime.", "dokime_sdk._generated.proto.", 1)
         stubs = import_module(module + "_pb2_grpc")
         for service in definition.service:
             getattr(stubs, service.name + "Stub")(channel)
@@ -125,7 +125,7 @@ def main() -> None:
         module = definition.name.removesuffix(".proto").replace("/", ".")
         for owner in ("dokime", "harmos"):
             package = "dokime_sdk" if owner == "dokime" else owner
-            module = module.replace(owner + ".", package + "._wire.", 1) if module.startswith(owner + ".") else module
+            module = module.replace(owner + ".", package + "._generated.proto.", 1) if module.startswith(owner + ".") else module
         import_module(module + "_pb2")
         runtime = descriptor_pool.Default().FindFileByName(definition.name)
         actual_definition = descriptor_pb2.FileDescriptorProto()

@@ -29,15 +29,15 @@ from urllib.parse import urlsplit
 from dokime_tools.test import policy
 from grpc import ServicerContext, StatusCode, server
 from harmos import CLASSIFICATION_PERMANENT
-from harmos._wire.model.v1.failure_pb2 import Failure
-from harmos._wire.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
-from harmos._wire.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
+from harmos._generated.proto.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
 
 # Local Imports
 from starter_project.plugin import ExamplePlugin
 
-from dokime_sdk._wire.host.v1 import plugins_pb2
-from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
+from dokime_sdk._generated.proto.host.v1 import plugins_pb2
+from dokime_sdk._generated.proto.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 
 # Type Checking Imports
 

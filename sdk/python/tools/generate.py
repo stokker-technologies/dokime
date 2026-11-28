@@ -14,7 +14,6 @@
 import argparse
 import hashlib
 import json
-import re
 import shutil
 import subprocess
 import sys
@@ -150,93 +149,31 @@ def source_inventory(protocols: Path) -> dict[str, str]:
     }
 
 
-def main(*, check: bool = False, exports_only: bool = False) -> None:
+def main(*, check: bool = False) -> None:
+    """Write or Check the Installed Surface Record and the Closed Product Root; the Library CLI Owns the Wire Modules."""
+    import grpc_tools
+    from grpc_tools import protoc
+
     sdk = Path(__file__).resolve().parents[1]
     root = sdk.parents[1]
     bundled_protocols = sdk / "proto"
     protocols = bundled_protocols if bundled_protocols.is_dir() else root / "target/protocol"
-    python_package = "dokime_sdk"
-    source = sdk / "src" / python_package
+    source = sdk / "src/dokime_sdk"
     output = Path(tempfile.mkdtemp(prefix="dokime-protocol-"))
     try:
-        if not exports_only:
-            import grpc_tools
-            from grpc_tools import protoc
-
-            manifest = source_inventory(protocols)
-            arguments = [
-                "protoc",
-                f"-I{protocols}",
-                f"-I{Path(grpc_tools.__file__).parent / '_proto'}",
-                f"--python_out={output}",
-                f"--pyi_out={output}",
-                f"--grpc_python_out={output}",
-                f"--descriptor_set_out={output / 'surface.pb'}",
-                "--include_imports",
-                *(str(protocols / name) for name in manifest if name.startswith("dokime/")),
-            ]
-            status = protoc.main(arguments)
-            if status:
-                raise RuntimeError("Generate Python Protocols: Correct the Reported Proto Errors and Regenerate")
-            if not check:
-                for old in source.rglob("*_pb2*"):
-                    if old.is_file():
-                        old.unlink()
-            drift: list[str] = []
-            expected: set[Path] = set()
-            for path in (output / "dokime").rglob("*"):
-                if not path.is_file():
-                    continue
-                target = source / "_wire" / path.relative_to(output / "dokime")
-                expected.add(target)
-                if not check:
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                text = path.read_text(encoding="utf-8")
-                if path.suffix == ".pyi":
-                    # Fields Are Managed by the Protobuf Metaclass, Not Python Slots.
-                    text = ("from google.protobuf.reflection import GeneratedProtocolMessageType\nfrom typing import final\n\n") + text
-                    text = re.sub(
-                        r"(?m)^( *)class (\w+)\(_message.Message\):\n +__slots__ = [^\n]+\n",
-                        r"\1@final\n\1class \2(_message.Message, metaclass=GeneratedProtocolMessageType):\n\1    __slots__: tuple[str, ...]\n",
-                        text,
-                    )
-                for owner in ("dokime", "harmos"):
-                    package = python_package if owner == "dokime" else owner
-                    for executor in ("model", "host", "plugin"):
-                        text = text.replace(f"from {owner}.{executor}", f"from {package}._wire.{executor}")
-                        text = text.replace(f"import {owner}.{executor}.", f"import {package}._wire.{executor}.")
-                        text = text.replace(
-                            f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}.{executor}.",
-                            f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{package}._wire.{executor}.",
-                        )
-                if check:
-                    if not target.is_file() or target.read_text(encoding="utf-8") != text:
-                        drift.append(str(target.relative_to(sdk)))
-                else:
-                    target.write_text(text, encoding="utf-8", newline="\n")
-                    (target.parent / "py.typed").touch()
-                    (target.parent / "__init__.py").touch(exist_ok=True)
-            if check:
-                existing = {path for path in (source / "_wire").rglob("*_pb2*") if path.is_file() and path.suffix in {".py", ".pyi"}}
-                drift.extend(str(path.relative_to(sdk)) for path in sorted(existing - expected))
-                if (output / "surface.pb").read_bytes() != (source / "_wire/surface.pb").read_bytes():
-                    drift.append("_wire/surface.pb")
-            else:
-                shutil.copyfile(output / "surface.pb", source / "_wire/surface.pb")
-            text = json.dumps(manifest, sort_keys=True) + "\n"
-            if check:
-                if (source / "_wire/sources.json").read_text(encoding="utf-8") != text:
-                    drift.append("_wire/sources.json")
-                if drift:
-                    raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
-            else:
-                (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
-        # Retire the Shared Generator's Public Transport Facade.
-        facade = source / "client.py"
-        if check and facade.exists():
-            raise ValueError("Check Python Exports: Retire client.py With mise -C sdk/python run generate")
-        if not check:
-            facade.unlink(missing_ok=True)
+        # The Installed Surface Records Its Descriptors and Sources, So the Wheel Checks Can Prove It Current.
+        manifest = source_inventory(protocols)
+        arguments = [
+            "protoc",
+            f"-I{protocols}",
+            f"-I{Path(grpc_tools.__file__).parent / '_proto'}",
+            f"--descriptor_set_out={output / 'surface.pb'}",
+            "--include_imports",
+            *(str(protocols / name) for name in manifest if name.startswith("dokime/")),
+        ]
+        if protoc.main(arguments):
+            raise RuntimeError("Generate Python Surface: Correct the Reported Proto Errors and Regenerate")
+        (output / "sources.json").write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
         # Generate the Closed Product Root; Operations and Templates Own Their Contexts.
         lines = ["# @generated from the product public-home inventory; do not edit."]
         lines.extend(f"from . import {module}" for module in ROOT_EXPORTS)
@@ -246,17 +183,24 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
         barrel = output / "__init__.py"
         barrel.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         subprocess.run(
-            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I", "--fix", str(barrel)],
-            check=True,
+            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I", "--fix", str(barrel)], check=True
         )
         subprocess.run([sys.executable, "-m", "ruff", "format", "--config", str(sdk / "ruff.toml"), str(barrel)], check=True)
-        text = barrel.read_text(encoding="utf-8")
-        target = source / "__init__.py"
-        if check:
-            if target.read_text(encoding="utf-8") != text:
-                raise ValueError("Check Python Exports: Run mise -C sdk/python run generate")
-        else:
-            target.write_text(text, encoding="utf-8", newline="\n")
+        targets = {
+            output / "surface.pb": source / "_generated/surface.pb",
+            output / "sources.json": source / "_generated/sources.json",
+            barrel: source / "__init__.py",
+        }
+        drift = [
+            str(target.relative_to(sdk))
+            for rendered, target in targets.items()
+            if not target.is_file() or target.read_bytes() != rendered.read_bytes()
+        ]
+        if check and drift:
+            raise ValueError("Check Python Surface: Regenerate With mise run generate -- --protocol --language python: " + ", ".join(drift))
+        if not check:
+            for rendered, target in targets.items():
+                shutil.copyfile(rendered, target)
     finally:
         shutil.rmtree(output)
 
@@ -268,6 +212,5 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--exports-only", action="store_true")
     options = parser.parse_args()
-    main(check=options.check, exports_only=options.exports_only)
+    main(check=options.check)

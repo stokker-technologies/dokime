@@ -109,18 +109,18 @@ def verify(root: Path, output: Path, version: str) -> list[Path]:
         protocols = inputs(root)
         source_inventory = runpy.run_path(str(Path(__file__).resolve().parents[5] / "sdk/python/tools/generate.py"))["source_inventory"]
         expected = source_inventory(protocols)
-        manifest = json.loads(archive.read("dokime_sdk/_wire/sources.json"))
+        manifest = json.loads(archive.read("dokime_sdk/_generated/sources.json"))
         if not expected or manifest != expected:
             differences = sorted(name for name in manifest.keys() | expected.keys() if manifest.get(name) != expected.get(name))
             raise ToolError(
                 "Build Wheel: Regenerate With mise run generate -- --protocol --language python, Then Rebuild; "
                 "Python wheel protocol sources differ from target/protocol: " + ", ".join(differences)
             )
-        required = {"dokime_sdk/_wire/surface.pb"}
+        required = {"dokime_sdk/_generated/surface.pb"}
         for name in expected:
             if not name.startswith("dokime/"):
                 continue
-            stem = name.removesuffix(".proto").replace("dokime/", "dokime_sdk/_wire/", 1)
+            stem = name.removesuffix(".proto").replace("dokime/", "dokime_sdk/_generated/proto/", 1)
             required.update(stem + suffix for suffix in ("_pb2.py", "_pb2.pyi", "_pb2_grpc.py"))
         if not required.issubset(names):
             raise ToolError("Build Wheel: Python wheel is missing generated protocol modules")

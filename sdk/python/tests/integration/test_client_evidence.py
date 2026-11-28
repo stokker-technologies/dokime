@@ -24,13 +24,13 @@ from grpc.aio import ServicerContext, server
 
 # Local Imports
 from dokime_sdk._connection import connect
-from dokime_sdk._wire.host.v1 import executions_pb2
-from dokime_sdk._wire.host.v1.evidence import records_pb2, samples_pb2
-from dokime_sdk._wire.host.v1.evidence.records_pb2_grpc import RecordsServicer, add_RecordsServicer_to_server
-from dokime_sdk._wire.host.v1.evidence.samples_pb2_grpc import SamplesServicer, add_SamplesServicer_to_server
-from dokime_sdk._wire.host.v1.executions import schemas_pb2
-from dokime_sdk._wire.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
-from dokime_sdk._wire.host.v1.executions_pb2_grpc import ExecutionsServicer, add_ExecutionsServicer_to_server
+from dokime_sdk._generated.proto.host.v1 import executions_pb2
+from dokime_sdk._generated.proto.host.v1.evidence import records_pb2, samples_pb2
+from dokime_sdk._generated.proto.host.v1.evidence.records_pb2_grpc import RecordsServicer, add_RecordsServicer_to_server
+from dokime_sdk._generated.proto.host.v1.evidence.samples_pb2_grpc import SamplesServicer, add_SamplesServicer_to_server
+from dokime_sdk._generated.proto.host.v1.executions import schemas_pb2
+from dokime_sdk._generated.proto.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
+from dokime_sdk._generated.proto.host.v1.executions_pb2_grpc import ExecutionsServicer, add_ExecutionsServicer_to_server
 from dokime_sdk.operations import OperationError
 
 # Type Checking Imports

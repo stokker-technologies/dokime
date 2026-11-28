@@ -20,7 +20,7 @@ from typing import Any, ClassVar, cast
 
 # Third Party Imports
 from harmos import plugin
-from harmos._wire.plugin.v1.invocation_pb2 import Request
+from harmos._generated.proto.plugin.v1.invocation_pb2 import Request
 
 import dokime_sdk.operations
 import dokime_sdk.templates

@@ -12,11 +12,9 @@
 # === Imports === #
 
 # Standard Library Imports
-import json
 import os
 import runpy
 from pathlib import Path
-from subprocess import CompletedProcess
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import patch
@@ -38,29 +36,30 @@ from dokime_tools.build import configuration, host_fixtures
 
 
 class HostFixtureStory(TestCase):
-    def test_reference_host_and_fixtures_use_the_workspace_resolved_source(self) -> None:
+    def test_reference_host_builds_from_the_locked_library_source(self) -> None:
         root = Path(__file__).resolve().parents[4]
-        source = root / "target/library-source"
-        metadata = {"packages": [{"name": "harmos", "manifest_path": str(source / "crates/harmos/Cargo.toml"), "source": None}]}
+        source = root / "target/library/0.0.0"
         self.enterContext(patch.object(configuration, "ROOT", root))
+        self.enterContext(patch.object(host_fixtures.protocol, "library", return_value=source))
         run = self.enterContext(patch.object(host_fixtures.subprocess, "run"))
-        run.side_effect = [CompletedProcess([], 0, stdout=json.dumps(metadata)), CompletedProcess([], 0)]
         binary = host_fixtures.prepare_reference("dev")
-        metadata_call, install = run.call_args_list
-        self.assertEqual(metadata_call.args[0], ["cargo", "metadata", "--locked", "--format-version", "1"])
-        command = install.args[0]
+        command = run.call_args.args[0]
         self.assertEqual(command[:5], ["cargo", "install", "--path", str(source / "tools/conformance"), "--locked"])
         self.assertIn("--debug", command)
         self.assertEqual(command[command.index("--target-dir") + 1], str(root / "target"))
         self.assertEqual(command[command.index("--root") + 1], str(root / "target/reference-host"))
         self.assertEqual(binary.parent, root / "target/reference-host/bin")
 
-    def test_reference_source_requires_one_resolved_library(self) -> None:
-        run = self.enterContext(patch.object(host_fixtures.subprocess, "run"))
-        run.return_value = CompletedProcess([], 0, stdout=json.dumps({"packages": []}))
-        with self.assertRaisesRegex(ValueError, "Resolve Exactly One Harmos Package"):
-            host_fixtures.prepare_reference("dev")
-        run.assert_called_once()
+    def test_library_source_requires_one_locked_release(self) -> None:
+        temporary_directory = TemporaryDirectory()
+        try:
+            root = Path(temporary_directory.name)
+            versions = "".join(f'[[package]]\nname = "harmos"\nversion = "{version}"\n' for version in ("1.0.0", "1.1.0"))
+            (root / "Cargo.lock").write_text(versions, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Lock Exactly One harmos Version"):
+                host_fixtures.protocol.release(root)
+        finally:
+            temporary_directory.cleanup()
 
     def test_exported_fixture_profiles_nested_assets_and_explicit_overrides(self) -> None:
         root = Path(__file__).resolve().parents[4]

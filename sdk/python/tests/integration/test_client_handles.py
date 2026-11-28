@@ -26,29 +26,29 @@ from google.protobuf.message import Message
 from grpc import StatusCode
 from grpc.aio import ServicerContext, server
 from harmos import CLASSIFICATION_REFUSED
-from harmos._wire.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk._client import Case, Client
 from dokime_sdk._connection import connect
+from dokime_sdk._generated.proto.host.v1 import cases_pb2, cycles_pb2, evidence_pb2, executions_pb2, files_pb2, prompts_pb2, reports_pb2
+from dokime_sdk._generated.proto.host.v1.cases_pb2_grpc import CasesServicer, add_CasesServicer_to_server
+from dokime_sdk._generated.proto.host.v1.cycles_pb2_grpc import CyclesServicer, add_CyclesServicer_to_server
+from dokime_sdk._generated.proto.host.v1.evidence import notes_pb2
+from dokime_sdk._generated.proto.host.v1.evidence.notes_pb2_grpc import NotesServicer, add_NotesServicer_to_server
+from dokime_sdk._generated.proto.host.v1.evidence_pb2_grpc import EvidenceServicer, add_EvidenceServicer_to_server
+from dokime_sdk._generated.proto.host.v1.executions import progress_pb2
+from dokime_sdk._generated.proto.host.v1.executions.progress_pb2_grpc import ProgressServicer, add_ProgressServicer_to_server
+from dokime_sdk._generated.proto.host.v1.executions_pb2_grpc import ExecutionsServicer, add_ExecutionsServicer_to_server
+from dokime_sdk._generated.proto.host.v1.files import uploads_pb2
+from dokime_sdk._generated.proto.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
+from dokime_sdk._generated.proto.host.v1.files_pb2_grpc import FilesServicer, add_FilesServicer_to_server
+from dokime_sdk._generated.proto.host.v1.prompts import answers_pb2
+from dokime_sdk._generated.proto.host.v1.prompts.answers_pb2_grpc import AnswersServicer, add_AnswersServicer_to_server
+from dokime_sdk._generated.proto.host.v1.prompts_pb2_grpc import PromptsServicer, add_PromptsServicer_to_server
+from dokime_sdk._generated.proto.host.v1.reports_pb2_grpc import ReportsServicer, add_ReportsServicer_to_server
 from dokime_sdk._transfers import verify_archive
 from dokime_sdk._values import Outcome, PromptAnswer, PromptQuestion, ResultStatus, Termination, decode
-from dokime_sdk._wire.host.v1 import cases_pb2, cycles_pb2, evidence_pb2, executions_pb2, files_pb2, prompts_pb2, reports_pb2
-from dokime_sdk._wire.host.v1.cases_pb2_grpc import CasesServicer, add_CasesServicer_to_server
-from dokime_sdk._wire.host.v1.cycles_pb2_grpc import CyclesServicer, add_CyclesServicer_to_server
-from dokime_sdk._wire.host.v1.evidence import notes_pb2
-from dokime_sdk._wire.host.v1.evidence.notes_pb2_grpc import NotesServicer, add_NotesServicer_to_server
-from dokime_sdk._wire.host.v1.evidence_pb2_grpc import EvidenceServicer, add_EvidenceServicer_to_server
-from dokime_sdk._wire.host.v1.executions import progress_pb2
-from dokime_sdk._wire.host.v1.executions.progress_pb2_grpc import ProgressServicer, add_ProgressServicer_to_server
-from dokime_sdk._wire.host.v1.executions_pb2_grpc import ExecutionsServicer, add_ExecutionsServicer_to_server
-from dokime_sdk._wire.host.v1.files import uploads_pb2
-from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
-from dokime_sdk._wire.host.v1.files_pb2_grpc import FilesServicer, add_FilesServicer_to_server
-from dokime_sdk._wire.host.v1.prompts import answers_pb2
-from dokime_sdk._wire.host.v1.prompts.answers_pb2_grpc import AnswersServicer, add_AnswersServicer_to_server
-from dokime_sdk._wire.host.v1.prompts_pb2_grpc import PromptsServicer, add_PromptsServicer_to_server
-from dokime_sdk._wire.host.v1.reports_pb2_grpc import ReportsServicer, add_ReportsServicer_to_server
 from dokime_sdk.operations import OperationError
 
 # Type Checking Imports

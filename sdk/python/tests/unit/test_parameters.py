@@ -9,7 +9,7 @@ from unittest import TestCase
 
 # Third Party Imports
 from harmos import plugin
-from harmos._wire.plugin.v1.invocation_pb2 import Request
+from harmos._generated.proto.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
 from dokime_sdk import Plugin, Suite

@@ -16,8 +16,12 @@ from typing import Self
 
 # Third Party Imports
 # Local Imports
-from .._generated import shared
-from .._generated.shared import Card, DataExpression, Metadata
+from .._generated.proto.model.v1.documents_pb2 import EVIDENCE_CARD_RECORDS, EVIDENCE_CARD_TRACEABILITY, Card, CardLayout
+from .._generated.proto.model.v1.documents_pb2 import Document as DocumentMessage
+from .._generated.proto.model.v1.documents_pb2 import Section as SectionMessage
+from .._generated.proto.model.v1.documents_pb2 import Summary as SummaryMessage
+from .._generated.proto.model.v1.expressions_pb2 import DataExpression
+from .._generated.proto.model.v1.metadata_pb2 import Metadata
 from ._plots import Expression, Plot, _expression
 
 # Type Checking Imports
@@ -34,7 +38,7 @@ from ._plots import Expression, Plot, _expression
 
 class Document:
     def __init__(self, label: str) -> None:
-        self.message = shared.Document(metadata=metadata(label))
+        self.message = DocumentMessage(metadata=metadata(label))
 
     @property
     def label(self) -> str:
@@ -53,7 +57,7 @@ class Document:
 
 class Section:
     def __init__(self, label: str) -> None:
-        self.message = shared.model.Section(metadata=metadata(label))
+        self.message = SectionMessage(metadata=metadata(label))
 
     def id(self, identifier: str) -> Self:
         self.message.metadata.identifier = identifier
@@ -97,7 +101,7 @@ class Section:
         return self
 
     def traceability(self, *, label: str = "Traceability") -> Self:
-        self.message.cards.add(metadata=metadata(label), evidence=shared.EVIDENCE_CARD_TRACEABILITY)
+        self.message.cards.add(metadata=metadata(label), evidence=EVIDENCE_CARD_TRACEABILITY)
         return self
 
     def repeat(self, value: Expression, *, label_template: str = "", order_by: Expression | None = None) -> Self:
@@ -111,7 +115,7 @@ class Section:
 
 class Summary:
     def __init__(self) -> None:
-        self.message = shared.Summary()
+        self.message = SummaryMessage()
 
     def tile(self, label: str, value: Expression, *, unit: str = "") -> Self:
         self.message.tiles.add(metadata=metadata(label), value=_expression(value), unit=unit)
@@ -122,11 +126,11 @@ class Summary:
 
 
 def plot_card(plot: Plot, columns: int = 12) -> Card:
-    return Card(metadata=plot.message.metadata, plot=plot.message, layout=shared.CardLayout(columns=columns))
+    return Card(metadata=plot.message.metadata, plot=plot.message, layout=CardLayout(columns=columns))
 
 
 def records_card(identifier: str) -> Card:
-    return Card(metadata=Metadata(identifier=identifier, label="Records"), evidence=shared.EVIDENCE_CARD_RECORDS)
+    return Card(metadata=Metadata(identifier=identifier, label="Records"), evidence=EVIDENCE_CARD_RECORDS)
 
 
 def metadata(label: str) -> Metadata:

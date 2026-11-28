@@ -27,7 +27,7 @@ from pathlib import Path
 
 # Local Imports
 import dokime_tools.test.policy
-from dokime_tools.build import cargo, configuration, frontend, paths
+from dokime_tools.build import cargo, configuration, frontend, paths, protocol
 from dokime_tools.ci import transport
 from dokime_tools.package.staging import sync_output
 from dokime_tools.prepare import generated
@@ -157,7 +157,7 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
             shutil.copy2(source, output / source.name)
 
         # Build Both Conformance Fixtures From the Resolved Library Source.
-        source = _library_source(root)
+        source = protocol.library(root)
         reference = _reference(root, source, profile)
         shutil.copy2(reference, output / reference.name)
         sync_output(source / "sdk/python/tests/fixtures/conformance", output / "python/conformance")
@@ -260,26 +260,10 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
 def prepare_reference(profile: str) -> Path:
     """Build the Reference Host Used by Both SDK and Shared Integration Fixtures."""
     root = configuration.ROOT
-    source = _library_source(root)
-    return _reference(root, source, profile)
+    return _reference(root, protocol.library(root), profile)
 
 
 # === Private Functions === #
-
-
-def _library_source(root: Path) -> Path:
-    metadata = subprocess.run(
-        ["cargo", "metadata", "--locked", "--format-version", "1"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=True,
-        creationflags=spawn_flags(),
-    )
-    packages = [package for package in json.loads(metadata.stdout)["packages"] if package["name"] == "harmos"]
-    if len(packages) != 1:
-        raise ValueError("Prepare Reference Host: Resolve Exactly One Harmos Package in the Workspace")
-    return Path(packages[0]["manifest_path"]).parents[2]
 
 
 def _reference(root: Path, source: Path, profile: str) -> Path:

@@ -10,12 +10,12 @@ from unittest import IsolatedAsyncioTestCase
 
 # Third Party Imports
 from grpc.aio import insecure_channel
-from harmos._wire.plugin.v1.instance_pb2 import InstanceInvokeRequest, InstanceInvokeResponse
-from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
+from harmos._generated.proto.plugin.v1.instance_pb2 import InstanceInvokeRequest, InstanceInvokeResponse
+from harmos._generated.proto.plugin.v1.invocation_pb2 import ChildResponse, Request
 
 # Local Imports
 from dokime_sdk import Plugin
-from dokime_sdk._wire.model.v1.metadata_pb2 import Metadata
+from dokime_sdk._generated.proto.model.v1.metadata_pb2 import Metadata
 from dokime_sdk.operations import Context, operation
 
 # Type Checking Imports

@@ -24,12 +24,12 @@ from zipfile import ZipFile
 
 # Third Party Imports
 from grpc.aio import insecure_channel, server
-from harmos._wire.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetResponse
-from harmos._wire.plugin.v1.launches_pb2 import (
+from harmos._generated.proto.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetResponse
+from harmos._generated.proto.plugin.v1.launches_pb2 import (
     LaunchesAnnounceRequest,
     LaunchesAnnounceResponse,
 )
-from harmos._wire.plugin.v1.launches_pb2_grpc import (
+from harmos._generated.proto.plugin.v1.launches_pb2_grpc import (
     LaunchesServicer,
     add_LaunchesServicer_to_server,
 )
@@ -37,11 +37,13 @@ from harmos._wire.plugin.v1.launches_pb2_grpc import (
 # isort: split
 
 # Local Imports
-from dokime_sdk import PromptAnswer, PromptQuestion, ResultStatus
-from dokime_sdk._generated import client_types
-from dokime_sdk._generated.shared import RecordContracts, Suites
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import policy
+
+from dokime_sdk import PromptAnswer, PromptQuestion, ResultStatus
+from dokime_sdk._generated.proto.host.v1.plugins_pb2 import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
+from dokime_sdk._generated.proto.model.v1.record_contracts_pb2 import RecordContracts
+from dokime_sdk._generated.proto.model.v1.suites_pb2 import Suites
 
 # Type Checking Imports
 
@@ -106,9 +108,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         ready: asyncio.Queue[str] = asyncio.Queue()
 
         class Launches(LaunchesServicer):
-            async def Announce(
-                self, request: LaunchesAnnounceRequest, context: object
-            ) -> LaunchesAnnounceResponse:
+            async def Announce(self, request: LaunchesAnnounceRequest, context: object) -> LaunchesAnnounceResponse:
                 await ready.put(request.address)
                 return LaunchesAnnounceResponse()
 
@@ -158,16 +158,10 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                     if section.type == records.DESCRIPTOR.full_name:
                         records.ParseFromString(section.payload)
                 expected = "capture.confirmation"
-                templates = {
-                    template.metadata.identifier: suite
-                    for suite in suites.suites
-                    for template in suite.templates
-                }
+                templates = {template.metadata.identifier: suite for suite in suites.suites for template in suite.templates}
                 self.assertIn(expected, templates, language)
                 suite = templates[expected]
-                contracts = {
-                    record.metadata.identifier: record for record in records.records
-                }
+                contracts = {record.metadata.identifier: record for record in records.records}
                 self.assertIn(f"{expected}.confirmation", contracts, language)
                 record = contracts[f"{expected}.confirmation"]
                 self.assertEqual(record.message, "google.protobuf.BoolValue", language)
@@ -175,23 +169,19 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                 # Register the Fixture and Wait on Host Readiness.
                 created = await client._transport.plugins.create(
                     response.id,
-                    client_types.PluginPlacement(
-                        remote=client_types.PluginRemote(url=f"http://{address}")
-                    ),
-                    client_types.PluginValue(enabled=True),
+                    PluginPlacement(remote=PluginRemote(url=f"http://{address}")),
+                    PluginValue(enabled=True),
                 )
                 try:
                     watching = client._transport.plugins.watch(name=created.entry.name)
                     try:
                         async for frame in watching:
-                            observed = await client._transport.plugins.get(
-                                created.entry.name
-                            )
+                            observed = await client._transport.plugins.get(created.entry.name)
                             self.assertFalse(
                                 observed.entry.HasField("failure"),
                                 str(observed.entry.failure),
                             )
-                            if observed.entry.state == client_types.PLUGIN_STATE_READY:
+                            if observed.entry.state == PLUGIN_STATE_READY:
                                 break
                     finally:
                         await watching.aclose()
@@ -207,19 +197,13 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                     execution = await cycle.execution(cases[0])
                     async for progress in execution.run():
                         pass
-                    self.assertEqual(
-                        (await execution.seal()).status, ResultStatus.PASSED, language
-                    )
+                    self.assertEqual((await execution.seal()).status, ResultStatus.PASSED, language)
                     self.assertTrue(
-                        await execution.records(
-                            record.metadata.identifier, row_type=bool
-                        ).last(),
+                        await execution.records(record.metadata.identifier, row_type=bool).last(),
                         language,
                     )
                     self.assertEqual(
-                        await execution.records(
-                            record.metadata.identifier, row_type=bool
-                        ).count(),
+                        await execution.records(record.metadata.identifier, row_type=bool).count(),
                         1,
                         language,
                     )
@@ -231,22 +215,16 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                         try:
                             reader_environment = dict(environment)
                             reader_environment["DOKIME_REMOTE"] = host.endpoint
-                            reader_environment["DOKIME_TEST_EXECUTION"] = (
-                                execution.identifier
-                            )
+                            reader_environment["DOKIME_TEST_EXECUTION"] = execution.identifier
                             reader = await asyncio.create_subprocess_exec(
                                 str(factory.fixture("dokime-rust-history")),
                                 cwd=temporary.name,
                                 env=reader_environment,
                                 creationflags=spawn_flags(),
                             )
-                            self.assertEqual(
-                                await asyncio.wait_for(reader.wait(), timeout), 0
-                            )
+                            self.assertEqual(await asyncio.wait_for(reader.wait(), timeout), 0)
                             for archive in ("execution.zip", "cycle.zip"):
-                                saved = ZipFile(
-                                    Path(temporary.name) / "_output" / archive
-                                )
+                                saved = ZipFile(Path(temporary.name) / "_output" / archive)
                                 try:
                                     self.assertIsNone(saved.testzip())
                                     self.assertTrue(saved.namelist())
@@ -260,9 +238,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                     print(f"Capture Host Story: {language}: Passed", flush=True)
                 finally:
                     current = await client._transport.plugins.get(created.entry.name)
-                    await client._transport.plugins.delete(
-                        created.entry.name, current.entry.revision
-                    )
+                    await client._transport.plugins.delete(created.entry.name, current.entry.revision)
             finally:
                 if process.returncode is None:
                     process.terminate()

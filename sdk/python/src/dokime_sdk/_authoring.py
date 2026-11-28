@@ -22,10 +22,17 @@ from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast
 # Third Party Imports
 from google.protobuf.message import Message
 
-# Local Imports
-from dokime_sdk._generated import shared
-from dokime_sdk._generated.shared import DataExpression, FileParameter, Plot, TestCase, TestCaseTemplate, TransformExpression
+from dokime_sdk._generated.proto.model.v1.execution_pb2 import TestCase
+from dokime_sdk._generated.proto.model.v1.expressions_pb2 import DataExpression, TransformExpression
+from dokime_sdk._generated.proto.model.v1.parameters_pb2 import FileParameter
+from dokime_sdk._generated.proto.model.v1.plots_pb2 import Plot
+from dokime_sdk._generated.proto.model.v1.suites_pb2 import TestCaseTemplate
 
+# Local Imports
+from ._generated.proto.model.v1.execution_pb2 import Step as StepMessage
+from ._generated.proto.model.v1.parameters_pb2 import Parameter as ParameterMessage
+from ._generated.proto.model.v1.prompts_pb2 import PROMPT_ARCHETYPE_CHOICE, Prompt
+from ._generated.proto.model.v1.suites_pb2 import Suite as SuiteMessage
 from ._parameters import Parameter
 from ._payloads import Payload, message_type
 from ._values import Scalar, encode
@@ -127,7 +134,7 @@ class Record[T: Payload]:
 
 @dataclass(frozen=True)
 class PromptDeclaration:
-    value: shared.Prompt
+    value: Prompt
     identifier: str | None = None
 
 
@@ -139,14 +146,14 @@ class _Template:
     steps: Sequence[Step] = ()
     criteria: Sequence[Criterion] = ()
     uses_streams: Sequence[type[Observer[Any]] | Stream[Any]] = ()
-    parameters: Sequence[shared.Parameter] = ()
+    parameters: Sequence[ParameterMessage] = ()
     documents: Sequence["Document"] = ()
     files: Sequence[FileParameter] = ()
     prompts: Sequence[PromptDeclaration] = field(init=False)
     _methods: dict[str, Any] = field(init=False, repr=False)
     _identifiers: dict[int, str] = field(default_factory=dict, init=False, repr=False)
     _lifecycle: dict[str, str] = field(default_factory=dict, init=False, repr=False)
-    _prompts: dict[int, shared.Prompt] = field(default_factory=dict, init=False, repr=False)
+    _prompts: dict[int, Prompt] = field(default_factory=dict, init=False, repr=False)
     _root: str = field(default="", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -240,7 +247,7 @@ class _Template:
                     else:
                         pending.append(child)
         for prompt in self.prompts:
-            value = shared.Prompt()
+            value = Prompt()
             value.CopyFrom(prompt.value)
             value.metadata.identifier = bound.resolve(prompt)
             value.owner_suite = prefix
@@ -327,8 +334,8 @@ class _Suite:
     templates: tuple[_Template, ...]
     label: str
 
-    def definition(self) -> shared.Suite:
-        return shared.Suite(
+    def definition(self) -> SuiteMessage:
+        return SuiteMessage(
             metadata={"identifier": self.identifier, "label": self.label},
             templates=[item.definition() for item in self.templates],
         )
@@ -370,7 +377,7 @@ class Materialization:
         operation = self.template.resolve(handler)
         entries = self.message.steps if kind == "step" else self.message.criteria
         value = entries.add(metadata={"identifier": identity, "label": label}, operation=operation)
-        if isinstance(definition, Step) and isinstance(value, shared.Step):
+        if isinstance(definition, Step) and isinstance(value, StepMessage):
             value.repeatable = definition.repeatable
         self.bindings[kind, identity] = (handler, arguments)
         return self
@@ -403,19 +410,19 @@ def record[T: Payload](row_type: type[T], *, label: str = "", identifier: str | 
 
 
 def prompt(
-    text: str | shared.Prompt,
+    text: str | Prompt,
     *,
     choices: Sequence[str] = (),
     label: str = "",
     identifier: str | None = None,
 ) -> PromptDeclaration:
-    value = shared.Prompt()
-    if isinstance(text, shared.Prompt):
+    value = Prompt()
+    if isinstance(text, Prompt):
         value.CopyFrom(text)
         if identifier is None and value.metadata.identifier:
             identifier = value.metadata.identifier
     else:
-        value.archetype = shared.PROMPT_ARCHETYPE_CHOICE
+        value.archetype = PROMPT_ARCHETYPE_CHOICE
         value.message = text
         value.metadata.label = label or text
         for index, choice in enumerate(choices or ("OK",)):

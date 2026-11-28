@@ -13,7 +13,6 @@
 
 # Standard Library Imports
 import io
-import json
 import os
 import subprocess
 import tempfile
@@ -222,20 +221,10 @@ class HostFixtureTests(unittest.TestCase):
                     patch.object(host_fixtures.configuration, "ROOT", root),
                     patch.object(host_fixtures.generated, "prepare") as prepare,
                     patch.object(host_fixtures.subprocess, "run") as run,
+                    patch.object(host_fixtures.protocol, "library", return_value=root / "library"),
                     patch.object(host_fixtures.shutil, "copy2"),
                     patch.object(host_fixtures.archive, "stamp") as stamp,
                 ):
-                    run.return_value.stdout = json.dumps(
-                        {
-                            "packages": [
-                                {
-                                    "name": "harmos",
-                                    "source": "git+https://example.test/library#fixture-revision",
-                                    "manifest_path": str(root / "library/sdk/rust/Cargo.toml"),
-                                }
-                            ]
-                        }
-                    )
                     host_fixtures.build("release", language)
                     if language == "rust":
                         prepare.assert_called_once_with()
@@ -278,9 +267,6 @@ class HostFixtureTests(unittest.TestCase):
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
-            (root / "Cargo.toml").write_text(
-                '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n', encoding="utf-8"
-            )
             fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
             fixture.parent.mkdir(parents=True)
             fixture.write_bytes(b"fixture source")
@@ -301,21 +287,11 @@ class HostFixtureTests(unittest.TestCase):
                 patch.object(host_fixtures.configuration, "ROOT", root),
                 patch.object(host_fixtures.generated, "prepare"),
                 patch.object(host_fixtures.subprocess, "run") as run,
+                patch.object(host_fixtures.protocol, "library", return_value=root / "library"),
                 patch.object(host_fixtures.shutil, "copy2"),
                 patch.object(host_fixtures.shutil, "which", side_effect=lambda name: name if name == "dotnet" else None),
                 patch.object(host_fixtures.archive, "stamp") as inventory,
             ):
-                run.return_value.stdout = json.dumps(
-                    {
-                        "packages": [
-                            {
-                                "name": "harmos",
-                                "source": "git+https://example.test/library#fixture-revision",
-                                "manifest_path": str(root / "library/sdk/rust/Cargo.toml"),
-                            }
-                        ]
-                    }
-                )
                 host_fixtures.build("dev")
                 self.assertEqual({call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/csharp", "sdk/python"})
                 expected = [
@@ -413,22 +389,12 @@ class HostFixtureTests(unittest.TestCase):
                 fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
                 fixture.parent.mkdir(parents=True)
                 fixture.write_bytes(b"source")
-                metadata = {
-                    "packages": [
-                        {
-                            "name": "harmos",
-                            "source": "git+https://example.test/library#fixture-revision",
-                            "manifest_path": str(root / "library/sdk/rust/Cargo.toml"),
-                        }
-                    ]
-                }
                 with (
                     self.subTest(profile=profile),
                     patch.object(host_fixtures.configuration, "ROOT", root),
                     patch.object(host_fixtures.generated, "prepare"),
-                    patch.object(
-                        host_fixtures.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps(metadata))
-                    ) as run,
+                    patch.object(host_fixtures.protocol, "library", return_value=root / "library"),
+                    patch.object(host_fixtures.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run,
                 ):
                     host_fixtures.build(profile, "rust")
                     selected = "debug" if profile == "dev" else profile
@@ -436,7 +402,7 @@ class HostFixtureTests(unittest.TestCase):
                     for name in (*names, "content_fixture"):
                         expected = profile if name in ("dokime-host", "plugin-obc") else selected
                         self.assertEqual((output / f"{name}{extension}").read_bytes(), expected.encode())
-                    commands = [call.args[0] for call in run.call_args_list if call.args[0][:2] != ["cargo", "metadata"]]
+                    commands = [call.args[0] for call in run.call_args_list]
                     for command in commands:
                         # Cargo Install Spells the Dev Profile as --debug.
                         if command[:2] == ["cargo", "install"] and profile == "dev":

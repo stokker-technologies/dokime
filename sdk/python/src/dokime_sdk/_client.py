@@ -26,7 +26,7 @@ from grpc import StatusCode
 from grpc.aio import AioRpcError
 from harmos import CLASSIFICATION_INVALID, CLASSIFICATION_PERMANENT, CLASSIFICATION_REFUSED, OperationError
 from harmos._client_transport import unary
-from harmos._wire.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
 from harmos.plugin import Endpoint
 
 # Local Imports
@@ -34,8 +34,35 @@ import dokime_sdk._generated.client
 
 from ._authoring import _Template
 from ._evidence import RecordsQuery, SamplesQuery
-from ._generated import client_types
-from ._generated.shared import MapValue
+from ._generated.proto.host.v1.cases_pb2 import RegisteredSelection, SelectionPlan
+from ._generated.proto.host.v1.cycles_pb2 import (
+    ARCHIVE_SCOPE_ALL,
+    CYCLE_PHASE_SEAL_FAILED,
+    CYCLE_PHASE_SEALED,
+    CycleFilter,
+    CycleOrder,
+    CyclePhase,
+    CycleSelection,
+    CycleSummary,
+)
+from ._generated.proto.host.v1.evidence.notes_pb2 import AnnotationOwner, AnnotationOwnerOwner, ExecutionNoteOwner, NoteWritable
+from ._generated.proto.host.v1.evidence_pb2 import EvidenceSubject
+from ._generated.proto.host.v1.executions_pb2 import (
+    EXECUTION_MODE_AUTOMATIC,
+    EXECUTION_STATE_CLOSED,
+    EXECUTION_STATE_OPEN,
+    EXECUTION_STATE_SEALED,
+    ExecutionBinding,
+    ExecutionDetail,
+    ExecutionFilter,
+    ExecutionOrder,
+    ExecutionSelection,
+)
+from ._generated.proto.host.v1.plugins_pb2 import PluginEntry, PluginPlacement, PluginRemote, PluginState, PluginValue
+from ._generated.proto.host.v1.reports_pb2 import ReportSubject
+from ._generated.proto.model.v1.evidence_pb2 import ArtifactScope
+from ._generated.proto.model.v1.metadata_pb2 import Metadata
+from ._generated.proto.model.v1.scalar_pb2 import MapValue
 from ._payloads import Payload
 from ._schemas import FrozenSchemaCache, pool
 from ._transfers import download, publish_artifact, verify_archive
@@ -54,8 +81,6 @@ from ._values import (
     decode,
     encode,
 )
-from ._wire.model.v1.evidence_pb2 import ArtifactScope
-from ._wire.model.v1.metadata_pb2 import Metadata
 
 # Type Checking Imports
 if TYPE_CHECKING:
@@ -297,8 +322,8 @@ class Plugins:
                 "plugins.create",
                 self._client._transport.plugins.create(
                     plugin.identifier,
-                    client_types.host.PluginPlacement(remote=client_types.host.PluginRemote(url=f"http://{endpoint.address}")),
-                    client_types.host.PluginValue(enabled=True),
+                    PluginPlacement(remote=PluginRemote(url=f"http://{endpoint.address}")),
+                    PluginValue(enabled=True),
                     request_id=identity,
                     sdk_version=version("dokime-sdk"),
                 ),
@@ -362,7 +387,7 @@ class Plugins:
 
 class RegisteredPlugin:
     _client: Client
-    _entry: client_types.host.PluginEntry
+    _entry: PluginEntry
     _endpoint: Endpoint | None
     _unregister_id: str
     _detached: bool
@@ -376,7 +401,7 @@ class RegisteredPlugin:
     def _bind(
         cls,
         client: Client,
-        entry: client_types.host.PluginEntry,
+        entry: PluginEntry,
         endpoint: Endpoint | None = None,
         *,
         label: str | None = None,
@@ -386,7 +411,7 @@ class RegisteredPlugin:
         self._client = client
         if not entry.name:
             raise invalid("plugins.get", "The Host Returned No Plugin Entry Identity")
-        self._entry = client_types.host.PluginEntry.FromString(entry.SerializeToString())
+        self._entry = PluginEntry.FromString(entry.SerializeToString())
         self._endpoint = endpoint
         self._unregister_id = _identity(None)
         self._detached = False
@@ -409,7 +434,7 @@ class RegisteredPlugin:
 
     @property
     def state(self) -> str:
-        return client_types.host.PluginState.Name(self._entry.state).removeprefix("PLUGIN_STATE_").title()
+        return PluginState.Name(self._entry.state).removeprefix("PLUGIN_STATE_").title()
 
     def _check_failure(self, request_id: str) -> None:
         if self._entry.HasField("failure"):
@@ -482,7 +507,7 @@ class Cases:
             if len(bindings) != 1:
                 raise ValueError("Materialize Cases: Register One Unambiguous Plugin/ Suite Binding for This Template")
             plugin, suite, selected = bindings[0]
-        selection = client_types.RegisteredSelection(
+        selection = RegisteredSelection(
             suite_id=suite,
             template_id=selected,
             parameters=[
@@ -496,7 +521,7 @@ class Cases:
         identity = _identity(request_id)
         reply = await call(
             "cases.create",
-            self._client._transport.cases.create(client_types.SelectionPlan(selections=[selection]), False, request_id=identity),
+            self._client._transport.cases.create(SelectionPlan(selections=[selection]), False, request_id=identity),
             identity,
         )
         return [Case._bind(self._client, item.case_id, item.metadata.label, item.suite_id, item.template_id) for item in reply.cases]
@@ -571,9 +596,7 @@ class Cycles:
         while True:
             reply = await call(
                 "cycles.list",
-                self._client._transport.cycles.list(
-                    client_types.CycleSelection(), client_types.CycleFilter(text=text), client_types.CycleOrder(), at=at, page=cursor
-                ),
+                self._client._transport.cycles.list(CycleSelection(), CycleFilter(text=text), CycleOrder(), at=at, page=cursor),
             )
             if at is None:
                 at = reply.resolved_at
@@ -603,13 +626,13 @@ class Executions:
         if page_size < 0:
             raise ValueError("List Executions: Supply a Nonnegative Page Size")
         statuses = {
-            "open": client_types.EXECUTION_STATE_OPEN,
-            "closed": client_types.EXECUTION_STATE_CLOSED,
-            "sealed": client_types.EXECUTION_STATE_SEALED,
+            "open": EXECUTION_STATE_OPEN,
+            "closed": EXECUTION_STATE_CLOSED,
+            "sealed": EXECUTION_STATE_SEALED,
         }
         if state is not None and state.lower() not in statuses:
             raise ValueError("List Executions: Select Open, Closed or Sealed")
-        selection = client_types.ExecutionSelection(
+        selection = ExecutionSelection(
             cycle_ids=[cycle] if cycle else [],
             template_ids=[template] if template else [],
             statuses=[statuses[state.lower()]] if state else [],
@@ -620,9 +643,7 @@ class Executions:
         while True:
             reply = await call(
                 "executions.list",
-                self._client._transport.executions.list(
-                    cycle or "", selection, client_types.ExecutionFilter(), client_types.ExecutionOrder(), at=at, page=cursor
-                ),
+                self._client._transport.executions.list(cycle or "", selection, ExecutionFilter(), ExecutionOrder(), at=at, page=cursor),
             )
             if at is None:
                 at = reply.resolved_at
@@ -640,19 +661,19 @@ class Executions:
 
 class Cycle:
     _client: Client
-    _summary: client_types.CycleSummary
+    _summary: CycleSummary
     _revision: bytes
 
     def __init__(self) -> None:
         raise TypeError("Obtain a Cycle Through client.cycle or client.cycles")
 
     @classmethod
-    def _bind(cls, client: Client, summary: client_types.CycleSummary, revision: bytes = b"") -> "Cycle":
+    def _bind(cls, client: Client, summary: CycleSummary, revision: bytes = b"") -> "Cycle":
         self = object.__new__(cls)
         self._client = client
         if not summary.cycle_id:
             raise invalid("cycles.get", "The Host Returned No Cycle Identity")
-        self._summary = client_types.CycleSummary.FromString(summary.SerializeToString())
+        self._summary = CycleSummary.FromString(summary.SerializeToString())
         self._revision = revision
 
         return self
@@ -667,7 +688,7 @@ class Cycle:
 
     @property
     def phase(self) -> str:
-        return client_types.CyclePhase.Name(self._summary.phase).removeprefix("CYCLE_PHASE_").replace("_", " ").title()
+        return CyclePhase.Name(self._summary.phase).removeprefix("CYCLE_PHASE_").replace("_", " ").title()
 
     async def execution(self, case: Case, *, request_id: str | None = None) -> "Execution":
         if case._client is not self._client:
@@ -678,7 +699,7 @@ class Cycle:
             self._client._transport.executions.create(
                 self.identifier,
                 [
-                    client_types.ExecutionBinding(
+                    ExecutionBinding(
                         case_id=case.identifier, execution_id=str(uuid5(NAMESPACE_URL, f"dokime/execution/{self.identifier}/{identity}"))
                     )
                 ],
@@ -705,9 +726,9 @@ class Cycle:
             return
         watch = reopen(
             lambda: self._client._transport.cycles.watch(
-                client_types.CycleSelection(cycle_ids=[self.identifier]),
-                client_types.CycleFilter(archive=client_types.ARCHIVE_SCOPE_ALL),
-                client_types.CycleOrder(),
+                CycleSelection(cycle_ids=[self.identifier]),
+                CycleFilter(archive=ARCHIVE_SCOPE_ALL),
+                CycleOrder(),
             )
         )
         try:
@@ -718,9 +739,9 @@ class Cycle:
                 if cycle is None:
                     raise invalid("cycles.seal", "The Host Returned No Cycle Completion", request_id=identity)
                 self._summary.CopyFrom(cycle)
-                if cycle.phase == client_types.CYCLE_PHASE_SEAL_FAILED:
+                if cycle.phase == CYCLE_PHASE_SEAL_FAILED:
                     raise refused("cycles.seal", cycle.seal_failure, "Resolve the Seal Failure and Retry Seal", request_id=identity)
-                if cycle.sealed and cycle.phase == client_types.CYCLE_PHASE_SEALED:
+                if cycle.sealed and cycle.phase == CYCLE_PHASE_SEALED:
                     return
             raise invalid("cycles.seal", "Cycle Observation Closed Before Seal Settlement", request_id=identity)
         except AioRpcError as error:
@@ -729,12 +750,12 @@ class Cycle:
             await watch.aclose()
 
     async def evidence(self) -> bytes:
-        return await _archive(self._client, client_types.EvidenceSubject(cycle=self.identifier))
+        return await _archive(self._client, EvidenceSubject(cycle=self.identifier))
 
     async def report(self) -> bytes:
         reply = await call(
             "reports.create",
-            self._client._transport.reports.create(client_types.ReportSubject(cycle=self.identifier), ""),
+            self._client._transport.reports.create(ReportSubject(cycle=self.identifier), ""),
         )
         if not reply.HasField("file"):
             raise invalid("reports.create", "The Host Returned No Retained Cycle Report")
@@ -751,7 +772,7 @@ class Cycle:
 
 class Execution:
     _client: Client
-    _detail: client_types.ExecutionDetail
+    _detail: ExecutionDetail
     cycle: Cycle
     case: Case
 
@@ -759,17 +780,15 @@ class Execution:
         raise TypeError("Obtain an Execution Through a Cycle or client.executions")
 
     @classmethod
-    def _bind(
-        cls, client: Client, detail: client_types.ExecutionDetail, cycle: Cycle | None = None, case: Case | None = None
-    ) -> "Execution":
+    def _bind(cls, client: Client, detail: ExecutionDetail, cycle: Cycle | None = None, case: Case | None = None) -> "Execution":
         self = object.__new__(cls)
         self._client = client
         if not detail.summary.execution_id or not detail.cycle_id or not detail.summary.case_id:
             raise invalid("executions.get", "The Host Returned an Incomplete Execution Binding")
         if (cycle is not None and detail.cycle_id != cycle.identifier) or (case is not None and detail.summary.case_id != case.identifier):
             raise invalid("executions.create", "The Host Returned an Execution Outside Its Cycle or Case")
-        self._detail = client_types.ExecutionDetail.FromString(detail.SerializeToString())
-        self.cycle = cycle or Cycle._bind(client, client_types.CycleSummary(cycle_id=detail.cycle_id))
+        self._detail = ExecutionDetail.FromString(detail.SerializeToString())
+        self.cycle = cycle or Cycle._bind(client, CycleSummary(cycle_id=detail.cycle_id))
         self.case = case or Case._bind(
             client, detail.summary.case_id, "", detail.admitted_suite.identifier, detail.admitted_template.identifier, detail.cycle_id
         )
@@ -780,7 +799,7 @@ class Execution:
     def identifier(self) -> str:
         return self._detail.summary.execution_id
 
-    def _observe(self, detail: client_types.ExecutionDetail, request_id: str | None = None) -> None:
+    def _observe(self, detail: ExecutionDetail, request_id: str | None = None) -> None:
         if (
             detail.summary.execution_id != self.identifier
             or detail.cycle_id != self.cycle.identifier
@@ -798,7 +817,7 @@ class Execution:
         identity = _identity(request_id)
         reply = await call(
             "executions.start",
-            self._client._transport.executions.start(self.identifier, client_types.EXECUTION_MODE_AUTOMATIC, request_id=identity),
+            self._client._transport.executions.start(self.identifier, EXECUTION_MODE_AUTOMATIC, request_id=identity),
             identity,
         )
         self._observe(reply.execution, identity)
@@ -857,7 +876,7 @@ class Execution:
         raise invalid("executions.seal", "The Host Returned No Stable Outcome", request_id=identity)
 
     async def evidence(self) -> bytes:
-        return await _archive(self._client, client_types.EvidenceSubject(execution=self.identifier))
+        return await _archive(self._client, EvidenceSubject(execution=self.identifier))
 
     async def note(self, text: str, *, request_id: str | None = None) -> Note:
         return await _note(self._client, self.cycle.identifier, self.identifier, text, request_id)
@@ -927,7 +946,7 @@ def _identity(request_id: str | None) -> str:
     return request_id if request_id is not None else str(uuid4())
 
 
-async def _archive(client: Client, subject: client_types.EvidenceSubject) -> bytes:
+async def _archive(client: Client, subject: EvidenceSubject) -> bytes:
     reply = await call("evidence.archive", client._transport.evidence.archive(subject))
     if not reply.HasField("file"):
         raise invalid("evidence.archive", "The Host Returned No Retained Archive")
@@ -936,15 +955,15 @@ async def _archive(client: Client, subject: client_types.EvidenceSubject) -> byt
 
 
 async def _note(client: Client, cycle: str, execution: str | None, text: str, request_id: str | None) -> Note:
-    owner = client_types.AnnotationOwner(
-        owner=client_types.AnnotationOwnerOwner(execution=client_types.ExecutionNoteOwner(cycle_id=cycle, execution_id=execution))
+    owner = AnnotationOwner(
+        owner=AnnotationOwnerOwner(execution=ExecutionNoteOwner(cycle_id=cycle, execution_id=execution))
         if execution
-        else client_types.AnnotationOwnerOwner(cycle_id=cycle)
+        else AnnotationOwnerOwner(cycle_id=cycle)
     )
     identity = _identity(request_id)
     reply = await call(
         "evidence.notes.create",
-        client._transport.evidence.notes.create(owner, client_types.NoteWritable(message=text), request_id=identity),
+        client._transport.evidence.notes.create(owner, NoteWritable(message=text), request_id=identity),
         identity,
     )
     value = reply.note

@@ -27,12 +27,17 @@ from harmos import FileMetadata, FileReference, OperationError, Upload
 # Local Imports
 import dokime_sdk._generated.client
 
-from ._generated.client_types import ReportSubject
 from ._generated.host import HostRoot
-from ._generated.shared import UploadsAppendResponse, UploadsCreateResponse, UploadsDeleteResponse, UploadsPublishResponse
+from ._generated.proto.host.v1.files.uploads_pb2 import (
+    UploadsAppendResponse,
+    UploadsCreateResponse,
+    UploadsDeleteResponse,
+    UploadsPublishResponse,
+)
+from ._generated.proto.host.v1.reports_pb2 import ReportSubject
+from ._generated.proto.model.v1.evidence_pb2 import ArtifactScope
 from ._transport import call, invalid
 from ._values import Artifact
-from ._wire.model.v1.evidence_pb2 import ArtifactScope
 
 # Type Checking Imports
 

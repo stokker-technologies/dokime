@@ -17,9 +17,10 @@ from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import OperationError, OperationPolicy, plugin
 
-# Local Imports
-from ._generated import shared
 from ._generated.host import HostRoot
+
+# Local Imports
+from ._generated.proto.model.v1.evidence_pb2 import SEVERITY_DEBUG, SEVERITY_FAILURE, SEVERITY_INFO, SEVERITY_WARNING
 
 # Type Checking Imports
 if TYPE_CHECKING:
@@ -61,13 +62,13 @@ class _Buffer:
         token = _CURRENT.set(None)
         try:
             for record in records:
-                severity = shared.SEVERITY_DEBUG
+                severity = SEVERITY_DEBUG
                 if record.levelno >= logging.ERROR:
-                    severity = shared.SEVERITY_FAILURE
+                    severity = SEVERITY_FAILURE
                 elif record.levelno >= logging.WARNING:
-                    severity = shared.SEVERITY_WARNING
+                    severity = SEVERITY_WARNING
                 elif record.levelno >= logging.INFO:
-                    severity = shared.SEVERITY_INFO
+                    severity = SEVERITY_INFO
                 timestamp = await self.host.time.get()
                 source_at = Timestamp()
                 source_at.CopyFrom(timestamp)

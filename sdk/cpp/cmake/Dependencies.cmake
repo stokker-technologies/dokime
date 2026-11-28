@@ -3,9 +3,9 @@ find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 include(FetchContent)
-# The Pinned Library Owns Its Internal Wire Headers and Generated Context; Only Its Libraries Are Built.
+# The Library Release Owns Its Internal Wire Headers and Generated Context; Only Its Libraries Are Built.
 FetchContent_Declare(harmos
-  URL https://github.com/stokker-technologies/harmos/archive/5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42.tar.gz
-  URL_HASH SHA256=d4b37f167a9010379d6062d08a83e46760875eabad7f474b578cecab330ae29f
+  URL https://github.com/stokker-technologies/harmos/archive/refs/tags/v0.1.15.tar.gz
+  URL_HASH SHA256=42747bb7a1c4dc3ee99ce8a752cc85c6d6fd4e3f286a9a6d09c7021e21bbf08a
   SOURCE_SUBDIR sdk/cpp DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 FetchContent_MakeAvailable(harmos)

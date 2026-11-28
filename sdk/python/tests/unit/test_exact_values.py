@@ -14,10 +14,12 @@
 from fractions import Fraction
 from unittest import TestCase
 
+from dokime_sdk._generated.proto.host.v1.evidence_pb2 import Statistics
+
 # Third Party Imports
 # Local Imports
-from dokime_sdk._generated.client_types import PlotColumn
-from dokime_sdk._generated.shared import Statistics, Value
+from dokime_sdk._generated.proto.host.v1.plots.snapshots_pb2 import PlotColumn
+from dokime_sdk._generated.proto.model.v1.scalar_pb2 import Value
 from dokime_sdk._values import decode, encode
 
 # Type Checking Imports

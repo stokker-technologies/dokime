@@ -23,6 +23,8 @@ pub use crate::wire::plugin::TestCasesMaterializeResponse;
 pub use harmos_protocol::host::InvocationsCancelResponse;
 pub use harmos_protocol::host::InvocationsGetResponse;
 pub use harmos_protocol::host::InvocationsWatchResponse;
+pub use harmos_protocol::host::OperationsGetResponse;
+pub use harmos_protocol::host::OperationsListResponse;
 pub use harmos_protocol::host::TimeGetResponse;
 pub use harmos_protocol::host::TimeSleepResponse;
 pub use harmos_protocol::host::plugins::StateGetResponse;

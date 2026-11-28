@@ -13,14 +13,14 @@ from unittest import IsolatedAsyncioTestCase
 # Third Party Imports
 from google.protobuf.message import Message
 from harmos import OperationPolicy, plugin
-from harmos._wire.host.v1.time_pb2 import TimeGetResponse
-from harmos._wire.plugin.v1.invocation_pb2 import Request
+from harmos._generated.proto.host.v1.time_pb2 import TimeGetResponse
+from harmos._generated.proto.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
 from dokime_sdk import Plugin, Suite, _logs
-from dokime_sdk._generated import shared
-from dokime_sdk._wire.host.v1.evidence.logs_pb2 import LogsAppendRequest, LogsAppendResponse
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import RecordsAppendRequest, RecordsAppendResponse
+from dokime_sdk._generated.proto.host.v1.evidence.logs_pb2 import LogsAppendRequest, LogsAppendResponse
+from dokime_sdk._generated.proto.host.v1.evidence.records_pb2 import RecordsAppendRequest, RecordsAppendResponse
+from dokime_sdk._generated.proto.model.v1.evidence_pb2 import SEVERITY_FAILURE, SEVERITY_INFO, SEVERITY_WARNING
 from dokime_sdk.templates import TestTemplate, record
 from dokime_sdk.templates._context import Context
 
@@ -92,7 +92,7 @@ class LoggingTests(IsolatedAsyncioTestCase):
         self.assertIsInstance(last, LogsAppendRequest)
         assert isinstance(first, LogsAppendRequest) and isinstance(last, LogsAppendRequest)
         self.assertEqual((first.message, last.message), ("Before Record", "After Record"))
-        self.assertEqual((first.severity, last.severity), (shared.SEVERITY_INFO, shared.SEVERITY_WARNING))
+        self.assertEqual((first.severity, last.severity), (SEVERITY_INFO, SEVERITY_WARNING))
         self.assertEqual((first.execution, last.execution), ("execution", "execution"))
 
     async def test_exception_flushes_all_levels_and_restores_the_scope(self) -> None:
@@ -108,7 +108,7 @@ class LoggingTests(IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "Invalid Reading"):
             await _logs.run(context, execute)
         logs = [value for value in transport.evidence if isinstance(value, LogsAppendRequest)]
-        self.assertEqual([value.severity for value in logs], [shared.SEVERITY_INFO, shared.SEVERITY_FAILURE, shared.SEVERITY_FAILURE])
+        self.assertEqual([value.severity for value in logs], [SEVERITY_INFO, SEVERITY_FAILURE, SEVERITY_FAILURE])
         self.assertIsNone(_logs._CURRENT.get())
 
     async def test_library_debug_stays_out_of_evidence_while_plugin_info_reaches_it(self) -> None:

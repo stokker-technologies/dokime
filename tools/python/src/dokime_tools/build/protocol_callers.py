@@ -21,12 +21,9 @@ import tempfile
 from pathlib import Path
 
 # Third Party Imports
-from google.protobuf.descriptor_pb2 import FileDescriptorSet
-from harmos_tools.build.resources.descriptor import caller_options
 
 # Local Imports
 from ..process import spawn_flags
-from .protocol import library_dependencies
 
 # Type Checking Imports
 
@@ -45,7 +42,6 @@ from .protocol import library_dependencies
 
 def main() -> None:
     root = Path(__file__).resolve().parents[5]
-    library_dependencies(root, check=True)
     check_public_surfaces(root)
 
     scratch = Path(tempfile.mkdtemp())
@@ -53,9 +49,8 @@ def main() -> None:
         output = scratch / "descriptors.bin"
         command = ["buf", "build", "--as-file-descriptor-set", "-o", str(output)]
         subprocess.run(command, check=True, creationflags=spawn_flags())
-        descriptors = FileDescriptorSet.FromString(output.read_bytes())
-        methods = caller_options(descriptors)
-        print(f"Protocol Callers: {len(methods)} Annotated Operations")
+        # The Library CLI Validates Every Caller Declaration Against Its Custom-Option Contracts.
+        subprocess.run(["harmos", "proto", "check", "--descriptors", str(output)], check=True, creationflags=spawn_flags())
     finally:
         shutil.rmtree(scratch)
 

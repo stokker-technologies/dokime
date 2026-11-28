@@ -1,5 +1,5 @@
 // @generated from protocol descriptors; do not edit.
-#[allow(unused_imports, reason = "The Shared Generator Emits the Complete Internal Host Inventory")]
+#[allow(unused_imports, reason = "The Generator Emits the Complete Internal Host Inventory")]
 pub(crate) use self::host::{
     HostBackendEnvironmentOptions, HostBackendResource, HostContentArtifactsCreateOptions, HostContentArtifactsResource,
     HostContentResource, HostDocumentsAppendPartsOptions, HostDocumentsResource, HostEvidenceLogsAppendOptions, HostEvidenceLogsResource,

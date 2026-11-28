@@ -25,18 +25,16 @@ from harmos import plugin
 from .. import operations
 from .._authoring import PromptDeclaration, Record, _Template, prompt
 from .._evidence import RecordsQuery
-from .._generated import shared
-from .._generated.shared import (
-    Card,
-    ExecutionProgressValue,
-    TraceabilityEntry,
-)
+from .._generated.proto.model.v1.documents_pb2 import Card
+from .._generated.proto.model.v1.evidence_pb2 import ArtifactScope, Window
+from .._generated.proto.model.v1.execution_pb2 import ExecutionProgressValue
+from .._generated.proto.model.v1.prompts_pb2 import Prompt
+from .._generated.proto.model.v1.traceability_pb2 import TraceabilityEntry
 from .._parameters import Parameter
 from .._payloads import Payload, pack
 from .._transfers import publish_artifact
 from .._transport import refused
 from .._values import Artifact, Note, Scalar, Statistics, Termination, decode, encode
-from .._wire.model.v1.evidence_pb2 import ArtifactScope, Window
 from ._captures import CaptureMode, CaptureResult, Environment, FileSource
 from ._documents import Document, Section
 
@@ -81,7 +79,7 @@ class Context(operations.Context):
         name = declaration._message.metadata.identifier
         return declaration._read(self._parameters[name])
 
-    async def prompt(self, text: str | PromptDeclaration | shared.Prompt, *, choices: Sequence[str] = ()) -> str:
+    async def prompt(self, text: str | PromptDeclaration | Prompt, *, choices: Sequence[str] = ()) -> str:
         if self._template is None:
             raise ValueError("Create Prompt: Call From a Template Operation")
         if len(choices) != len(set(choices)):

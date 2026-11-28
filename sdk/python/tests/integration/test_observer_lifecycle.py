@@ -12,7 +12,7 @@ from unittest import IsolatedAsyncioTestCase
 from google.protobuf.wrappers_pb2 import Int64Value
 from grpc.aio import insecure_channel
 from harmos._columns import columns_type
-from harmos._wire.plugin.v1.instance_pb2 import InstanceSamplesRequest, InstanceSamplesResponse
+from harmos._generated.proto.plugin.v1.instance_pb2 import InstanceSamplesRequest, InstanceSamplesResponse
 
 import dokime_sdk.templates
 from dokime_sdk import Plugin, Suite
