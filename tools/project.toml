@@ -63,6 +63,13 @@ lock_commands = [
     "--workspace",
   ],
   [
+    "cargo",
+    "update",
+    "--manifest-path",
+    "sdk/rust/tests/consumer/Cargo.toml",
+    "--workspace",
+  ],
+  [
     "pnpm",
     "install",
     "--lockfile-only",
@@ -71,6 +78,12 @@ lock_commands = [
   [
     "uv",
     "lock",
+  ],
+  [
+    "uv",
+    "lock",
+    "--project",
+    "sdk/python",
   ],
   [
     "uv",
