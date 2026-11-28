@@ -23,10 +23,10 @@ from zipfile import ZipFile
 # Third Party Imports
 import harmos
 from grpc.aio import AioRpcError
+from harmos._generated.proto.model.v1.setting_pb2 import SettingValues
 
 # Local Imports
 from dokime_sdk import Client, Plugin, ResultStatus, Suite, operations
-from dokime_sdk._generated.shared import SettingValues
 from dokime_sdk.operations import OperationError, Setting, Settings
 from dokime_sdk.templates import Context, Observer, TestTemplate, criterion, record, step
 

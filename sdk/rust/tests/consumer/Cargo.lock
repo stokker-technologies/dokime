@@ -1239,8 +1239,9 @@ dependencies = [
 
 [[package]]
 name = "harmos"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "802d4b50da3eb26bc8656db7af67831086a64eaf3facafd70759f09d9785de59"
 dependencies = [
  "bytes",
  "futures-core",
@@ -1261,8 +1262,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-domain"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f0f68415ee7f476bba1682a35095439094731ad584e0aec1396d787cb2fe491"
 dependencies = [
  "harmos-protocol",
  "harmos-sdk-derive",
@@ -1280,8 +1282,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-operations"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c1bd4bfcc02aa6e348ca3bf60b1c2df457510391e7c4ed3b4f6e184dde601c8"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -1306,8 +1309,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-packaging"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ab472fc54692caccb8e2639f1d3c93e50a363e3cde64b07c68f75af6b776827"
 dependencies = [
  "harmos-domain",
  "harmos-operations",
@@ -1324,8 +1328,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-protocol"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e67fea84b693e494d6289579cd2a3e8177f866ff46355eb24dfedf4c6935da10"
 dependencies = [
  "prost",
  "prost-reflect",
@@ -1339,8 +1344,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-query"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fc262e83c5744bbac6fe59c689aef33d7093ff250087f72e4b733cc5ba7b1b9"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -1362,8 +1368,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-runtime"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41d3bea18407c5e69cbe66842c410aca8654d3d30df0a775baf11e335b1b5e3c"
 dependencies = [
  "bytes",
  "futures-core",
@@ -1403,8 +1410,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-sdk-derive"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3dbe888269872f3f4aca4e39c34956f0a5afaf978479eed8b3211a4e26e946ee"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1415,8 +1423,9 @@ dependencies = [
 
 [[package]]
 name = "harmos-storage"
-version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42#5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15d6c4ca52402e392ed4bc7c0d0146e2edd3ae86d918c6cfa4d8c8c49d39e2e4"
 dependencies = [
  "arrow-array",
  "arrow-data",

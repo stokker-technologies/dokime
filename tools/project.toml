@@ -63,6 +63,13 @@ lock_commands = [
     "--workspace",
   ],
   [
+    "cargo",
+    "update",
+    "--manifest-path",
+    "sdk/rust/tests/consumer/Cargo.toml",
+    "--workspace",
+  ],
+  [
     "pnpm",
     "install",
     "--lockfile-only",
@@ -71,6 +78,12 @@ lock_commands = [
   [
     "uv",
     "lock",
+  ],
+  [
+    "uv",
+    "lock",
+    "--project",
+    "sdk/python",
   ],
   [
     "uv",
@@ -175,3 +188,12 @@ files = [
   "crates/dokime-gui/src-tauri/tauri.conf.json",
 ]
 value = "0.1.5"
+
+# Starters Require the Released SDK, so Their Requirements Move With the Version.
+[version.requirements]
+dokime = ["sdk/rust/examples/starter/Cargo.toml"]
+dokime-sdk = [
+  "sdk/python/examples/client/pyproject.toml",
+  "sdk/python/examples/starter/pyproject.toml",
+  "sdk/python/examples/thermal/pyproject.toml",
+]

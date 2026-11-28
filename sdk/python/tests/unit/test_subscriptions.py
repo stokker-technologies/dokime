@@ -21,8 +21,8 @@ from unittest.mock import AsyncMock, Mock
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import Int64Value
 from harmos import OperationError, plugin
-from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
-from harmos._wire.plugin.v1.subscriptions_pb2 import SubscriptionsSubscribeRequest, SubscriptionsSubscribeResponse
+from harmos._generated.proto.plugin.v1.invocation_pb2 import ChildResponse, Request
+from harmos._generated.proto.plugin.v1.subscriptions_pb2 import SubscriptionsSubscribeRequest, SubscriptionsSubscribeResponse
 
 # Local Imports
 from dokime_sdk import Gap, Plugin, StreamRow, Suite, templates

@@ -23,7 +23,7 @@ import harmos
 
 # Local Imports
 from dokime_sdk import Client, Plugin, Suite
-from dokime_sdk._generated.client_types import DocumentScope
+from dokime_sdk._generated.proto.host.v1.documents_pb2 import DocumentScope
 from dokime_sdk.operations import Context
 from dokime_sdk.templates import Document, Section, Stream, TestTemplate, step, stream, time_series
 

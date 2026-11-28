@@ -24,13 +24,13 @@ from unittest.mock import patch
 from grpc import ChannelConnectivity, StatusCode
 from grpc.aio import Channel, ServicerContext, UnaryStreamClientInterceptor, UnaryUnaryClientInterceptor, insecure_channel, server
 from harmos import CLASSIFICATION_REFUSED
-from harmos._wire.host.v1.status_pb2 import StatusGetRequest
-from harmos._wire.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.host.v1.status_pb2 import StatusGetRequest
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk._connection import connect
-from dokime_sdk._wire.host.v1.status_pb2 import StatusGetResponse
-from dokime_sdk._wire.host.v1.status_pb2_grpc import StatusServicer, add_StatusServicer_to_server
+from dokime_sdk._generated.proto.host.v1.status_pb2 import StatusGetResponse
+from dokime_sdk._generated.proto.host.v1.status_pb2_grpc import StatusServicer, add_StatusServicer_to_server
 from dokime_sdk.operations import OperationError
 
 # Type Checking Imports

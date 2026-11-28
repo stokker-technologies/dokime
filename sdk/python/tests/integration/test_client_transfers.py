@@ -23,25 +23,25 @@ from google.protobuf.wrappers_pb2 import BoolValue
 from grpc import StatusCode
 from grpc.aio import Channel, ServicerContext, server
 from harmos import OperationPolicy, plugin
-from harmos._wire.plugin.v1.invocation_pb2 import Request
+from harmos._generated.proto.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
 from dokime_sdk import Plugin, Suite, operations
 from dokime_sdk._client import Case, Cycle, Execution
 from dokime_sdk._connection import connect
-from dokime_sdk._generated import client_types
-from dokime_sdk._wire.host.v1 import documents_pb2, evidence_pb2
-from dokime_sdk._wire.host.v1.content import artifacts_pb2
-from dokime_sdk._wire.host.v1.content.artifacts_pb2_grpc import ArtifactsServicer, add_ArtifactsServicer_to_server
-from dokime_sdk._wire.host.v1.cycles_pb2 import CycleSummary
-from dokime_sdk._wire.host.v1.documents_pb2_grpc import DocumentsServicer, add_DocumentsServicer_to_server
-from dokime_sdk._wire.host.v1.evidence import records_pb2
-from dokime_sdk._wire.host.v1.evidence.records_pb2_grpc import RecordsServicer, add_RecordsServicer_to_server
-from dokime_sdk._wire.host.v1.evidence_pb2_grpc import EvidenceServicer, add_EvidenceServicer_to_server
-from dokime_sdk._wire.host.v1.executions import schemas_pb2
-from dokime_sdk._wire.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
-from dokime_sdk._wire.host.v1.files import uploads_pb2
-from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
+from dokime_sdk._generated.proto.host.v1 import documents_pb2, evidence_pb2
+from dokime_sdk._generated.proto.host.v1.content import artifacts_pb2
+from dokime_sdk._generated.proto.host.v1.content.artifacts_pb2_grpc import ArtifactsServicer, add_ArtifactsServicer_to_server
+from dokime_sdk._generated.proto.host.v1.cycles_pb2 import CycleSummary
+from dokime_sdk._generated.proto.host.v1.documents_pb2_grpc import DocumentsServicer, add_DocumentsServicer_to_server
+from dokime_sdk._generated.proto.host.v1.evidence import records_pb2
+from dokime_sdk._generated.proto.host.v1.evidence.records_pb2_grpc import RecordsServicer, add_RecordsServicer_to_server
+from dokime_sdk._generated.proto.host.v1.evidence_pb2_grpc import EvidenceServicer, add_EvidenceServicer_to_server
+from dokime_sdk._generated.proto.host.v1.executions import schemas_pb2
+from dokime_sdk._generated.proto.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
+from dokime_sdk._generated.proto.host.v1.executions_pb2 import ExecutionDetail
+from dokime_sdk._generated.proto.host.v1.files import uploads_pb2
+from dokime_sdk._generated.proto.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
 from dokime_sdk.operations import OperationError
 from dokime_sdk.templates import Context, Document, Observer, Section, Termination, TestTemplate, record
 
@@ -146,7 +146,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         BoolValue.DESCRIPTOR.file.CopyToProto(types.file.add())
         digest = sha256(types.SerializeToString()).digest()
         bindings = [{"record_type": "capture.flag", "message_name": BoolValue.DESCRIPTOR.full_name}]
-        self.detail = client_types.ExecutionDetail(
+        self.detail = ExecutionDetail(
             summary={"execution_id": "execution", "case_id": "case"},
             cycle_id="cycle",
             schemas={"digest": digest, "records": bindings},

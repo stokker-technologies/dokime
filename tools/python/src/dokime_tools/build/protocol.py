@@ -7,14 +7,15 @@
 # ***
 
 
-"""Generate or Check Protocol Bindings and Product SDK Roots"""
+"""Generate or Check Protocol Bindings Through the Library CLI"""
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
 import hashlib
-import runpy
+import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -22,15 +23,12 @@ import tarfile
 import tempfile
 import tomllib
 import urllib.request
-from dataclasses import replace
+from dataclasses import dataclass
 from pathlib import Path
 
 # isort: split
 
 # Third Party Imports
-from google.protobuf.descriptor_pb2 import FileDescriptorSet
-from harmos_tools.build.resources import cpp, csharp, descriptor, rust, sdk
-from harmos_tools.build.resources.configuration import Configuration
 
 # isort: split
 
@@ -45,18 +43,61 @@ from dokime_tools.process import spawn_flags
 
 # === Constants === #
 
+LIBRARY = "https://github.com/stokker-technologies/harmos"
+LANGUAGES = ("rust", "python", "csharp", "cpp")
+DESCRIPTORS = Path("crates/dokime-protocol/src/descriptors.bin")
+# The Library Owns Plugin Time; Native SDKs Keep Its Identities but Omit Its Host Resources.
+EXCLUDED = "harmos.plugin.v1.Time"
+SELECTORS = {
+    "dokime.host.v1.DocumentsGetRequest": ("scope", "document_id"),
+    "dokime.host.v1.DocumentsWatchRequest": ("scope", "document_id"),
+    "dokime.host.v1.EvidenceStatisticsRequest": ("scope", "stream", "field"),
+    "dokime.host.v1.evidence.RecordsListRequest": ("scope", "record_type"),
+    "dokime.host.v1.evidence.RecordsWatchRequest": ("scope", "record_type"),
+    "dokime.host.v1.evidence.SamplesListRequest": ("scope", "streams"),
+    "dokime.host.v1.evidence.SamplesWatchRequest": ("scope", "streams"),
+}
+CPP_STYLE = "{BasedOnStyle: LLVM, ColumnLimit: 140, AllowShortFunctionsOnASingleLine: Empty, AllowShortLambdasOnASingleLine: None}"
+WIRE = ("proto/**/*_pb2.py", "proto/**/*_pb2.pyi", "proto/**/*_pb2_grpc.py")
+
 # === Types === #
 
 # === Classes === #
+
+
+@dataclass(frozen=True)
+class Placement:
+    """Generated Files Replace the Files Below `destination` That `owned` Selects."""
+
+    destination: str
+    owned: tuple[str, ...]
+
+
+PLACEMENTS = {
+    "rust": Placement(
+        "sdk/rust/src",
+        ("exports.rs", "host.rs", "client/types.rs", "client/resources.rs", "plugin/types.rs", "plugin/host.rs", "plugin/host_exports.rs"),
+    ),
+    "python": Placement("sdk/python/src/dokime_sdk/_generated", ("client.py", "host.py", *WIRE)),
+    "csharp": Placement("sdk/csharp/src/Dokime/Generated", ("Client.g.cs", "Host.g.cs", "Values.g.cs", "Wire/**/*.cs")),
+    "cpp": Placement(
+        "sdk/cpp",
+        (
+            "include/dokime/messages.hpp",
+            "include/dokime/detail/messages.hpp",
+            "include/dokime/_generated/*.hpp",
+            "include/dokime/_generated/detail/*.hpp",
+            "src/generated/*.cpp",
+        ),
+    ),
+}
 
 # === Public Functions === #
 
 
 def cpp_dependency(root: Path, *, check: bool = False) -> None:
-    """Bind the C++ Archive Checksum to the Workspace Library Revision."""
-    manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-    dependency = manifest["workspace"]["dependencies"]["harmos"]
-    url = f"{dependency['git']}/archive/{dependency['rev']}.tar.gz"
+    """Bind the C++ Archive Checksum to the Locked Library Release."""
+    url = archive(release(root))
     response = urllib.request.urlopen(url)
     try:
         checksum = hashlib.file_digest(response, "sha256").hexdigest()
@@ -68,7 +109,7 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
         "find_package(gRPC CONFIG REQUIRED)\n"
         "find_package(OpenSSL REQUIRED)\n"
         "include(FetchContent)\n"
-        "# The Pinned Library Owns Its Internal Wire Headers and Generated Context; Only Its Libraries Are Built.\n"
+        "# The Library Release Owns Its Internal Wire Headers and Generated Context; Only Its Libraries Are Built.\n"
         "FetchContent_Declare(harmos\n"
         f"  URL {url}\n"
         f"  URL_HASH SHA256={checksum}\n"
@@ -78,340 +119,215 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
     path = root / "sdk/cpp/cmake/Dependencies.cmake"
     if check:
         if path.read_bytes() != text.encode():
-            raise ValueError("Check C++ Dependency: Run mise run generate -- --protocol to Refresh the Pinned Archive and Checksum")
+            raise ValueError("Check C++ Dependency: Run mise run generate -- --protocol to Refresh the Release Archive and Checksum")
     else:
         path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def inputs(root: Path) -> Path:
-    """Stage the Library Protocol at the Workspace Pin, or From a Configured Local Patch, Beside Current Product Sources."""
-    manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-    dependency = manifest["workspace"]["dependencies"]["harmos"]
+    """Stage the Locked Library Protocol Beside Current Product Sources."""
     output = root / "target/protocol"
-    patch = manifest.get("patch", {}).get(dependency["git"], {}).get("harmos", {}).get("path")
-    if isinstance(patch, str):
-        # A Local Library Checkout Owns proto/ Two Levels Above Its Rust SDK.
-        sync_output((root / patch).resolve().parents[1] / "proto/harmos", output / "harmos")
-    else:
-        # The Pinned Git Archive Is the Same Source the C++ Dependency Downloads; No Tool Is Required.
-        source = f"{dependency['git'].removesuffix('.git')}/archive/{dependency['rev']}.tar.gz"
-        stamp = output / ".revision"
-        if not stamp.is_file() or stamp.read_text(encoding="utf-8") != source:
-            if output.exists():
-                shutil.rmtree(output)
-            response = urllib.request.urlopen(source)
-            files = tarfile.open(fileobj=response, mode="r|gz")
-            exported = 0
-            try:
-                for member in files:
-                    relative = Path(*Path(member.name).parts[1:])
-                    if not member.isfile() or relative.suffix != ".proto" or not relative.is_relative_to("proto/harmos"):
-                        continue
-                    contents = files.extractfile(member)
-                    if contents is None:
-                        raise ValueError("Export Library Protocol: Download a Complete Library Archive")
-                    destination = output / relative.relative_to("proto")
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    try:
-                        destination.write_bytes(contents.read())
-                    finally:
-                        contents.close()
-                    exported += 1
-            finally:
-                files.close()
-                response.close()
-            if not exported:
-                raise ValueError(f"Export Library Protocol: Pin a Library Revision Whose Archive Contains proto/harmos ({source})")
-            stamp.write_text(source, encoding="utf-8")
+    sync_output(library(root) / "proto/harmos", output / "harmos")
     sync_output(root / "proto/dokime", output / "dokime")
     return output
 
 
-def library_dependencies(root: Path, *, check: bool = False) -> bool:
-    """Generate or Verify Required Manifest Literals From the Workspace Pin."""
+def library(root: Path) -> Path:
+    """The Library Source Tree: a Workspace Patch's Local Checkout, Else the Locked Release Archive Under target/library."""
     manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-    dependency = manifest["workspace"]["dependencies"]["harmos"]
-    source = dependency["git"]
-    revision = dependency["rev"]
-    changed = False
-    manifests = (
-        (Path("Cargo.toml"), ("workspace", "dependencies")),
-        (Path("sdk/rust/tests/consumer/Cargo.toml"), ("dev-dependencies",)),
-        (Path("tools/python/pyproject.toml"), ("tool", "uv", "sources")),
-    )
-    for relative, keys in manifests:
-        path = root / relative
-        original = path.read_text(encoding="utf-8")
-        declarations = tomllib.loads(original)
-        for key in keys:
-            declarations = declarations[key]
-        text = original
-        for declaration in declarations.values():
-            if isinstance(declaration, dict) and declaration.get("git") == source:
-                text = text.replace(f'rev = "{declaration["rev"]}"', f'rev = "{revision}"')
-        if check:
-            if text != original:
-                raise ValueError(f"Check Library Pin: Run mise run generate -- --protocol to Refresh {relative}")
-        elif text != original:
-            path.write_text(text, encoding="utf-8", newline="\n")
-            changed = True
-
-    path = root / "sdk/python/pyproject.toml"
-    original = path.read_text(encoding="utf-8")
-    manifest = tomllib.loads(original)
-    requirements = manifest["project"]["dependencies"]
-    current = next(requirement for requirement in requirements if requirement.startswith(f"harmos-sdk @ git+{source}@"))
-    expected = f"harmos-sdk @ git+{source}@{revision}#subdirectory=sdk/python"
-    text = original.replace(current, expected)
-    if check:
-        if text != original:
-            raise ValueError("Check Library Pin: Run mise run generate -- --protocol to Refresh sdk/python/pyproject.toml")
-        archive = f"URL {source}/archive/{revision}.tar.gz\n"
-        if archive not in (root / "sdk/cpp/cmake/Dependencies.cmake").read_text(encoding="utf-8"):
-            raise ValueError("Check Library Pin: Run mise run generate -- --protocol to Refresh the C++ Archive")
-    elif text != original:
-        path.write_text(text, encoding="utf-8", newline="\n")
-        changed = True
-    return changed
-
-
-def locks(root: Path) -> None:
-    """Refresh Locks and Tooling After the Pin's Manifest Projection."""
-    for command in (
-        ["cargo", "update", "--package", "harmos"],
-        ["cargo", "update", "--manifest-path", "sdk/rust/tests/consumer/Cargo.toml", "--package", "harmos"],
-        ["cargo", "fetch", "--locked"],
-        ["cargo", "fetch", "--manifest-path", "sdk/rust/tests/consumer/Cargo.toml", "--locked"],
-        ["uv", "lock"],
-        ["uv", "lock", "--project", "sdk/python"],
-        ["uv", "sync", "--locked", "--all-groups"],
-    ):
-        subprocess.run(command, cwd=root, check=True, creationflags=spawn_flags(), stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
-
-
-def configuration(root: Path) -> Configuration:
-    """Declare Product Names, Compiler Inputs and Public Call Selectors."""
-    return Configuration(
-        namespace="dokime",
-        python_package="dokime_sdk",
-        csharp_namespace="Dokime",
-        csharp_tools=root / "target/cs/packages/grpc.tools/2.76.0/tools",
-        rustfmt=root / "rustfmt.toml",
-        python_style=root / "sdk/python/ruff.toml",
-        rust_selectors={
-            "dokime.host.v1.DocumentsGetRequest": {"scope", "document_id"},
-            "dokime.host.v1.DocumentsWatchRequest": {"scope", "document_id"},
-            "dokime.host.v1.EvidenceStatisticsRequest": {"scope", "stream", "field"},
-            "dokime.host.v1.evidence.RecordsListRequest": {"scope", "record_type"},
-            "dokime.host.v1.evidence.RecordsWatchRequest": {"scope", "record_type"},
-            "dokime.host.v1.evidence.SamplesListRequest": {"scope", "streams"},
-            "dokime.host.v1.evidence.SamplesWatchRequest": {"scope", "streams"},
-        },
-    )
-
-
-def host_resources(root: Path, descriptors: Path, configuration: Configuration, *, exclude: set[str]) -> None:
-    """Keep Dependencies While Omitting Resources Already Owned by the Library."""
-    library = FileDescriptorSet.FromString(descriptors.read_bytes())
-    configuration = replace(configuration, library=library)
-    methods = [method for method in descriptor.table(library) if method["face"] == "context"]
-    methods = [
-        {**method, "surface": False, "fields": [], "payload_field": None}
-        if f"{method['package']}.{method['service']}" in exclude
-        else method
-        for method in methods
-    ]
-    rust.host(root, methods, configuration=configuration)
-    csharp.host(
-        root,
-        methods,
-        configuration=configuration,
-        namespace="Dokime.Plugins",
-        target=root / "sdk/csharp/src/Dokime/Generated/Host.g.cs",
-    )
-    names = cpp.exports(root, library, configuration=configuration)
-    cpp.host(root, methods, names, configuration=configuration)
-    subprocess.run(
-        [
-            "rustfmt",
-            "--edition",
-            "2024",
-            "--config-path",
-            str(configuration.rustfmt or root / "rustfmt.toml"),
-            str(root / "sdk/rust/src/plugin/host.rs"),
-            str(root / "sdk/rust/src/plugin/host_exports.rs"),
-        ],
-        check=True,
-        creationflags=spawn_flags(),
-    )
-
-
-def generate(*, check: bool = False, root: Path, descriptors: Path, configuration: Configuration, language: str | None = None) -> None:
-    """Publish Shared Projections Except the SDK-Owned Python Barrels."""
-    output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
+    patch = manifest.get("patch", {}).get("crates-io", {}).get("harmos", {}).get("path")
+    if isinstance(patch, str):
+        # A Local Library Checkout Owns Its Repository Two Levels Above Its Rust SDK.
+        return (root / patch).resolve().parents[1]
+    version = release(root)
+    source = archive(version)
+    tree = root / "target/library" / version
+    stamp = tree / ".source"
+    if stamp.is_file() and stamp.read_text(encoding="utf-8") == source:
+        return tree
+    tree.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix="staging-", dir=tree.parent))
     try:
-        # Apply Each Native SDK Owner's Projection to the Same Generated Inventory.
-        script = (
-            "import runpy\n"
-            "import sys\n"
-            "from pathlib import Path\n"
-            "from harmos_tools.build.resources import sdk\n"
-            "from dokime_tools.build.protocol import configuration, host_resources\n"
-            "root, output, descriptors = map(Path, sys.argv[1:])\n"
-            "sdk.generate(root=output, descriptors=descriptors, configuration=configuration(root))\n"
-            "host_resources(output, descriptors, configuration(root), exclude={'harmos.plugin.v1.Time'})\n"
-            "runpy.run_path(str(root / 'sdk/cpp/tools/generate.py'))['project'](output)\n"
-        )
-        subprocess.run(
-            [
-                "mise",
-                "exec",
-                "--",
-                sys.executable,
-                "-c",
-                script,
-                str(root),
-                str(output),
-                str(descriptors),
-            ],
-            cwd=root / "sdk/cpp",
-            check=True,
-            creationflags=spawn_flags(),
-        )
-        runpy.run_path(str(root / "sdk/csharp/tools/projection.py"))["project"](output)
-        # Keep Generated Host Calls Behind the Product Contexts.
-        rust = output / "sdk/rust/src/plugin"
-        host = rust / "host.rs"
-        host.write_text(host.read_text().replace("pub fn host(", "pub(crate) fn host("), newline="\n")
-        exports = rust / "host_exports.rs"
-        exports.write_text(
-            exports.read_text().replace(
-                "pub use",
-                '#[allow(unused_imports, reason = "The Shared Generator Emits the Complete Internal Host Inventory")]\npub(crate) use',
-            ),
-            newline="\n",
-        )
-        barrels = {
-            Path("sdk/python/src/dokime_sdk/__init__.py"),
-            Path("sdk/python/src/dokime_sdk/client.py"),
-            Path("sdk/python/src/dokime_sdk/plugin/__init__.py"),
-        }
-        expected = sdk.inventory(output, configuration) - barrels
-        existing = sdk.inventory(root, configuration) - barrels
-        if language == "python":
-            expected = {path for path in expected if path.parts[:2] == ("sdk", "python")}
-            existing = {path for path in existing if path.parts[:2] == ("sdk", "python")}
-        if check:
-            differences = [str(path) for path in sorted(expected ^ existing)]
-            differences.extend(
-                str(path) for path in sorted(expected & existing) if (root / path).read_bytes() != (output / path).read_bytes()
-            )
-            if differences:
-                raise ValueError("Check SDK Definitions: Run mise run generate -- --protocol\n" + "\n".join(differences))
-        else:
-            for relative in sorted(existing - expected):
-                (root / relative).unlink()
-            for relative in sorted(expected):
-                destination = root / relative
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                destination.write_bytes((output / relative).read_bytes())
-        command = [sys.executable, str(root / "sdk/python/tools/generate.py"), "--exports-only"]
-        if check:
-            command.append("--check")
-        subprocess.run(
-            command,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
+        response = urllib.request.urlopen(source)
+        files = tarfile.open(fileobj=response, mode="r|gz")
+        try:
+            files.extractall(staging, filter="data")
+        finally:
+            files.close()
+            response.close()
+        extracted = [path for path in staging.iterdir() if path.is_dir()]
+        if len(extracted) != 1:
+            raise ValueError(f"Export Library Sources: Download a Complete Library Release Archive ({source})")
+        shutil.rmtree(tree, ignore_errors=True)
+        extracted[0].rename(tree)
+        stamp.write_text(source, encoding="utf-8")
     finally:
-        shutil.rmtree(output)
+        shutil.rmtree(staging, ignore_errors=True)
+    return tree
+
+
+def release(root: Path) -> str:
+    """The One Library Version the Workspace Lock Resolves."""
+    lock = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
+    versions = {package["version"] for package in lock["package"] if package["name"] == "harmos"}
+    if len(versions) != 1:
+        raise ValueError("Resolve Library: Lock Exactly One harmos Version With cargo update --package harmos")
+    return versions.pop()
+
+
+def archive(version: str) -> str:
+    """The Library Release Archive; It Alone Publishes the Protocol, Conformance Host and C++ SDK Sources."""
+    return f"{LIBRARY}/archive/refs/tags/v{version}.tar.gz"
+
+
+def generate(root: Path, languages: tuple[str, ...], *, check: bool = False) -> None:
+    """Render Each Language Through the Library CLI Into Scratch Storage, Then Replace or Compare the Owned Files."""
+    differences = []
+    for language in languages:
+        scratch = Path(tempfile.mkdtemp(prefix=f"dokime-{language}-"))
+        try:
+            _render(root, language, scratch)
+            differences += place(root, scratch, PLACEMENTS[language], check=check)
+        finally:
+            shutil.rmtree(scratch)
+    if differences:
+        selected = " ".join(f"--language {language}" for language in languages)
+        raise ValueError(f"Check Generated Bindings: Run mise run generate -- --protocol {selected}\n" + "\n".join(differences))
+
+
+def place(root: Path, source: Path, placement: Placement, *, check: bool) -> list[str]:
+    """Replace the Owned Files, or Report How They Differ Without Writing."""
+    destination = root / placement.destination
+    expected = {path.relative_to(source) for pattern in placement.owned for path in source.glob(pattern) if path.is_file()}
+    existing = {path.relative_to(destination) for pattern in placement.owned for path in destination.glob(pattern) if path.is_file()}
+    if check:
+        differences = [f"Missing: {placement.destination}/{path.as_posix()}" for path in sorted(expected - existing)]
+        differences += [f"Obsolete: {placement.destination}/{path.as_posix()}" for path in sorted(existing - expected)]
+        for path in sorted(expected & existing):
+            if (source / path).read_bytes() != (destination / path).read_bytes():
+                differences.append(f"Changed: {placement.destination}/{path.as_posix()}")
+        return differences
+    for path in existing - expected:
+        (destination / path).unlink()
+    for path in sorted(expected):
+        target = destination / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / path, target)
+    return []
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--language", choices=("python",))
+    parser.add_argument("--language", choices=LANGUAGES, action="append")
     parser.add_argument("--inputs-only", action="store_true")
-    parser.add_argument("--locks", action="store_true")
     options = parser.parse_args()
-    root = Path.cwd()
-    if options.locks and (options.check or options.inputs_only or options.language):
-        parser.error("--locks cannot be combined with generation selections")
-    if options.inputs_only:
-        inputs(root)
-        return
-    changed = library_dependencies(root, check=options.check)
-    if options.locks or changed:
-        locks(root)
-        if options.locks:
-            return
-        # Reload the Generator From the Newly Selected Tooling Environment.
-        subprocess.run(
-            [sys.executable, "-m", "dokime_tools.build.protocol", *sys.argv[1:]],
-            cwd=root,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-        return
+    root = Path(__file__).resolve().parents[5]
     inputs(root)
-    # Generate or Verify the C++ Archive Against the Workspace Pin.
+    if options.inputs_only:
+        return
     if options.language is None:
-        cpp_dependency(Path.cwd(), check=options.check)
-    if options.check and options.language is None:
-        # Verify Protocol Output Against Its Generator.
-        command = ["mise", "run", "test", "--", "--package", "dokime-protocol", "--target", "integration"]
-        subprocess.run(
-            command,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-    elif options.language is None:
-        status = cargo.focused(Path.cwd(), "run", ["--locked", "--package", "dokime-protocol-generator"])
-        if status:
-            raise SystemExit(status)
-    # Restore the Protocol Compiler Without Building the Library SDK.
-    command = ["mise", "-C", "sdk/csharp", "run", "prepare:protocol"]
-    subprocess.run(
-        command,
-        check=True,
-        creationflags=spawn_flags(),
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
-    root = Path.cwd()
-    selected = configuration(root)
-    generate(
-        check=options.check,
-        root=root,
-        descriptors=root / "crates/dokime-protocol/src/descriptors.bin",
-        configuration=selected,
-        language=options.language,
-    )
-    # Generate or Verify Python Wire Modules Through Their SDK Owner.
-    command = ["mise", "-C", "sdk/python", "run", "generate"]
-    if options.check:
-        command += ["--", "--check"]
-    subprocess.run(
-        command,
-        check=True,
-        creationflags=spawn_flags(),
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
+        # The C++ Archive and the Protocol Crate Follow the Locked Library Release Before Any Binding Reads Them.
+        cpp_dependency(root, check=options.check)
+        if options.check:
+            _run(root, ["mise", "run", "test", "--", "--package", "dokime-protocol", "--target", "integration"])
+        else:
+            status = cargo.focused(root, "run", ["--locked", "--package", "dokime-protocol-generator"])
+            if status:
+                raise SystemExit(status)
+    generate(root, tuple(options.language or LANGUAGES), check=options.check)
+    if options.language is None or "python" in options.language:
+        # The Product Root Barrel Is the SDK's Own Public-Home Inventory.
+        _run(root, [sys.executable, str(root / "sdk/python/tools/generate.py"), *(["--check"] if options.check else [])])
 
 
 # === Private Functions === #
+
+
+def _render(root: Path, language: str, scratch: Path) -> None:
+    """Write One Language's Formatted Bindings Below `scratch`."""
+    common = ["--descriptors", str(root / DESCRIPTORS), "--namespace", "dokime", "--out", str(scratch)]
+    # The Python Host Keeps the Library Time Resource; Only the Native SDKs Omit It.
+    excluded = ["--exclude-service", EXCLUDED]
+    if language == "rust":
+        selectors = [argument for request, fields in SELECTORS.items() for argument in ("--selector", f"{request}={','.join(fields)}")]
+        _run(root, ["harmos", "codegen", "rust", *common, *excluded, *selectors, "--host-visibility", "crate"])
+        sources = [str(path) for path in scratch.rglob("*.rs")]
+        _run(root, ["rustfmt", "--edition", "2024", "--config-path", str(root / "rustfmt.toml"), *sources])
+    elif language == "python":
+        # The SDK Compiles Its Own Wire Modules With Its Pinned grpcio-tools and Imports the Library's From Its Published Package.
+        protoc = [
+            "--protoc",
+            sys.executable,
+            "--protoc-arg=-m",
+            "--protoc-arg=grpc_tools.protoc",
+            "--proto-path",
+            str(root / "target/protocol"),
+        ]
+        _run(root, ["harmos", "codegen", "python", *common, "--module", "dokime=dokime_sdk._generated.proto", *protoc, "--final-stubs"])
+        sources = [str(path) for path in scratch.rglob("*.py") if "_pb2" not in path.name]
+        style = str(root / "sdk/python/ruff.toml")
+        _run(root, [sys.executable, "-m", "ruff", "check", "--config", style, "--select", "I,F401", "--fix", "--quiet", *sources])
+        _run(root, [sys.executable, "-m", "ruff", "format", "--config", style, "--quiet", *sources])
+    elif language == "csharp":
+        _run(root, ["mise", "-C", "sdk/csharp", "run", "prepare:protocol"])
+        tools = _csharp_tools(root)
+        extension = ".exe" if os.name == "nt" else ""
+        compiler = ["--protoc", str(tools / f"protoc{extension}"), "--grpc-plugin", str(tools / f"grpc_csharp_plugin{extension}")]
+        # Suite Is an Author Base, So the Protocol Value Takes One Internal Name; Transport and Host Stay Behind the Author Surface.
+        projection = [
+            "--rename-type",
+            "Suite=SuiteDefinition",
+            "--internal-client",
+            "Dokime.Transport",
+            "--internal-host",
+            "--internal-carriers",
+        ]
+        _run(
+            root,
+            [
+                "harmos",
+                "codegen",
+                "csharp",
+                *common,
+                *excluded,
+                "--csharp-namespace",
+                "Dokime",
+                *compiler,
+                *projection,
+                "--lift-enum",
+                "ResultStatus",
+            ],
+        )
+    elif language == "cpp":
+        # The Author Surface Wraps the Transport and Raises Call Failures; Templates Own the Host Resources.
+        projection = [
+            "--client-transport",
+            "--rpc-error",
+            "::dokime::detail::rpc_error",
+            "--omit-export",
+            "Suite",
+            "--host-namespace",
+            "templates",
+        ]
+        _run(root, ["harmos", "codegen", "cpp", *common, *excluded, *projection])
+        sources = [str(path) for path in scratch.rglob("*") if path.suffix in (".hpp", ".cpp")]
+        _run(root / "sdk/cpp", ["mise", "exec", "--", "clang-format", f"--style={CPP_STYLE}", "-i", *sources])
+
+
+def _run(directory: Path, command: list[str]) -> None:
+    subprocess.run(command, cwd=directory, check=True, creationflags=spawn_flags(), stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
+
+
+def _csharp_tools(root: Path) -> Path:
+    """The Pinned Grpc.Tools Compiler sdk/csharp Restores Into target/cs."""
+    system = {"Windows": "windows", "Darwin": "macosx"}.get(platform.system(), "linux")
+    architecture = "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x64"
+    matches = sorted((root / "target/cs/packages/grpc.tools").glob(f"*/tools/{system}_{architecture}"))
+    if len(matches) != 1:
+        raise ValueError("Generate C# Bindings: Restore One Pinned Grpc.Tools Package With mise -C sdk/csharp run prepare:protocol")
+    return matches[0]
+
 
 # === Entry Point === #
 

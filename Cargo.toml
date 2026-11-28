@@ -56,22 +56,22 @@ repository = "https://github.com/stokker-technologies/dokime"
 # Local
 dokime-client-internal = { path = "crates/dokime-client-internal" }
 dokime-operations = { version = "0.1.5", path = "crates/dokime-operations" }
-dokime-packaging = { version = "0.1.5", path = "crates/dokime-packaging" }
+dokime-packaging = { path = "crates/dokime-packaging" }
 dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
-dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime" }
+dokime-runtime = { path = "crates/dokime-runtime" }
 dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
 dokime-test-support = { path = "crates/dokime-test-support" }
 
-# Git
-# Edit This Pin, Then Run mise run generate -- --protocol and mise run prepare:locks.
-harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
-harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
-harmos-operations = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
-harmos-packaging = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
-harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
-harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
+# Library
+# Move Every Library Crate, harmos-sdk and the harmos CLI Revision in mise.toml to One Release Together.
+harmos = { version = "0.1.15" }
+harmos-domain = { version = "0.1.15" }
+harmos-operations = { version = "0.1.15" }
+harmos-packaging = { version = "0.1.15" }
+harmos-protocol = { version = "0.1.15" }
+harmos-query = { version = "0.1.15" }
+harmos-runtime = { version = "0.1.15" }
+harmos-storage = { version = "0.1.15" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }

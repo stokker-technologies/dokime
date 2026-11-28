@@ -77,12 +77,12 @@ class PythonPackagingTests(TestCase):
             archive.writestr("dokime_sdk-0.1.3.dist-info/METADATA", "Name: dokime-sdk\nVersion: 0.1.3\n")
             archive.writestr("dokime_sdk-0.1.3.dist-info/WHEEL", "Root-Is-Purelib: true\nTag: py3-none-any\n")
             archive.writestr(
-                "dokime_sdk/_wire/sources.json",
+                "dokime_sdk/_generated/sources.json",
                 json.dumps({"dokime/host/v1/service.proto": hashlib.sha256(proto.read_bytes()).hexdigest()}),
             )
-            archive.writestr("dokime_sdk/_wire/surface.pb", b"generated")
+            archive.writestr("dokime_sdk/_generated/surface.pb", b"generated")
             for name in ("service_pb2.py", "service_pb2.pyi", "service_pb2_grpc.py"):
-                archive.writestr("dokime_sdk/_wire/host/v1/" + name, b"generated")
+                archive.writestr("dokime_sdk/_generated/proto/host/v1/" + name, b"generated")
         finally:
             archive.close()
         archive = tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz")
@@ -150,7 +150,7 @@ class PythonPackagingTests(TestCase):
                     if invalid == "native":
                         contents["dokime_sdk/native.pyd"] = b"native"
                     elif invalid == "missing":
-                        del contents["dokime_sdk/_wire/host/v1/service_pb2_grpc.py"]
+                        del contents["dokime_sdk/_generated/proto/host/v1/service_pb2_grpc.py"]
                     elif invalid == "stale":
                         (root / "proto/dokime/host/v1/service.proto").write_bytes(b"changed")
                     elif invalid == "identity":

@@ -35,27 +35,28 @@ from harmos.plugin import Catalog, Lane, Publisher, Window, observer, operation,
 
 # Local Imports
 import dokime_sdk.operations
-from dokime_sdk._wire.model.v1.prompts_pb2 import PromptDefinitions
-from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, RecordContracts
-from dokime_sdk._wire.model.v1.suites_pb2 import Suites
+from dokime_sdk._generated.proto.model.v1.prompts_pb2 import PromptDefinitions
+from dokime_sdk._generated.proto.model.v1.record_contracts_pb2 import RecordContract, RecordContracts
+from dokime_sdk._generated.proto.model.v1.suites_pb2 import Suites
 
 from . import _logs
 from ._authoring import Materialization, Observer, Record, Stream, Suite, _Template, bind_suite, build_identifier, build_label
 from ._configuration import load
 from ._connection import connect
 from ._generated.host import HostOperation, host_requirement
-from ._generated.shared import SecretsDeclarations, Value
-from ._payloads import message_type, pack
-from ._values import decode
-from ._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
-from ._wire.plugin.v1.executions_pb2 import (
+from ._generated.proto.model.v1.scalar_pb2 import Value
+from ._generated.proto.model.v1.secrets_pb2 import SecretsDeclarations
+from ._generated.proto.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
+from ._generated.proto.plugin.v1.executions_pb2 import (
     ExecutionsCleanupRequest,
     ExecutionsCleanupResponse,
     ExecutionsInitializeRequest,
     ExecutionsInitializeResponse,
 )
-from ._wire.plugin.v1.steps_pb2 import StepsExecuteRequest, StepsExecuteResponse
-from ._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest, TestCasesMaterializeResponse
+from ._generated.proto.plugin.v1.steps_pb2 import StepsExecuteRequest, StepsExecuteResponse
+from ._generated.proto.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest, TestCasesMaterializeResponse
+from ._payloads import message_type, pack
+from ._values import decode
 from .templates._context import Context
 
 # Type Checking Imports

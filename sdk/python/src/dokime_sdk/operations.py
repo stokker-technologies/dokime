@@ -28,9 +28,8 @@ from google.protobuf.message import Message
 from harmos import plugin
 
 # Local Imports
-from . import _context, _logs
+from . import _context, _logs, _messages
 from ._authoring import build_identifier
-from ._generated import shared
 from ._payloads import Payload, message_type, pack, unpack
 
 # Type Checking Imports
@@ -91,8 +90,8 @@ class OperationPolicy:
         if self.retries.maximum is not None and self.retries.maximum < self.retries.initial:
             raise ValueError(f"Declare Operation {operation}: Set retries.maximum at Least retries.initial")
 
-    def _definition(self) -> shared.OperationPolicy:
-        value = shared.OperationPolicy()
+    def _definition(self) -> _messages.OperationPolicy:
+        value = _messages.OperationPolicy()
         for name in ("timeout", "attempt_timeout", "cancellation_timeout"):
             duration = getattr(self, name)
             if duration is not None:
@@ -270,8 +269,8 @@ class Secret:
     identifier: str
     label: str
 
-    def _definition(self) -> shared.SecretDeclaration:
-        return shared.SecretDeclaration(metadata={"identifier": self.identifier, "label": self.label}, required=True)
+    def _definition(self) -> _messages.SecretDeclaration:
+        return _messages.SecretDeclaration(metadata={"identifier": self.identifier, "label": self.label}, required=True)
 
 
 class Resource:

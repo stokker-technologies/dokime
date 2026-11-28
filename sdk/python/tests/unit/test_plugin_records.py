@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock
 
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import plugin
-from harmos._wire.plugin.v1.invocation_pb2 import Request
+from harmos._generated.proto.plugin.v1.invocation_pb2 import Request
 
 from dokime_sdk import Plugin, Suite
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import RecordsAppendResponse
-from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContracts
+from dokime_sdk._generated.proto.host.v1.evidence.records_pb2 import RecordsAppendResponse
+from dokime_sdk._generated.proto.model.v1.record_contracts_pb2 import RecordContracts
 from dokime_sdk.operations import Context
 from dokime_sdk.templates import Document, Section, TestTemplate, record, time_series
 

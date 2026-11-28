@@ -576,7 +576,7 @@ struct AccessCertificatesResource {
 struct AccessListenerResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit AccessListenerResource(std::shared_ptr<grpc::Channel> connection) : channel(connection) {}
-  ::harmos::client::ListenerGetResponse get(client::AccessListenerGetOptions options = {}) {
+  ::harmos::host::v1::access::ListenerGetResponse get(client::AccessListenerGetOptions options = {}) {
     detail::packages::harmos::host::access::ListenerGetRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     detail::packages::harmos::host::access::ListenerGetResponse response;
@@ -586,8 +586,8 @@ struct AccessListenerResource {
     }
     return response;
   }
-  ::harmos::client::ListenerSetResponse set(const ::harmos::client::ListenerValue &value, const std::string &expected_revision,
-                                            client::AccessListenerSetOptions options = {}) {
+  ::harmos::host::v1::access::ListenerSetResponse set(const ::harmos::host::v1::access::ListenerValue &value,
+                                                      const std::string &expected_revision, client::AccessListenerSetOptions options = {}) {
     detail::packages::harmos::host::access::ListenerSetRequest request;
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
@@ -603,7 +603,7 @@ struct AccessListenerResource {
 struct AccessPairingsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit AccessPairingsResource(std::shared_ptr<grpc::Channel> connection) : channel(connection) {}
-  ::harmos::client::PairingsCreateResponse create(const std::string &label, client::AccessPairingsCreateOptions options = {}) {
+  ::harmos::host::v1::access::PairingsCreateResponse create(const std::string &label, client::AccessPairingsCreateOptions options = {}) {
     detail::packages::harmos::host::access::PairingsCreateRequest request;
     request.set_label(label);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
@@ -614,7 +614,7 @@ struct AccessPairingsResource {
     }
     return response;
   }
-  ::harmos::client::PairingsListResponse list(client::AccessPairingsListOptions options = {}) {
+  ::harmos::host::v1::access::PairingsListResponse list(client::AccessPairingsListOptions options = {}) {
     detail::packages::harmos::host::access::PairingsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -627,7 +627,7 @@ struct AccessPairingsResource {
     }
     return response;
   }
-  ::harmos::client::PairingsDeleteResponse delete_(const std::string &name, client::AccessPairingsDeleteOptions options = {}) {
+  ::harmos::host::v1::access::PairingsDeleteResponse delete_(const std::string &name, client::AccessPairingsDeleteOptions options = {}) {
     detail::packages::harmos::host::access::PairingsDeleteRequest request;
     request.set_name(name);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
@@ -1571,8 +1571,8 @@ struct PromptsAnswersResource {
 struct StatusDiagnosticsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit StatusDiagnosticsResource(std::shared_ptr<grpc::Channel> connection) : channel(connection) {}
-  ::harmos::client::DiagnosticsGetResponse get(const std::string &name, const std::uint64_t &offset, const std::uint64_t &max_bytes,
-                                               client::StatusDiagnosticsGetOptions options = {}) {
+  ::harmos::host::v1::status::DiagnosticsGetResponse get(const std::string &name, const std::uint64_t &offset,
+                                                         const std::uint64_t &max_bytes, client::StatusDiagnosticsGetOptions options = {}) {
     detail::packages::harmos::host::status::DiagnosticsGetRequest request;
     request.set_name(name);
     request.set_offset(offset);
@@ -1589,7 +1589,7 @@ struct StatusDiagnosticsResource {
 struct StatusLogsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit StatusLogsResource(std::shared_ptr<grpc::Channel> connection) : channel(connection) {}
-  ::harmos::client::LogsListResponse list(client::StatusLogsListOptions options = {}) {
+  ::harmos::host::v1::status::LogsListResponse list(client::StatusLogsListOptions options = {}) {
     detail::packages::harmos::host::status::LogsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -1605,8 +1605,8 @@ struct StatusLogsResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::harmos::client::LogsWatchResponse> watch(const std::uint64_t &max_bytes, const std::uint32_t &max_events,
-                                                                    client::StatusLogsWatchOptions options = {}) {
+  ::harmos::ClientStream<::harmos::host::v1::status::LogsWatchResponse>
+  watch(const std::uint64_t &max_bytes, const std::uint32_t &max_events, client::StatusLogsWatchOptions options = {}) {
     detail::packages::harmos::host::status::LogsWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -1616,7 +1616,7 @@ struct StatusLogsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::status::LogsWatchResponse>>(
         detail::packages::dokime::host::status::Logs::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader, context]() -> std::optional<::harmos::client::LogsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::harmos::host::v1::status::LogsWatchResponse> {
               detail::packages::harmos::host::status::LogsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -1632,7 +1632,7 @@ struct StatusLogsResource {
 struct StatusTraceEventsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit StatusTraceEventsResource(std::shared_ptr<grpc::Channel> connection) : channel(connection) {}
-  ::harmos::client::TraceEventsListResponse list(client::StatusTraceEventsListOptions options = {}) {
+  ::harmos::host::v1::status::TraceEventsListResponse list(client::StatusTraceEventsListOptions options = {}) {
     detail::packages::harmos::host::status::TraceEventsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -1648,8 +1648,8 @@ struct StatusTraceEventsResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::harmos::client::TraceEventsWatchResponse> watch(const std::uint64_t &max_bytes, const std::uint32_t &max_events,
-                                                                           client::StatusTraceEventsWatchOptions options = {}) {
+  ::harmos::ClientStream<::harmos::host::v1::status::TraceEventsWatchResponse>
+  watch(const std::uint64_t &max_bytes, const std::uint32_t &max_events, client::StatusTraceEventsWatchOptions options = {}) {
     detail::packages::harmos::host::status::TraceEventsWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -1659,7 +1659,7 @@ struct StatusTraceEventsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::status::TraceEventsWatchResponse>>(
         detail::packages::dokime::host::status::TraceEvents::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader, context]() -> std::optional<::harmos::client::TraceEventsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::harmos::host::v1::status::TraceEventsWatchResponse> {
               detail::packages::harmos::host::status::TraceEventsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();

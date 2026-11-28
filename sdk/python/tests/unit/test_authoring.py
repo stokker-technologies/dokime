@@ -28,7 +28,7 @@ import dokime_sdk.templates
 
 # Local Imports
 from dokime_sdk import Lane, Plugin, Scalar, Suite
-from dokime_sdk._generated import shared
+from dokime_sdk._generated.proto.model.v1.plots_pb2 import PLOT_KIND_HEAT_STRIP, REDUCTION_LAST
 from dokime_sdk.operations import OperationPolicy, RetryPolicy, Visibility, operation
 from dokime_sdk.templates import (
     Document,
@@ -401,8 +401,8 @@ class HeatStripTests(unittest.TestCase):
     def test_heat_strip_authoring_preserves_defaults_and_operands(self) -> None:
         samples = dokime_sdk.templates.Stream("example.samples")
         plot = dokime_sdk.templates.heat_strip(samples.field("value")).cells(samples.field("cell")).facet(samples.field("facet"))
-        self.assertEqual(plot.message.kind, shared.PLOT_KIND_HEAT_STRIP)
-        self.assertEqual(plot.message.reduction, shared.REDUCTION_LAST)
+        self.assertEqual(plot.message.kind, PLOT_KIND_HEAT_STRIP)
+        self.assertEqual(plot.message.reduction, REDUCTION_LAST)
         self.assertEqual(plot.message.cell.stream.field, "cell")
         self.assertEqual(plot.message.facet.stream.field, "facet")
         self.assertRaises(TypeError, plot.cells, "cell")

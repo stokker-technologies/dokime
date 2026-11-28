@@ -18,8 +18,8 @@ from google.protobuf.message import DecodeError
 from grpc import StatusCode
 from grpc.aio import AioRpcError
 from harmos import OperationError
-from harmos._wire.model.v1 import failure_pb2
-from harmos._wire.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.model.v1 import failure_pb2
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
 
 # Local Imports
 

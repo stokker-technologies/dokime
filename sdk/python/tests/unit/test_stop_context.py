@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import plugin
-from harmos._wire.plugin.v1.invocation_pb2 import Request
+from harmos._generated.proto.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
 from dokime_sdk import Plugin, Suite, templates

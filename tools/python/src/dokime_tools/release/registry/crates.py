@@ -84,6 +84,27 @@ def inventory(directory: Path) -> dict:
     return policy.publishable(directory, metadata)
 
 
+def audit(directory: Path) -> list[str]:
+    """One Actionable Line per Published Manifest That Would Require an Unpublished Workspace Crate From the Registry."""
+    metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"], capture=True))
+    packages = policy.publishable(directory, metadata)
+    members = {package["name"] for package in metadata["packages"] if package["id"] in metadata["workspace_members"]}
+    findings = []
+    for name, package in sorted(packages.items()):
+        for dependency in package["dependencies"]:
+            sibling = dependency["name"]
+            if sibling not in members or sibling in packages:
+                continue
+            # Packaging Strips a Path-Only Dev-Dependency; a Versioned One Stays and Must Resolve From the Registry.
+            if dependency.get("kind") == "dev" and dependency.get("req", "*") == "*":
+                continue
+            findings.append(
+                f"{name}: its {dependency.get('kind') or 'normal'} dependency {sibling} is unpublished; publish {sibling} or declare it as a path-only dev-dependency"
+            )
+    publication_order(packages)
+    return findings
+
+
 def published(name: str, version: str | None = None) -> bool:
     """Whether the Sparse Index Lists This Crate, or This Exact Crate Version."""
     lower = name.lower()
@@ -109,7 +130,7 @@ def published(name: str, version: str | None = None) -> bool:
 def _publish_crates(
     directory: Path, packages: dict, deadline: float, *, sleep: Callable[[float], None], clock: Callable[[], float]
 ) -> None:
-    for name in _publication_order(packages):
+    for name in publication_order(packages):
         version = packages[name]["version"]
         if published(name, version):
             print(f"{name} {version}: already published")
@@ -144,7 +165,7 @@ def _rehearse_crates(
     directory: Path, packages: dict, target: Path, lock: Path, original: bytes | None, staged: list, *, skip_published: bool
 ) -> None:
     try:
-        for name in _publication_order(packages):
+        for name in publication_order(packages):
             version = packages[name]["version"]
             if skip_published and published(name, version):
                 print(f"{name} {version}: already published; the real leaf skips it")
@@ -162,7 +183,7 @@ def _rehearse_crates(
             lock.write_bytes(original)
 
 
-def _publication_order(packages: dict) -> list[str]:
+def publication_order(packages: dict) -> list[str]:
     """Publishable Crates After Every Publishable Crate Their Published Manifest Requires, Ties By Name.
 
     A dev-dependency that carries a version stays in the published manifest and must resolve from the registry; a

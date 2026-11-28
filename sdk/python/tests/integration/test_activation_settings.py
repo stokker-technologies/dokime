@@ -11,9 +11,9 @@ from unittest import IsolatedAsyncioTestCase
 from google.protobuf.wrappers_pb2 import BoolValue
 from grpc.aio import insecure_channel
 from harmos import OperationError
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse
-from harmos._wire.plugin.v1.instance_pb2 import InstanceInvokeRequest, InstanceInvokeResponse
-from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
+from harmos._generated.proto.host.v1.plugins.settings_pb2 import SettingsListResponse
+from harmos._generated.proto.plugin.v1.instance_pb2 import InstanceInvokeRequest, InstanceInvokeResponse
+from harmos._generated.proto.plugin.v1.invocation_pb2 import ChildResponse, Request
 
 # Local Imports
 from dokime_sdk import Plugin

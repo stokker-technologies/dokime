@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, ClassVar, TypeVar
 from google.protobuf.timestamp_pb2 import Timestamp
 
 # Local Imports
-from ._generated.shared import ExactNumber, Null, Value, ValueList
+from ._generated.proto.model.v1.scalar_pb2 import ExactNumber, Null, Value, ValueList
 
 # Type Checking Imports
 if TYPE_CHECKING:

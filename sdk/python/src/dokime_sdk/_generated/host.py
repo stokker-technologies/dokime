@@ -8,7 +8,7 @@ from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos._contracts import Operation
-from harmos._wire.host.v1.invocations_pb2 import (
+from harmos._generated.proto.host.v1.invocations_pb2 import (
     InvocationsCancelRequest,
     InvocationsCancelResponse,
     InvocationsGetRequest,
@@ -16,25 +16,30 @@ from harmos._wire.host.v1.invocations_pb2 import (
     InvocationsWatchRequest,
     InvocationsWatchResponse,
 )
-from harmos._wire.host.v1.operations_pb2 import OperationsGetRequest, OperationsGetResponse, OperationsListRequest, OperationsListResponse
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
-from harmos._wire.host.v1.plugins.state_pb2 import StateGetRequest, StateGetResponse, StatePutRequest, StatePutResponse
-from harmos._wire.host.v1.time_pb2 import TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse
-from harmos._wire.model.v1.file_pb2 import FileMetadata, FileReference, Upload
-from harmos._wire.model.v1.invocation_pb2 import InstanceState
-from harmos._wire.model.v1.operation_pb2 import VISIBILITY_PUBLIC, DiscoveredOperation
-from harmos._wire.model.v1.page_pb2 import PageRequest
-from harmos._wire.model.v1.policy_pb2 import OperationPolicy
-from harmos._wire.model.v1.position_pb2 import Position, ReadCut
-from harmos._wire.model.v1.receipt_pb2 import Receipt
-from harmos._wire.plugin.v1.subscriptions_pb2 import SubscriptionsSubscribeRequest, SubscriptionsSubscribeResponse
+from harmos._generated.proto.host.v1.operations_pb2 import (
+    OperationsGetRequest,
+    OperationsGetResponse,
+    OperationsListRequest,
+    OperationsListResponse,
+)
+from harmos._generated.proto.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
+from harmos._generated.proto.host.v1.plugins.state_pb2 import StateGetRequest, StateGetResponse, StatePutRequest, StatePutResponse
+from harmos._generated.proto.host.v1.time_pb2 import TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse
+from harmos._generated.proto.model.v1.file_pb2 import FileMetadata, FileReference, Upload
+from harmos._generated.proto.model.v1.invocation_pb2 import InstanceState
+from harmos._generated.proto.model.v1.operation_pb2 import VISIBILITY_PUBLIC, DiscoveredOperation
+from harmos._generated.proto.model.v1.page_pb2 import PageRequest
+from harmos._generated.proto.model.v1.policy_pb2 import OperationPolicy
+from harmos._generated.proto.model.v1.position_pb2 import Position, ReadCut
+from harmos._generated.proto.model.v1.receipt_pb2 import Receipt
+from harmos._generated.proto.plugin.v1.subscriptions_pb2 import SubscriptionsSubscribeRequest, SubscriptionsSubscribeResponse
 
-import dokime_sdk._wire.model.v1.metadata_pb2
-from dokime_sdk._wire.host.v1.backend_pb2 import BackendEnvironmentRequest, BackendEnvironmentResponse
-from dokime_sdk._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateRequest, ArtifactsCreateResponse
-from dokime_sdk._wire.host.v1.documents_pb2 import DocumentsAppendPartsRequest, DocumentsAppendPartsResponse
-from dokime_sdk._wire.host.v1.evidence.logs_pb2 import LogsAppendRequest, LogsAppendResponse
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import (
+import dokime_sdk._generated.proto.model.v1.metadata_pb2
+from dokime_sdk._generated.proto.host.v1.backend_pb2 import BackendEnvironmentRequest, BackendEnvironmentResponse
+from dokime_sdk._generated.proto.host.v1.content.artifacts_pb2 import ArtifactsCreateRequest, ArtifactsCreateResponse
+from dokime_sdk._generated.proto.host.v1.documents_pb2 import DocumentsAppendPartsRequest, DocumentsAppendPartsResponse
+from dokime_sdk._generated.proto.host.v1.evidence.logs_pb2 import LogsAppendRequest, LogsAppendResponse
+from dokime_sdk._generated.proto.host.v1.evidence.records_pb2 import (
     CapturedRecordSelection,
     RecordsAppendRequest,
     RecordsAppendResponse,
@@ -42,27 +47,27 @@ from dokime_sdk._wire.host.v1.evidence.records_pb2 import (
     RecordsListRequest,
     RecordsListResponse,
 )
-from dokime_sdk._wire.host.v1.evidence.traceability_pb2 import (
+from dokime_sdk._generated.proto.host.v1.evidence.traceability_pb2 import (
     TraceabilityGetRequest,
     TraceabilityGetResponse,
     TraceabilitySetRequest,
     TraceabilitySetResponse,
 )
-from dokime_sdk._wire.host.v1.evidence_pb2 import EvidenceStatisticsRequest, EvidenceStatisticsResponse, Output
-from dokime_sdk._wire.host.v1.executions.progress_pb2 import (
+from dokime_sdk._generated.proto.host.v1.evidence_pb2 import EvidenceStatisticsRequest, EvidenceStatisticsResponse, Output
+from dokime_sdk._generated.proto.host.v1.executions.progress_pb2 import (
     ProgressGetRequest,
     ProgressGetResponse,
     ProgressSetRequest,
     ProgressSetResponse,
 )
-from dokime_sdk._wire.host.v1.files.captures_pb2 import (
+from dokime_sdk._generated.proto.host.v1.files.captures_pb2 import (
     CaptureMode,
     CapturesStartRequest,
     CapturesStartResponse,
     CapturesStopRequest,
     CapturesStopResponse,
 )
-from dokime_sdk._wire.host.v1.files.uploads_pb2 import (
+from dokime_sdk._generated.proto.host.v1.files.uploads_pb2 import (
     UploadsAppendRequest,
     UploadsAppendResponse,
     UploadsCreateRequest,
@@ -76,7 +81,7 @@ from dokime_sdk._wire.host.v1.files.uploads_pb2 import (
     UploadsResumeRequest,
     UploadsResumeResponse,
 )
-from dokime_sdk._wire.host.v1.files_pb2 import (
+from dokime_sdk._generated.proto.host.v1.files_pb2 import (
     FilesCaptureRequest,
     FilesCaptureResponse,
     FilesDeleteRequest,
@@ -88,15 +93,15 @@ from dokime_sdk._wire.host.v1.files_pb2 import (
     FilesWatchRequest,
     FilesWatchResponse,
 )
-from dokime_sdk._wire.host.v1.prompts_pb2 import PromptsCreateRequest, PromptsCreateResponse
-from dokime_sdk._wire.host.v1.secrets_pb2 import SecretsGetRequest, SecretsGetResponse
-from dokime_sdk._wire.model.v1.documents_pb2 import Card, Section
-from dokime_sdk._wire.model.v1.evidence_pb2 import ArtifactScope, EvidenceScope, Severity, Window
-from dokime_sdk._wire.model.v1.execution_pb2 import ExecutionProgressValue
-from dokime_sdk._wire.model.v1.files_pb2 import FileSource
-from dokime_sdk._wire.model.v1.prompts_pb2 import Prompt
-from dokime_sdk._wire.model.v1.scalar_pb2 import Value
-from dokime_sdk._wire.model.v1.traceability_pb2 import TraceabilityEntry
+from dokime_sdk._generated.proto.host.v1.prompts_pb2 import PromptsCreateRequest, PromptsCreateResponse
+from dokime_sdk._generated.proto.host.v1.secrets_pb2 import SecretsGetRequest, SecretsGetResponse
+from dokime_sdk._generated.proto.model.v1.documents_pb2 import Card, Section
+from dokime_sdk._generated.proto.model.v1.evidence_pb2 import ArtifactScope, EvidenceScope, Severity, Window
+from dokime_sdk._generated.proto.model.v1.execution_pb2 import ExecutionProgressValue
+from dokime_sdk._generated.proto.model.v1.files_pb2 import FileSource
+from dokime_sdk._generated.proto.model.v1.prompts_pb2 import Prompt
+from dokime_sdk._generated.proto.model.v1.scalar_pb2 import Value
+from dokime_sdk._generated.proto.model.v1.traceability_pb2 import TraceabilityEntry
 
 if TYPE_CHECKING:
     from harmos._invocation import Context
@@ -390,7 +395,7 @@ class HostContentArtifactsResource:
         *,
         scope: ArtifactScope | None = None,
         request_id: str | None = None,
-        metadata: dokime_sdk._wire.model.v1.metadata_pb2.Metadata | None = None,
+        metadata: dokime_sdk._generated.proto.model.v1.metadata_pb2.Metadata | None = None,
         policy: OperationPolicy | None = None,
     ) -> ArtifactsCreateResponse:
         request = ArtifactsCreateRequest(

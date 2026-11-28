@@ -110,11 +110,9 @@ tonic = { version = "0.14.8", features = ["transport"] }
 dokime-protocol = { path = "../../../../crates/dokime-protocol" }
 dokime-runtime = { path = "../../../../crates/dokime-runtime" }
 
-# Git
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "5891eee43a4867cda7e8bedf66d7b8bf5fb4bf42", default-features = false, features = [
-  "grpc",
-] }
+# Library
+harmos-protocol = { version = "0.1.15" }
+harmos-runtime = { version = "0.1.15", default-features = false, features = ["grpc"] }
 
 # Error Handling
 

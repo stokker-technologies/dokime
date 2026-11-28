@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock
 # Third Party Imports
 import harmos
 from harmos import plugin
-from harmos._wire.model.v1.failure_pb2 import Failure
-from harmos._wire.plugin.v1.invocation_pb2 import Request
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
 import dokime_sdk.operations

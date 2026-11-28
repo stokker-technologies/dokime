@@ -39,6 +39,8 @@ taplo = "0.10.0"
 # Protocols and Code Generation
 protoc = "36.2"
 "aqua:bufbuild/buf" = "1.75.0"
+# The Library CLI Installs From Its Release Commit; It Bundles the Library Protocol and Generates Every SDK Binding.
+"cargo:https://github.com/stokker-technologies/harmos" = { version = "rev:5b8cfd47b8758fb2075d8cc69a6c753165067b79", crate = "harmos-cli", bin = "harmos" }
 
 # Documentation
 "aqua:d2lang/d2" = "0.9.0"
@@ -84,7 +86,7 @@ run = [
 
 [tasks."generate"]
 description = "Generate Clients from Contracts"
-usage = 'flag "--check" help="Check Checked-In Protocol Bindings"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"; flag "--language <language>" { choices "python" }'
+usage = 'flag "--check" help="Check Checked-In Protocol Bindings"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"; flag "--language <language>" { choices "rust" "python" "csharp" "cpp" }'
 run = """
 {% if usage.protocol or usage.check %}
 {{vars.tools}} dokime_tools.build.protocol {% if usage.check %}--check{% endif %}{% if usage.language %} --language {{usage.language}}{% endif %}
@@ -143,6 +145,11 @@ run = "{{vars.tools}} dokime_tools.docs.image"
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
+
+[tasks."release:preflight"]
+description = "Rehearse Release Preparation and Its Checks, or the Tag Gate of a Merged Release Review"
+usage = 'flag "--review <number>" help="Emulate the Tag Gate for This Merged Release Review"'
+run = "{{vars.tools}} dokime_tools.release.preflight{% if usage.review %} --review {{usage.review}}{% endif %}"
 
 [tasks."release:publish"]
 description = "Publish a Tagged Release"
@@ -269,6 +276,7 @@ run = [
   "buf lint",
   "{{vars.tools}} dokime_tools.build.protocol_callers",
   "{{vars.tools}} dokime_tools.ci.mise",
+  "{{vars.tools}} dokime_tools.ci.tokens",
   "shellcheck --version",
   "actionlint",
 ]
@@ -684,11 +692,6 @@ run = "{{vars.tools}} dokime_tools.release.run python"
 hide = true
 description = "Dry-Run the Pure Python SDK Publication"
 run = "{{vars.tools}} dokime_tools.release.run python-dry"
-
-[tasks."prepare:locks"]
-hide = true
-description = "Refresh Dependency Locks After a Library Pin Change"
-run = "{{vars.tools}} dokime_tools.build.protocol --locks"
 
 [tasks."check:locks"]
 hide = true

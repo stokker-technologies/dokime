@@ -43,6 +43,7 @@ from dokime_tools.release import (
     context,
     guard,
     notices,
+    prepare,
     registry,
     run,
     tag,
@@ -197,42 +198,61 @@ class ReleaseTagTests(unittest.TestCase):
             return self.project
         raise AssertionError(args)
 
-    def test_release_review_validation_completion_tags_target(self) -> None:
+    def mode(self, event: str, completion: dict | None = None, runs: tuple[dict, ...] = (), reviews: tuple[dict, ...] = ()) -> dict:
+        def pages(endpoint: str, key: str | None = None) -> list[dict]:
+            return list(runs) if endpoint.startswith("actions/") else list(reviews or (self.review,))
+
         temporary_directory = tempfile.TemporaryDirectory()
-        temporary = temporary_directory.name
         try:
-            event = Path(temporary) / "event.json"
-            event.write_text(json.dumps({"workflow_run": {"head_sha": OLD, "event": "pull_request", "conclusion": "success"}}))
-            older = {**self.review, "merged_at": "2026-11-09T00:00:00Z", "merge_commit_sha": OLD}
+            path = Path(temporary_directory.name) / "event.json"
+            path.write_text(json.dumps({"workflow_run": completion or {}}), encoding="utf-8")
             with (
-                patch.dict(os.environ, {**self.environment, "GITHUB_EVENT_PATH": str(event)}),
-                patch.dict(self.action["github_release_mode"].__globals__, command=self.command, pages=lambda *args: [self.review, older]),
+                patch.dict(os.environ, {**self.environment, "GITHUB_EVENT_NAME": event, "GITHUB_EVENT_PATH": str(path)}),
+                patch.dict(self.action["github_release_mode"].__globals__, command=self.command, pages=pages),
             ):
-                self.assertEqual(self.action["github_release_mode"](), {"mode": "tag", "sha": NEW})
-                with patch.dict(os.environ, GITHUB_EVENT_NAME="workflow_dispatch"):
-                    self.assertEqual(self.action["github_release_mode"](), {"mode": "tag", "sha": NEW})
+                return self.action["github_release_mode"]()
         finally:
             temporary_directory.cleanup()
 
-    def test_unrelated_ci_completion_skips(self) -> None:
-        temporary_directory = tempfile.TemporaryDirectory()
-        temporary = temporary_directory.name
-        try:
-            event = Path(temporary) / "event.json"
-            with (
-                patch.dict(os.environ, {**self.environment, "GITHUB_EVENT_PATH": str(event)}),
-                patch.dict(self.action["github_release_mode"].__globals__, command=self.command, pages=lambda *args: [self.review]),
-            ):
-                for completion in (
-                    {"head_sha": LATER, "event": "pull_request", "conclusion": "success"},
-                    {"head_sha": OLD, "event": "push", "conclusion": "success"},
-                    {"head_sha": OLD, "event": "pull_request", "conclusion": "failure"},
-                ):
-                    with self.subTest(completion=completion):
-                        event.write_text(json.dumps({"workflow_run": completion}))
-                        self.assertEqual(self.action["github_release_mode"](), {"mode": "skip", "sha": ""})
-        finally:
-            temporary_directory.cleanup()
+    def test_only_the_review_validation_run_tags_its_target(self) -> None:
+        validation = {
+            "head_sha": OLD,
+            "event": "pull_request",
+            "display_title": "CI / Validation",
+            "status": "completed",
+            "conclusion": "success",
+            "pull_requests": [{"number": 211}],
+        }
+        older = {**self.review, "merged_at": "2026-11-09T00:00:00Z", "merge_commit_sha": OLD}
+        tagged = {"mode": "tag", "sha": NEW}
+        self.assertEqual(self.mode("workflow_run", validation, reviews=(self.review, older)), tagged)
+        self.assertEqual(self.mode("workflow_dispatch", runs=(validation,)), tagged)
+        unrelated = (
+            {"display_title": "CI / Closed Review"},
+            {"head_sha": LATER},
+            {"event": "push"},
+            {"conclusion": "failure"},
+            {"pull_requests": [{"number": 212}]},
+        )
+        for mutation in unrelated:
+            with self.subTest(mutation=mutation):
+                self.assertEqual(self.mode("workflow_run", {**validation, **mutation}), {"mode": "skip", "sha": ""})
+                # A Dispatch Re-Prepares the Untagged Version Instead of Tagging Unvalidated Evidence.
+                self.assertEqual(self.mode("workflow_dispatch", runs=({**validation, **mutation},)), {"mode": "prepare", "sha": ""})
+        self.assertEqual(self.mode("workflow_dispatch"), {"mode": "prepare", "sha": ""})
+        failed = {**validation, "conclusion": "failure"}
+        for pending in ({"status": "queued", "conclusion": None}, {"status": "in_progress", "conclusion": None}):
+            running = {**validation, **pending}
+            with self.subTest(pending=pending), contextlib.redirect_stdout(io.StringIO()) as printed:
+                # A Running Validation Restarts Release on Completion; a Dispatch Neither Tags Nor Prepares Again.
+                self.assertEqual(self.mode("workflow_dispatch", runs=(failed, running)), {"mode": "skip", "sha": ""})
+                self.assertEqual(printed.getvalue(), f"{self.tag} review validation is still running; wait for it\n")
+                self.assertEqual(self.mode("workflow_dispatch", runs=(validation, running)), tagged)
+
+    def test_untagged_version_is_prepared_again_from_dev(self) -> None:
+        with patch.object(prepare.policy, "execute", return_value="") as execute:
+            self.assertEqual(prepare.planned_version(ROOT, "1.2.3"), "1.2.3")
+        execute.assert_called_once_with(ROOT, ["git", "tag", "--list", "v1.2.3"], capture=True)
 
     def test_dispatch_without_prepared_release_prepares(self) -> None:
         with (

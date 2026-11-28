@@ -23,9 +23,7 @@ from grpc.aio import ServicerContext
 
 # Local Imports
 from dokime_sdk._connection import connect
-from dokime_sdk._generated.client_types import ReportsCreateResponse
-from dokime_sdk._transfers import download_report
-from dokime_sdk._wire.host.v1.files_pb2 import (
+from dokime_sdk._generated.proto.host.v1.files_pb2 import (
     FilesDeleteRequest,
     FilesGetRequest,
     FilesGetResponse,
@@ -34,7 +32,13 @@ from dokime_sdk._wire.host.v1.files_pb2 import (
     FilesWatchRequest,
     FilesWatchResponse,
 )
-from dokime_sdk._wire.host.v1.reports_pb2 import ReportsCreateRequest, ReportsGetRequest, ReportsPublishRequest
+from dokime_sdk._generated.proto.host.v1.reports_pb2 import (
+    ReportsCreateRequest,
+    ReportsCreateResponse,
+    ReportsGetRequest,
+    ReportsPublishRequest,
+)
+from dokime_sdk._transfers import download_report
 from dokime_sdk.operations import OperationError
 
 # Type Checking Imports
@@ -50,8 +54,8 @@ from dokime_sdk.operations import OperationError
 
 class ReportStory(unittest.IsolatedAsyncioTestCase):
     async def test_preview_reads_verified_bytes_and_refuses_changed_files(self) -> None:
-        report_rpc = import_module("dokime_sdk._wire.host.v1.reports_pb2_grpc")
-        storage_rpc = import_module("dokime_sdk._wire.host.v1.files_pb2_grpc")
+        report_rpc = import_module("dokime_sdk._generated.proto.host.v1.reports_pb2_grpc")
+        storage_rpc = import_module("dokime_sdk._generated.proto.host.v1.files_pb2_grpc")
         data = bytes(range(7))
         digest = sha256(data).digest()
         mode = ["valid"]

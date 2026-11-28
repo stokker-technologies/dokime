@@ -34,7 +34,7 @@ from grpc.aio import (
     secure_channel,
 )
 from harmos import CLASSIFICATION_REFUSED, CLASSIFICATION_TIMED_OUT, CLASSIFICATION_TRANSIENT, OperationError
-from harmos._wire.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
 
 # Local Imports
 import dokime_sdk._generated.client

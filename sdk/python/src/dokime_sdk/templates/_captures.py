@@ -18,7 +18,20 @@ from typing import Self, cast
 
 # Third Party Imports
 # Local Imports
-from .._generated import plugin_types, shared
+from .._generated.proto.host.v1.files.captures_pb2 import CaptureMode as CaptureModeMessage
+from .._generated.proto.host.v1.files.captures_pb2 import CapturesStopResponse
+from .._generated.proto.host.v1.files.captures_pb2 import LineField as LineFieldMessage
+from .._generated.proto.host.v1.files.captures_pb2 import LineMarker as LineMarkerMessage
+from .._generated.proto.host.v1.files.captures_pb2 import LineMatcher as LineMatcherMessage
+from .._generated.proto.host.v1.files.captures_pb2 import MirrorCapture as MirrorCaptureMessage
+from .._generated.proto.host.v1.files.captures_pb2 import StreamCapture as StreamCaptureMessage
+from .._generated.proto.host.v1.files_pb2 import FilesCaptureResponse
+from .._generated.proto.model.v1.files_pb2 import FileLocation as FileLocationMessage
+from .._generated.proto.model.v1.files_pb2 import FileRule as FileRuleMessage
+from .._generated.proto.model.v1.files_pb2 import FileRuleAction as FileRuleActionMessage
+from .._generated.proto.model.v1.files_pb2 import FileSelection as FileSelectionMessage
+from .._generated.proto.model.v1.files_pb2 import FileSource as FileSourceMessage
+from .._generated.proto.model.v1.files_pb2 import FtpLocation as FtpLocationMessage
 
 # Type Checking Imports
 
@@ -42,8 +55,8 @@ class FtpLocation:
     url: str
     secret_id: str | None = None
 
-    def _wire(self) -> shared.FtpLocation:
-        return shared.FtpLocation(url=self.url, secret_id=self.secret_id)
+    def _wire(self) -> FtpLocationMessage:
+        return FtpLocationMessage(url=self.url, secret_id=self.secret_id)
 
 
 @dataclass(frozen=True)
@@ -55,8 +68,8 @@ class FileLocation:
         if (self.local is None) == (self.ftp is None):
             raise ValueError("Declare File Location: Supply Exactly One local or ftp")
 
-    def _wire(self) -> shared.FileLocation:
-        return shared.FileLocation(local=self.local, ftp=self.ftp._wire() if self.ftp is not None else None)
+    def _wire(self) -> FileLocationMessage:
+        return FileLocationMessage(local=self.local, ftp=self.ftp._wire() if self.ftp is not None else None)
 
 
 @dataclass(frozen=True)
@@ -64,10 +77,10 @@ class FileRule:
     glob: str
     action: FileRuleAction
 
-    def _wire(self) -> shared.FileRule:
+    def _wire(self) -> FileRuleMessage:
         if not isinstance(self.action, FileRuleAction):
             raise TypeError("Declare File Rule: Supply a FileRuleAction Member")
-        return shared.FileRule(glob=self.glob, action=cast(shared.FileRuleAction, self.action.value))
+        return FileRuleMessage(glob=self.glob, action=cast(FileRuleActionMessage, self.action.value))
 
 
 @dataclass(frozen=True)
@@ -75,8 +88,8 @@ class FileSelection:
     root: FileLocation
     rules: tuple[FileRule, ...] = ()
 
-    def _wire(self) -> shared.FileSelection:
-        return shared.FileSelection(root=self.root._wire(), rules=[item._wire() for item in self.rules])
+    def _wire(self) -> FileSelectionMessage:
+        return FileSelectionMessage(root=self.root._wire(), rules=[item._wire() for item in self.rules])
 
 
 @dataclass(frozen=True)
@@ -89,8 +102,8 @@ class FileSource:
         if sum(item is not None for item in (self.file, self.tree, self.newest)) != 1:
             raise ValueError("Declare File Source: Supply Exactly One file, tree or newest")
 
-    def _wire(self) -> shared.FileSource:
-        return shared.FileSource(**{name: item._wire() for name in ("file", "tree", "newest") if (item := getattr(self, name)) is not None})
+    def _wire(self) -> FileSourceMessage:
+        return FileSourceMessage(**{name: item._wire() for name in ("file", "tree", "newest") if (item := getattr(self, name)) is not None})
 
 
 @dataclass(frozen=True)
@@ -98,8 +111,8 @@ class LineField:
     name: str
     type: str
 
-    def _wire(self) -> plugin_types.LineField:
-        return plugin_types.LineField(name=self.name, type=self.type)
+    def _wire(self) -> LineFieldMessage:
+        return LineFieldMessage(name=self.name, type=self.type)
 
 
 @dataclass(frozen=True)
@@ -108,8 +121,8 @@ class LineMatcher:
     stream: str
     fields: tuple[LineField, ...] = ()
 
-    def _wire(self) -> plugin_types.LineMatcher:
-        return plugin_types.LineMatcher(pattern=self.pattern, stream=self.stream, fields=[item._wire() for item in self.fields])
+    def _wire(self) -> LineMatcherMessage:
+        return LineMatcherMessage(pattern=self.pattern, stream=self.stream, fields=[item._wire() for item in self.fields])
 
 
 @dataclass(frozen=True)
@@ -117,8 +130,8 @@ class LineMarker:
     pattern: str
     record_type: str
 
-    def _wire(self) -> plugin_types.LineMarker:
-        return plugin_types.LineMarker(pattern=self.pattern, record_type=self.record_type)
+    def _wire(self) -> LineMarkerMessage:
+        return LineMarkerMessage(pattern=self.pattern, record_type=self.record_type)
 
 
 @dataclass(frozen=True)
@@ -126,10 +139,8 @@ class StreamCapture:
     matchers: tuple[LineMatcher, ...] = ()
     markers: tuple[LineMarker, ...] = ()
 
-    def _wire(self) -> plugin_types.StreamCapture:
-        return plugin_types.StreamCapture(
-            matchers=[item._wire() for item in self.matchers], markers=[item._wire() for item in self.markers]
-        )
+    def _wire(self) -> StreamCaptureMessage:
+        return StreamCaptureMessage(matchers=[item._wire() for item in self.matchers], markers=[item._wire() for item in self.markers])
 
 
 @dataclass(frozen=True)
@@ -140,8 +151,8 @@ class MirrorCapture:
         if self.interval_s is not None and (type(self.interval_s) is not int or self.interval_s <= 0):
             raise ValueError("Declare Mirror Capture: Supply a Positive Integer interval_s")
 
-    def _wire(self) -> plugin_types.MirrorCapture:
-        return plugin_types.MirrorCapture(interval_s=self.interval_s)
+    def _wire(self) -> MirrorCaptureMessage:
+        return MirrorCaptureMessage(interval_s=self.interval_s)
 
 
 @dataclass(frozen=True)
@@ -153,8 +164,8 @@ class CaptureMode:
         if (self.stream is None) == (self.mirror is None):
             raise ValueError("Declare Capture Mode: Supply Exactly One stream or mirror")
 
-    def _wire(self) -> plugin_types.CaptureMode:
-        return plugin_types.CaptureMode(
+    def _wire(self) -> CaptureModeMessage:
+        return CaptureModeMessage(
             stream=self.stream._wire() if self.stream is not None else None, mirror=self.mirror._wire() if self.mirror is not None else None
         )
 
@@ -178,7 +189,7 @@ class CaptureResult:
     gaps: tuple[CaptureGap, ...]
 
     @classmethod
-    def _from_wire(cls, value: plugin_types.FilesCaptureResponse | plugin_types.host.files.CapturesStopResponse) -> Self:
+    def _from_wire(cls, value: FilesCaptureResponse | CapturesStopResponse) -> Self:
         reasons = {1: "Truncated", 2: "Replaced", 3: "Vanished", 4: "Resume Unsupported"}
         return cls(
             tuple(CapturedArtifact(item.artifact, item.size_bytes) for item in value.artifacts),

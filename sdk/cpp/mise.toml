@@ -63,8 +63,8 @@ run = 'uv run --no-sync --project ../../tools/python python tools/sdk.py consume
 
 [tasks.generate]
 description = "Generate or Check C++ Bindings"
-usage = 'arg "[args]" var=#true'
-run = 'uv run --no-sync --project ../../tools/python python tools/generate.py {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+usage = 'flag "--write"'
+run = 'uv run --no-sync --project ../../tools/python python -m dokime_tools.build.protocol --language cpp{% if not usage.write %} --check{% endif %}'
 
 [tasks."test:created"]
 hide = true

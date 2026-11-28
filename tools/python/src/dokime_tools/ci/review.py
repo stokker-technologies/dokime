@@ -1,3 +1,12 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+
 "Find a Green Review of This Exact Tree and Restore Its Package Artifacts."
 
 # === Imports === #
@@ -38,6 +47,9 @@ from dokime_tools.process import spawn_flags
 
 
 OID = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+REQUIRED = "Check / CI / Required"
+REHEARSAL = "Release / Rehearsal"
+VALIDATION = "CI / Validation"
 
 # === Types === #
 
@@ -96,6 +108,12 @@ def pages(endpoint: str, key: str | None = None) -> list[dict]:
     raise ValueError("Verify Release Evidence: provider pagination limit")
 
 
+def job_named(job: dict, name: str) -> bool:
+    """Whether a Provider Job or Check Carries This Name, Also Behind Reusable-Workflow Caller Prefixes."""
+    title = job.get("name", "")
+    return title == name or title.endswith(" / " + name)
+
+
 def same_tree(head: str, tree: str) -> bool:
     if not isinstance(head, str) or OID.fullmatch(head) is None:
         return False
@@ -138,7 +156,7 @@ def github_validation_run(
         # Wait for This Review's Validation
         identifier, head = run["id"], run.get("head_sha")
         deadline = clock() + timeout_s
-        while run.get("display_title") == "CI / Validation" and run.get("status") in (
+        while run.get("display_title") == VALIDATION and run.get("status") in (
             "queued",
             "in_progress",
             "requested",
@@ -155,14 +173,10 @@ def github_validation_run(
                 raise ValueError("Verify Release Evidence: review run identity changed; rerun Release with the exact review head")
 
         # Require Green Validation and Jobs
-        if run.get("display_title") != "CI / Validation" or run.get("status") != "completed" or run.get("conclusion") != "success":
+        if run.get("display_title") != VALIDATION or run.get("status") != "completed" or run.get("conclusion") != "success":
             raise ValueError("Verify Release Evidence: review run is not green validation")
         jobs = jobs_for(run["id"])
-        gates = []
-        for gates_job in jobs:
-            if gates_job.get("name") != "Check / CI / Required":
-                continue
-            gates.append(gates_job)
+        gates = [job for job in jobs if job_named(job, REQUIRED)]
 
         if len(gates) != 1 or gates[0].get("conclusion") != "success":
             raise ValueError("Verify Release Evidence: review required gate is not green")
@@ -222,19 +236,29 @@ def github_release_mode() -> dict[str, str]:
     if target_version != version:
         return fallback
     if os.environ["GITHUB_EVENT_NAME"] == "workflow_run":
-        completed = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))["workflow_run"]
-        if (
-            completed.get("head_sha") != review["head"]["sha"]
-            or completed.get("event") != "pull_request"
-            or completed.get("conclusion") != "success"
-        ):
-            return fallback
-    return {"mode": "tag", "sha": target}
+        # The Closed Review Run on the Same Head Completes Too; Only the Validation Run Carries Evidence.
+        runs = [json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))["workflow_run"]]
+    else:
+        runs = pages(f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={review['head']['sha']}", "workflow_runs")
+    runs = [run for run in runs if validation(run, review)]
+    if any(run.get("status") == "completed" and run.get("conclusion") == "success" for run in runs):
+        return {"mode": "tag", "sha": target}
+    if any(run.get("status") != "completed" for run in runs):
+        # Its Completion Starts Release Again, So Preparing Now Would Open a Second Release Commit.
+        print(f"{tag} review validation is still running; wait for it", flush=True)
+        return {"mode": "skip", "sha": ""}
+    # A Dispatch Retries a Release Whose Review Validation Completed Without Success.
+    return fallback
 
 
-def lookup() -> dict[str, str]:
-    sha = command("git", "rev-parse", "HEAD")
-    tree = command("git", "rev-parse", "HEAD^{tree}")
+def validation(run: dict, review: dict) -> bool:
+    """Whether a CI Run Is This Review's Validation Run, Never Its Closed or Draft Review Run."""
+    return github_review_run(run, review) and run.get("event") == "pull_request" and run.get("display_title") == VALIDATION
+
+
+def lookup(sha: str = "HEAD") -> dict[str, str]:
+    tree = command("git", "rev-parse", sha + "^{tree}")
+    sha = command("git", "rev-parse", sha)
     if OID.fullmatch(tree) is None:
         raise ValueError("Verify Release Evidence: invalid checkout tree")
     github = bool(os.environ.get("GITHUB_ACTIONS"))
@@ -314,9 +338,7 @@ def lookup() -> dict[str, str]:
                 raise ValueError("Verify Release Evidence: review package expired")
     if not isinstance(run["id"], int) or run["id"] <= 0:
         raise ValueError("Verify Release Evidence: invalid review run ID")
-    if tag and not any(
-        job.get("name", "").endswith("Release / Rehearsal") and job.get("conclusion" if github else "status") == "success" for job in jobs
-    ):
+    if tag and not any(job_named(job, REHEARSAL) and job.get("conclusion" if github else "status") == "success" for job in jobs):
         raise ValueError("Verify Release Evidence: release review has no successful rehearsal")
     protected = os.environ.get("GITHUB_REF_PROTECTED") == "true" or os.environ.get("CI_COMMIT_REF_PROTECTED") == "true"
     if tag and not protected:

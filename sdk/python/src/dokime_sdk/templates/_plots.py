@@ -17,18 +17,25 @@ from typing import Self, cast
 
 # Third Party Imports
 # Local Imports
-from .._generated import shared
-from .._generated.shared import (
-    AtExpression,
-    DataExpression,
-    FieldReference,
+from .._generated.proto.model.v1.expressions_pb2 import Aggregate as AggregateMessage
+from .._generated.proto.model.v1.expressions_pb2 import AtExpression, DataExpression, FieldReference, TransformExpression
+from .._generated.proto.model.v1.expressions_pb2 import FilterOperator as FilterOperatorMessage
+from .._generated.proto.model.v1.metadata_pb2 import Metadata
+from .._generated.proto.model.v1.plots_pb2 import (
+    PLOT_KIND_TIME_SERIES,
     GridAxisEntry,
     GridHighlight,
     PlotKind,
     ReferenceBand,
     ReferenceLine,
-    TransformExpression,
 )
+from .._generated.proto.model.v1.plots_pb2 import AxisScale as AxisScaleMessage
+from .._generated.proto.model.v1.plots_pb2 import BarArrangement as BarArrangementMessage
+from .._generated.proto.model.v1.plots_pb2 import ContourRender as ContourRenderMessage
+from .._generated.proto.model.v1.plots_pb2 import Plot as PlotMessage
+from .._generated.proto.model.v1.plots_pb2 import PlotStyle as PlotStyleMessage
+from .._generated.proto.model.v1.plots_pb2 import Reduction as ReductionMessage
+from .._generated.proto.model.v1.plots_pb2 import XyInterval as XyIntervalMessage
 from .._values import Scalar, encode
 
 # Type Checking Imports
@@ -44,60 +51,60 @@ from .._values import Scalar, encode
 
 
 class Reduction(IntEnum):
-    MEAN = shared.Reduction.Value("REDUCTION_MEAN")
-    MIN = shared.Reduction.Value("REDUCTION_MIN")
-    MAX = shared.Reduction.Value("REDUCTION_MAX")
-    LAST = shared.Reduction.Value("REDUCTION_LAST")
-    COUNT = shared.Reduction.Value("REDUCTION_COUNT")
+    MEAN = ReductionMessage.Value("REDUCTION_MEAN")
+    MIN = ReductionMessage.Value("REDUCTION_MIN")
+    MAX = ReductionMessage.Value("REDUCTION_MAX")
+    LAST = ReductionMessage.Value("REDUCTION_LAST")
+    COUNT = ReductionMessage.Value("REDUCTION_COUNT")
 
 
 class ContourRender(IntEnum):
-    CELLS = shared.ContourRender.Value("CONTOUR_RENDER_CELLS")
-    BANDS = shared.ContourRender.Value("CONTOUR_RENDER_BANDS")
+    CELLS = ContourRenderMessage.Value("CONTOUR_RENDER_CELLS")
+    BANDS = ContourRenderMessage.Value("CONTOUR_RENDER_BANDS")
 
 
 class BarArrangement(IntEnum):
-    GROUPED = shared.BarArrangement.Value("BAR_ARRANGEMENT_GROUPED")
-    STACKED = shared.BarArrangement.Value("BAR_ARRANGEMENT_STACKED")
+    GROUPED = BarArrangementMessage.Value("BAR_ARRANGEMENT_GROUPED")
+    STACKED = BarArrangementMessage.Value("BAR_ARRANGEMENT_STACKED")
 
 
 class XyInterval(IntEnum):
-    SIGMA = shared.XyInterval.Value("XY_INTERVAL_SIGMA")
+    SIGMA = XyIntervalMessage.Value("XY_INTERVAL_SIGMA")
 
 
 class PlotStyle(IntEnum):
-    LINE = shared.PlotStyle.Value("PLOT_STYLE_LINE")
-    POINTS = shared.PlotStyle.Value("PLOT_STYLE_POINTS")
-    LINE_POINTS = shared.PlotStyle.Value("PLOT_STYLE_LINE_POINTS")
-    STEP = shared.PlotStyle.Value("PLOT_STYLE_STEP")
+    LINE = PlotStyleMessage.Value("PLOT_STYLE_LINE")
+    POINTS = PlotStyleMessage.Value("PLOT_STYLE_POINTS")
+    LINE_POINTS = PlotStyleMessage.Value("PLOT_STYLE_LINE_POINTS")
+    STEP = PlotStyleMessage.Value("PLOT_STYLE_STEP")
 
 
 class AxisScale(IntEnum):
-    LINEAR = shared.AxisScale.Value("AXIS_SCALE_LINEAR")
-    LOG = shared.AxisScale.Value("AXIS_SCALE_LOG")
+    LINEAR = AxisScaleMessage.Value("AXIS_SCALE_LINEAR")
+    LOG = AxisScaleMessage.Value("AXIS_SCALE_LOG")
 
 
 class Aggregate(IntEnum):
-    COUNT = shared.Aggregate.Value("AGGREGATE_COUNT")
-    SUM = shared.Aggregate.Value("AGGREGATE_SUM")
-    MIN = shared.Aggregate.Value("AGGREGATE_MIN")
-    MAX = shared.Aggregate.Value("AGGREGATE_MAX")
-    MEAN = shared.Aggregate.Value("AGGREGATE_MEAN")
-    STDDEV = shared.Aggregate.Value("AGGREGATE_STDDEV")
-    MEDIAN = shared.Aggregate.Value("AGGREGATE_MEDIAN")
-    PERCENTILE = shared.Aggregate.Value("AGGREGATE_PERCENTILE")
-    RMS = shared.Aggregate.Value("AGGREGATE_RMS")
+    COUNT = AggregateMessage.Value("AGGREGATE_COUNT")
+    SUM = AggregateMessage.Value("AGGREGATE_SUM")
+    MIN = AggregateMessage.Value("AGGREGATE_MIN")
+    MAX = AggregateMessage.Value("AGGREGATE_MAX")
+    MEAN = AggregateMessage.Value("AGGREGATE_MEAN")
+    STDDEV = AggregateMessage.Value("AGGREGATE_STDDEV")
+    MEDIAN = AggregateMessage.Value("AGGREGATE_MEDIAN")
+    PERCENTILE = AggregateMessage.Value("AGGREGATE_PERCENTILE")
+    RMS = AggregateMessage.Value("AGGREGATE_RMS")
 
 
 class FilterOperator(IntEnum):
-    EQ = shared.FilterOperator.Value("FILTER_OPERATOR_EQ")
-    NE = shared.FilterOperator.Value("FILTER_OPERATOR_NE")
-    GT = shared.FilterOperator.Value("FILTER_OPERATOR_GT")
-    GE = shared.FilterOperator.Value("FILTER_OPERATOR_GE")
-    LT = shared.FilterOperator.Value("FILTER_OPERATOR_LT")
-    LE = shared.FilterOperator.Value("FILTER_OPERATOR_LE")
-    CONTAINS = shared.FilterOperator.Value("FILTER_OPERATOR_CONTAINS")
-    EXISTS = shared.FilterOperator.Value("FILTER_OPERATOR_EXISTS")
+    EQ = FilterOperatorMessage.Value("FILTER_OPERATOR_EQ")
+    NE = FilterOperatorMessage.Value("FILTER_OPERATOR_NE")
+    GT = FilterOperatorMessage.Value("FILTER_OPERATOR_GT")
+    GE = FilterOperatorMessage.Value("FILTER_OPERATOR_GE")
+    LT = FilterOperatorMessage.Value("FILTER_OPERATOR_LT")
+    LE = FilterOperatorMessage.Value("FILTER_OPERATOR_LE")
+    CONTAINS = FilterOperatorMessage.Value("FILTER_OPERATOR_CONTAINS")
+    EXISTS = FilterOperatorMessage.Value("FILTER_OPERATOR_EXISTS")
 
 
 class Expression:
@@ -138,7 +145,7 @@ class Expression:
     def aggregate(self, kind: Aggregate, *, percentile: float = 0.0) -> Self:
         value = DataExpression(label=self.message.label)
         value.aggregate.input.CopyFrom(self.message)
-        value.aggregate.kind = cast(shared.Aggregate, _enum(kind, Aggregate))
+        value.aggregate.kind = cast(AggregateMessage, _enum(kind, Aggregate))
         value.aggregate.percentile = percentile
         return type(self)(value)
 
@@ -179,10 +186,10 @@ class Expression:
 class Plot:
     @classmethod
     def line(cls, identifier: str, label: str) -> "Plot":
-        return cls(shared.Plot(metadata=shared.Metadata(identifier=identifier, label=label), kind=shared.PLOT_KIND_TIME_SERIES))
+        return cls(PlotMessage(metadata=Metadata(identifier=identifier, label=label), kind=PLOT_KIND_TIME_SERIES))
 
-    def __init__(self, value: shared.Plot) -> None:
-        if not isinstance(value, shared.Plot):
+    def __init__(self, value: PlotMessage) -> None:
+        if not isinstance(value, PlotMessage):
             raise TypeError("Expected a Plot")
         self.message = value
 
@@ -193,7 +200,7 @@ class Plot:
     def filter(self, expression: Expression, operator: FilterOperator, value: Scalar = None) -> Self:
         self.message.filters.add(
             expression=_expression(expression),
-            operator=cast(shared.FilterOperator, _enum(operator, FilterOperator)),
+            operator=cast(FilterOperatorMessage, _enum(operator, FilterOperator)),
             value=encode(value),
         )
         return self
@@ -232,31 +239,31 @@ class Plot:
         return self
 
     def reduce(self, reduction: Reduction) -> Self:
-        self.message.reduction = cast(shared.Reduction, _enum(reduction, Reduction))
+        self.message.reduction = cast(ReductionMessage, _enum(reduction, Reduction))
         return self
 
     def render(self, render: ContourRender) -> Self:
-        self.message.render = cast(shared.ContourRender, _enum(render, ContourRender))
+        self.message.render = cast(ContourRenderMessage, _enum(render, ContourRender))
         return self
 
     def arrangement(self, arrangement: BarArrangement) -> Self:
-        self.message.arrangement = cast(shared.BarArrangement, _enum(arrangement, BarArrangement))
+        self.message.arrangement = cast(BarArrangementMessage, _enum(arrangement, BarArrangement))
         return self
 
     def interval(self, interval: XyInterval) -> Self:
-        self.message.interval = cast(shared.XyInterval, _enum(interval, XyInterval))
+        self.message.interval = cast(XyIntervalMessage, _enum(interval, XyInterval))
         return self
 
     def style(self, style: PlotStyle) -> Self:
-        self.message.style = cast(shared.PlotStyle, _enum(style, PlotStyle))
+        self.message.style = cast(PlotStyleMessage, _enum(style, PlotStyle))
         return self
 
     def x_scale(self, scale: AxisScale) -> Self:
-        self.message.x_scale = cast(shared.AxisScale, _enum(scale, AxisScale))
+        self.message.x_scale = cast(AxisScaleMessage, _enum(scale, AxisScale))
         return self
 
     def y_scale(self, scale: AxisScale) -> Self:
-        self.message.y_scale = cast(shared.AxisScale, _enum(scale, AxisScale))
+        self.message.y_scale = cast(AxisScaleMessage, _enum(scale, AxisScale))
         return self
 
     def pareto(self, enabled: bool) -> Self:
@@ -400,7 +407,7 @@ def box_plot(value: Expression, *, label: str | None = None) -> Plot:
 
 
 def _new_plot(kind: str, value: Expression) -> Plot:
-    result = shared.Plot(kind=cast(PlotKind, PlotKind.Value(f"PLOT_KIND_{kind}")))
+    result = PlotMessage(kind=cast(PlotKind, PlotKind.Value(f"PLOT_KIND_{kind}")))
     if kind == "CONTOUR":
         result.z.CopyFrom(_expression(value))
     elif kind == "HISTOGRAM":

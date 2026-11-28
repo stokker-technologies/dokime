@@ -157,8 +157,6 @@ pub use crate::wire::model::parameter_expansion;
 pub use crate::wire::model::parameter_expression;
 pub use crate::wire::model::transform_expression;
 pub use crate::wire::model::value;
-pub use harmos_protocol::host::OperationsGetResponse;
-pub use harmos_protocol::host::OperationsListResponse;
 pub use harmos_protocol::model::Callers;
 pub use harmos_protocol::model::Classification;
 pub use harmos_protocol::model::Declarations;

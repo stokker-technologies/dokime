@@ -21,7 +21,8 @@ from google.protobuf.message import DecodeError, Message
 from harmos import PageRequest, Position
 
 # Local Imports
-from ._generated.client_types import ExecutionDetail, SchemasGetResponse
+from ._generated.proto.host.v1.executions.schemas_pb2 import SchemasGetResponse
+from ._generated.proto.host.v1.executions_pb2 import ExecutionDetail
 from ._transport import call, invalid
 
 # Type Checking Imports

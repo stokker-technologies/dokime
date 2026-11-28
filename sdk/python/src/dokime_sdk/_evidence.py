@@ -26,12 +26,20 @@ from harmos import PageRequest, ReadCut
 
 # Local Imports
 from ._authoring import Record, Stream
-from ._generated import client_types
+from ._generated.proto.host.v1.evidence.records_pb2 import (
+    CapturedRecord,
+    CapturedRecordSelection,
+    RecordScope,
+    RecordsListResponse,
+    RecordsWatchResponse,
+)
+from ._generated.proto.host.v1.evidence.samples_pb2 import BucketRequest, SamplesListResponse, SamplesWatchResponse
+from ._generated.proto.host.v1.evidence.samples_pb2 import SampleRow as SampleRowMessage
+from ._generated.proto.host.v1.executions_pb2 import EXECUTION_STATE_OPEN
+from ._generated.proto.model.v1.evidence_pb2 import EvidenceScope, Window
 from ._payloads import Payload, message_type, unpack
 from ._transport import call, invalid, transport_error
 from ._values import RecordRow, SampleRow, Scalar, decode
-from ._wire.host.v1.evidence.records_pb2 import CapturedRecord, CapturedRecordSelection, RecordScope, RecordsListResponse
-from ._wire.model.v1.evidence_pb2 import EvidenceScope, Window
 
 # Type Checking Imports
 if TYPE_CHECKING:
@@ -229,7 +237,7 @@ class SamplesQuery[T: Payload]:
         self._at: ReadCut | None = None
         self._kinds: dict[str, set[str]] = {}
 
-    async def _page(self, cursor: PageRequest, *, latest: bool = False) -> client_types.SamplesListResponse:
+    async def _page(self, cursor: PageRequest, *, latest: bool = False) -> SamplesListResponse:
         reply = await call(
             "evidence.samples.list",
             self._execution._client._transport.evidence.samples.list(
@@ -240,7 +248,7 @@ class SamplesQuery[T: Payload]:
                 [],
                 [],
                 self._between,
-                client_types.BucketRequest(),
+                BucketRequest(),
                 latest,
                 at=self._at,
                 page=cursor,
@@ -252,7 +260,7 @@ class SamplesQuery[T: Payload]:
             raise invalid("evidence.samples.list", "The Evidence Read Cut Changed")
         return reply
 
-    async def _decode(self, sample: client_types.SampleRow, operation: str = "evidence.samples.list") -> SampleRow[T]:
+    async def _decode(self, sample: SampleRowMessage, operation: str = "evidence.samples.list") -> SampleRow[T]:
         raw = sample.raw
         if sample.WhichOneof("kind") != "raw" or raw.stream != self._name or raw.scope.execution_id != self._execution.identifier:
             raise invalid(operation, "The Host Returned a Sample Outside the Selected Execution or Stream")
@@ -307,7 +315,7 @@ class SamplesQuery[T: Payload]:
                 [],
                 [],
                 self._between,
-                client_types.BucketRequest(),
+                BucketRequest(),
                 False,
             ),
         )
@@ -403,13 +411,13 @@ def _selector[T: Payload](
     raise ValueError("Read Evidence: Select a Declaration Bound to This Execution's Registered Template")
 
 
-async def _frames[F: (client_types.RecordsWatchResponse, client_types.SamplesWatchResponse)](
+async def _frames[F: (RecordsWatchResponse, SamplesWatchResponse)](
     execution: "Execution", operation: str, watch: Callable[[], AsyncGenerator[F]]
 ) -> AsyncGenerator[F]:
     # Every Pass Replays Its Selection; a Clean End Is Final Only for a Pass Opened After the Execution Closed.
     while True:
         await execution.refresh()
-        closed = execution._detail.summary.state != client_types.EXECUTION_STATE_OPEN
+        closed = execution._detail.summary.state != EXECUTION_STATE_OPEN
         frames = watch()
         try:
             async for frame in frames:

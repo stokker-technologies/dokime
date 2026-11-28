@@ -20,7 +20,18 @@ from typing import ClassVar, TypeVar, cast
 
 # Third Party Imports
 # Local Imports
-from ._generated import shared
+from ._generated.proto.model.v1.parameters_pb2 import Parameter as ParameterMessage
+from ._generated.proto.model.v1.parameters_pb2 import ParameterExpression
+from ._generated.proto.model.v1.scalar_pb2 import (
+    VALUE_TYPE_BOOLEAN,
+    VALUE_TYPE_INTEGER,
+    VALUE_TYPE_LIST,
+    VALUE_TYPE_NUMBER,
+    VALUE_TYPE_TEXT,
+    VALUE_TYPE_UNSIGNED_INTEGER,
+    Value,
+    ValueType,
+)
 from ._values import Scalar, encode
 
 # Type Checking Imports
@@ -29,11 +40,11 @@ from ._values import Scalar, encode
 
 # === Constants === #
 
-_SCALAR_KINDS: dict[type, shared.ValueType] = {
-    bool: shared.VALUE_TYPE_BOOLEAN,
-    int: shared.VALUE_TYPE_INTEGER,
-    float: shared.VALUE_TYPE_NUMBER,
-    str: shared.VALUE_TYPE_TEXT,
+_SCALAR_KINDS: dict[type, ValueType] = {
+    bool: VALUE_TYPE_BOOLEAN,
+    int: VALUE_TYPE_INTEGER,
+    float: VALUE_TYPE_NUMBER,
+    str: VALUE_TYPE_TEXT,
 }
 
 # === Types === #
@@ -47,7 +58,7 @@ class Parameter[T]:
 
     __type_params__: ClassVar[tuple[TypeVar, ...]]
 
-    _message: shared.Parameter
+    _message: ParameterMessage
     _type: type[T]
 
     def __set_name__(self, owner: type, name: str) -> None:
@@ -82,12 +93,12 @@ class Parameter[T]:
         unit: str = "",
     ) -> "Parameter[int]":
         value = _declare(label, int, default, min, max, choices, required, unit)
-        value._message.type = shared.VALUE_TYPE_UNSIGNED_INTEGER
+        value._message.type = VALUE_TYPE_UNSIGNED_INTEGER
         value._message.ClearField("choices")
         for choice in choices:
             value._message.choices.add(unsigned_integer=choice)
         if default is not None:
-            value._message.expression.literal.CopyFrom(shared.Value(unsigned_integer=default))
+            value._message.expression.literal.CopyFrom(Value(unsigned_integer=default))
         return value
 
     @classmethod
@@ -136,9 +147,9 @@ class Parameter[T]:
             raise ValueError("Declare List Parameter: Supply Nonnegative Item Bounds")
         if min_items is not None and max_items is not None and min_items > max_items:
             raise ValueError("Declare List Parameter: Set min_items No Greater Than max_items")
-        message = shared.Parameter(
+        message = ParameterMessage(
             metadata={"label": label},
-            type=shared.VALUE_TYPE_LIST,
+            type=VALUE_TYPE_LIST,
             element_type=_SCALAR_KINDS[element],
             required=required,
             min_items=min_items,
@@ -153,14 +164,14 @@ class Parameter[T]:
     @classmethod
     def sweep(cls, label: str, values: Sequence[float], *, unit: str = "") -> "Parameter[float]":
         result = cls.number(label, unit=unit)
-        result._message.expression.array.values.extend(shared.ParameterExpression(literal=encode(float(value))) for value in values)
+        result._message.expression.array.values.extend(ParameterExpression(literal=encode(float(value))) for value in values)
         result._message.expansion.cartesian = True
         return result
 
-    def _definition(self) -> shared.Parameter:
+    def _definition(self) -> ParameterMessage:
         if not self._message.metadata.identifier:
             raise ValueError("Declare Parameter: Bind the Declaration to a Template Attribute")
-        message = shared.Parameter()
+        message = ParameterMessage()
         message.CopyFrom(self._message)
         return message
 
@@ -195,7 +206,7 @@ def _declare[T: bool | int | float | str](
         raise ValueError("Declare Parameter: Set min No Greater Than max")
     if default is not None and choices and default not in choices:
         raise ValueError("Declare Parameter: Choose a Default From the Declared Choices")
-    message = shared.Parameter(
+    message = ParameterMessage(
         metadata={"label": label},
         type=_SCALAR_KINDS[kind],
         required=required,

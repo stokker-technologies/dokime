@@ -26,15 +26,15 @@ from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue
 from grpc.aio import insecure_channel
 from harmos import VISIBILITY_PROTECTED
 from harmos._columns import columns_type
-from harmos._wire.host.v1.time_pb2 import TimeGetResponse
-from harmos._wire.model.v1.failure_pb2 import Failure
-from harmos._wire.plugin.v1.instance_pb2 import (
+from harmos._generated.proto.host.v1.time_pb2 import TimeGetResponse
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.plugin.v1.instance_pb2 import (
     InstanceInvokeRequest,
     InstanceInvokeResponse,
     InstanceSamplesRequest,
     InstanceSamplesResponse,
 )
-from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
+from harmos._generated.proto.plugin.v1.invocation_pb2 import ChildResponse, Request
 
 import dokime_sdk.operations
 

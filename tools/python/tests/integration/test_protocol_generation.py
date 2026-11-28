@@ -29,7 +29,7 @@ from unittest import mock
 
 # Local Imports
 from dokime_tools.build import protocol
-from dokime_tools.build.protocol import cpp_dependency, library_dependencies
+from dokime_tools.build.protocol import Placement, cpp_dependency, place
 from dokime_tools.build.protocol_callers import check_public_surfaces
 
 # Type Checking Imports
@@ -81,10 +81,7 @@ class GenerationContracts(unittest.TestCase):
             path.write_text("first")
         # A Workspace Patch Points the Library at a Local Checkout Whose Repository Owns proto/harmos.
         (scratch / "Cargo.toml").write_text(
-            "[workspace.dependencies]\n"
-            'harmos = { git = "https://example.test/harmos", rev = "0000000" }\n'
-            '[patch."https://example.test/harmos"]\n'
-            'harmos = { path = "library/sdk/rust" }\n'
+            '[workspace.dependencies]\nharmos = "1.0.0"\n[patch.crates-io]\nharmos = { path = "library/sdk/rust" }\n'
         )
         output = protocol.inputs(scratch)
         self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "first")
@@ -94,92 +91,54 @@ class GenerationContracts(unittest.TestCase):
         self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "second")
         self.assertFalse((output / "dokime/model/v1/value.proto").exists())
 
-    def test_pin_projection_and_lock_refresh_precede_locked_generation(self) -> None:
-        root = Path.cwd()
-        with (
-            mock.patch.object(protocol.sys, "argv", ["protocol", "--language", "python"]),
-            mock.patch.object(protocol, "library_dependencies", return_value=True) as projection,
-            mock.patch.object(protocol, "locks") as locks,
-            mock.patch.object(protocol, "inputs") as inputs,
-            mock.patch.object(protocol.subprocess, "run") as run,
+    def test_placement_replaces_only_owned_files_and_reports_each_difference(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, scratch)
+        rendered = scratch / "rendered"
+        destination = scratch / "sdk/generated"
+        for path, text in ((rendered / "client.py", "new"), (rendered / "proto/added_pb2.py", "added")):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        for path, text in (
+            (destination / "client.py", "old"),
+            (destination / "proto/obsolete_pb2.py", "old"),
+            (destination / "authored.py", "kept"),
         ):
-            order = mock.Mock()
-            order.attach_mock(projection, "project")
-            order.attach_mock(locks, "locks")
-            order.attach_mock(run, "reload")
-            protocol.main()
-            self.assertEqual([call[0] for call in order.mock_calls], ["project", "locks", "reload"])
-            inputs.assert_not_called()
-            projection.assert_called_once_with(root, check=False)
-            locks.assert_called_once_with(root)
-            self.assertEqual(run.call_args.args[0][-2:], ["--language", "python"])
-        with mock.patch.object(protocol.subprocess, "run") as run:
-            protocol.locks(root)
-        commands = [call.args[0] for call in run.call_args_list]
-        self.assertEqual(commands[0], ["cargo", "update", "--package", "harmos"])
-        self.assertEqual(commands[-1], ["uv", "sync", "--locked", "--all-groups"])
-        self.assertLess(commands.index(["uv", "lock"]), commands.index(commands[-1]))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        owned = Placement("sdk/generated", ("client.py", "proto/**/*_pb2.py"))
+        self.assertEqual(
+            place(scratch, rendered, owned, check=True),
+            [
+                "Missing: sdk/generated/proto/added_pb2.py",
+                "Obsolete: sdk/generated/proto/obsolete_pb2.py",
+                "Changed: sdk/generated/client.py",
+            ],
+        )
+        self.assertEqual(place(scratch, rendered, owned, check=False), [])
+        self.assertEqual(place(scratch, rendered, owned, check=True), [])
+        self.assertEqual((destination / "client.py").read_text(), "new")
+        self.assertFalse((destination / "proto/obsolete_pb2.py").exists())
+        self.assertEqual((destination / "authored.py").read_text(), "kept")
 
-    def test_manifest_pins_follow_workspace_and_reject_each_stale_consumer(self) -> None:
+    def test_cpp_archive_follows_the_locked_library_release_and_refuses_stale_bytes(self) -> None:
         scratch = Path(tempfile.mkdtemp())
         try:
-            source = "https://example.test/library"
-            manifests = {
-                "Cargo.toml": (
-                    f'[workspace.dependencies]\nharmos = {{ git = "{source}", rev = "next" }}\n'
-                    f'library-runtime = {{ git = "{source}", rev = "previous" }}\n'
-                ),
-                "sdk/rust/tests/consumer/Cargo.toml": f'[dev-dependencies]\nlibrary-runtime = {{ git = "{source}", rev = "previous" }}\n',
-                "tools/python/pyproject.toml": f'[tool.uv.sources]\nlibrary-tools = {{ git = "{source}", rev = "previous" }}\n',
-                "sdk/python/pyproject.toml": f'[project]\ndependencies = ["harmos-sdk @ git+{source}@previous#subdirectory=sdk/python"]\n',
-            }
-            for relative, text in manifests.items():
-                path = scratch / relative
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(text, encoding="utf-8")
-            archive = scratch / "sdk/cpp/cmake/Dependencies.cmake"
-            archive.parent.mkdir(parents=True)
-            archive.write_text(f"URL {source}/archive/next.tar.gz\n", encoding="utf-8")
-            library_dependencies(scratch)
-            library_dependencies(scratch, check=True)
-            for relative in manifests:
-                with self.subTest(manifest=relative):
-                    path = scratch / relative
-                    current = path.read_text(encoding="utf-8")
-                    if relative == "Cargo.toml":
-                        stale = current.replace(
-                            f'library-runtime = {{ git = "{source}", rev = "next"',
-                            f'library-runtime = {{ git = "{source}", rev = "previous"',
-                        )
-                    else:
-                        stale = current.replace("next", "previous")
-                    path.write_text(stale, encoding="utf-8")
-                    self.assertRaises(ValueError, library_dependencies, scratch, check=True)
-                    library_dependencies(scratch)
-                    self.assertEqual(path.read_text(encoding="utf-8"), current)
-            archive.write_text(f"URL {source}/archive/previous.tar.gz\n", encoding="utf-8")
-            self.assertRaises(ValueError, library_dependencies, scratch, check=True)
-        finally:
-            shutil.rmtree(scratch)
-
-    def test_cpp_archive_follows_the_workspace_pin_and_refuses_stale_bytes(self) -> None:
-        scratch = Path(tempfile.mkdtemp())
-        try:
-            manifest = scratch / "Cargo.toml"
+            lock = scratch / "Cargo.lock"
             dependency = scratch / "sdk/cpp/cmake/Dependencies.cmake"
             dependency.parent.mkdir(parents=True)
             archive = b"First Archive"
-            manifest.write_text('[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "first"\n')
+            lock.write_text('[[package]]\nname = "harmos"\nversion = "1.0.0"\n')
             with mock.patch("urllib.request.urlopen", side_effect=lambda url: BytesIO(archive)) as download:
                 cpp_dependency(scratch)
                 cpp_dependency(scratch, check=True)
                 first = dependency.read_bytes()
-                self.assertEqual(download.call_args.args[0], "https://example.test/library/archive/first.tar.gz")
-                manifest.write_text(manifest.read_text().replace('"first"', '"second"'))
+                self.assertEqual(download.call_args.args[0], f"{protocol.LIBRARY}/archive/refs/tags/v1.0.0.tar.gz")
+                lock.write_text(lock.read_text().replace('"1.0.0"', '"1.1.0"'))
                 self.assertRaises(ValueError, cpp_dependency, scratch, check=True)
                 cpp_dependency(scratch)
                 self.assertNotEqual(first, dependency.read_bytes())
-                self.assertEqual(download.call_args.args[0], "https://example.test/library/archive/second.tar.gz")
+                self.assertEqual(download.call_args.args[0], f"{protocol.LIBRARY}/archive/refs/tags/v1.1.0.tar.gz")
                 archive = b"Changed Archive"
                 self.assertRaises(ValueError, cpp_dependency, scratch, check=True)
                 cpp_dependency(scratch)

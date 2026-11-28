@@ -12,13 +12,13 @@ from unittest.mock import AsyncMock, Mock
 # Third Party Imports
 import harmos
 from harmos import CLASSIFICATION_REFUSED, plugin
-from harmos._wire.model.v1.failure_pb2 import Failure
-from harmos._wire.plugin.v1.invocation_pb2 import Request
+from harmos._generated.proto.model.v1.failure_pb2 import Failure
+from harmos._generated.proto.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
 from dokime_sdk import Client, Plugin, RegisteredPlugin
-from dokime_sdk._generated import client_types
-from dokime_sdk._wire.host.v1.secrets_pb2 import SecretsGetResponse
+from dokime_sdk._generated.proto.host.v1.plugins_pb2 import PluginEntry
+from dokime_sdk._generated.proto.host.v1.secrets_pb2 import SecretsGetResponse
 from dokime_sdk.operations import Context, OperationError, Resource, Secret
 
 # Type Checking Imports
@@ -126,7 +126,7 @@ class ResourceTests(IsolatedAsyncioTestCase):
         client = Mock(spec=Client)
         client.plugins = Mock()
         client.plugins._bindings = {}
-        registered = RegisteredPlugin._bind(client, client_types.host.PluginEntry(name=owner.identifier), owner=owner)
+        registered = RegisteredPlugin._bind(client, PluginEntry(name=owner.identifier), owner=owner)
         await registered._release()
         await registered._release()
         closed.assert_awaited_once_with()

@@ -22,7 +22,8 @@ from grpc.aio import AioRpcError, Metadata
 
 # Local Imports
 from dokime_sdk import Client, Execution, Progress
-from dokime_sdk._generated import client_types
+from dokime_sdk._generated.proto.host.v1.executions.progress_pb2 import ProgressWatchResponse
+from dokime_sdk._generated.proto.host.v1.executions_pb2 import ExecutionDetail
 from dokime_sdk.operations import OperationError
 
 # Type Checking Imports
@@ -33,7 +34,7 @@ from dokime_sdk.operations import OperationError
 
 # === Types === #
 
-type Pass = tuple[list[client_types.ProgressWatchResponse], StatusCode | None]
+type Pass = tuple[list[ProgressWatchResponse], StatusCode | None]
 
 # === Classes === #
 
@@ -42,7 +43,7 @@ class WatchReopenTests(IsolatedAsyncioTestCase):
     def _execution(self, *passes: Pass) -> Execution:
         self.opened = 0
 
-        async def watch(name: str) -> AsyncGenerator[client_types.ProgressWatchResponse]:
+        async def watch(name: str) -> AsyncGenerator[ProgressWatchResponse]:
             frames, failure = passes[self.opened]
             self.opened += 1
             for frame in frames:
@@ -52,7 +53,7 @@ class WatchReopenTests(IsolatedAsyncioTestCase):
 
         client = Mock(spec=Client)
         client._transport = SimpleNamespace(executions=SimpleNamespace(progress=SimpleNamespace(watch=watch)))
-        detail = client_types.ExecutionDetail(summary={"execution_id": "execution", "case_id": "case"}, cycle_id="cycle")
+        detail = ExecutionDetail(summary={"execution_id": "execution", "case_id": "case"}, cycle_id="cycle")
         return Execution._bind(client, detail)
 
     async def test_progress_continues_across_the_host_deadline_without_a_repeat(self) -> None:
@@ -75,8 +76,8 @@ class WatchReopenTests(IsolatedAsyncioTestCase):
 # === Private Functions === #
 
 
-def _frame(completed: int, *, sealed: bool = False) -> client_types.ProgressWatchResponse:
-    return client_types.ProgressWatchResponse(
+def _frame(completed: int, *, sealed: bool = False) -> ProgressWatchResponse:
+    return ProgressWatchResponse(
         value={"completed": completed, "total": 3, "label": "Step"}, phase="sealed" if sealed else "running", sealed=sealed
     )
 

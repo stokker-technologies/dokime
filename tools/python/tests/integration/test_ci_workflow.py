@@ -32,8 +32,10 @@ from unittest.mock import MagicMock, Mock, patch
 
 # Local Imports
 from dokime_tools import policy
-from dokime_tools.ci import bootstrap, build, compiler, native, signing, tasks, transport, workflow
+from dokime_tools.ci import bootstrap, build, compiler, native, signing, tasks, tokens, transport, workflow
 from dokime_tools.release import guard, nightly, registry
+
+from .ci_gates_fixtures import ROOT
 
 # Type Checking Imports
 
@@ -291,6 +293,15 @@ class WorkflowTests(unittest.TestCase):
         finally:
             temporary.cleanup()
 
+    def test_release_task_jobs_require_a_github_token(self) -> None:
+        self.assertEqual(tokens.check(ROOT), [])
+        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        review = release.index("\n  validated:\n")
+        stripped = release[:review] + release[review:].replace("        GH_TOKEN: ${{ github.token }}\n", "", 1)
+        self.assertEqual(
+            tokens.findings(stripped), ["job validated runs ci:review without GH_TOKEN; add GH_TOKEN: ${{ github.token }} to its env"]
+        )
+
     def test_release_mode_exports_routing_and_target_revision(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
         temporary = temporary_directory.name
@@ -514,7 +525,7 @@ class WorkflowTests(unittest.TestCase):
         }
         jobs = [
             {"name": "Check / CI / Required", "conclusion": "success"},
-            {"name": registry.reviews.REHEARSAL_CHECK, "conclusion": "success"},
+            {"name": "release_rehearsal / Release / Rehearsal", "conclusion": "success"},
         ]
 
         def pages(settings: dict, endpoint: str, key: str | None = None) -> list[dict]:

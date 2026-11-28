@@ -18,8 +18,7 @@
 # Local Imports
 from harmos import plugin
 
-from .. import _authoring, _evidence, _parameters, _values
-from .._generated import shared
+from .. import _authoring, _evidence, _messages, _parameters, _values
 from . import _captures, _context, _documents, _plots
 
 # Type Checking Imports
@@ -40,14 +39,14 @@ prompt = _authoring.prompt
 record = _authoring.record
 step = _authoring.step
 stream = _authoring.stream
-Card = shared.Card
-DataExpression = shared.DataExpression
-FileParameter = shared.FileParameter
-GridAxisEntry = shared.GridAxisEntry
-GridHighlight = shared.GridHighlight
-Prompt = shared.Prompt
-ReferenceBand = shared.ReferenceBand
-ReferenceLine = shared.ReferenceLine
+Card = _messages.Card
+DataExpression = _messages.DataExpression
+FileParameter = _messages.FileParameter
+GridAxisEntry = _messages.GridAxisEntry
+GridHighlight = _messages.GridHighlight
+Prompt = _messages.Prompt
+ReferenceBand = _messages.ReferenceBand
+ReferenceLine = _messages.ReferenceLine
 CapturedArtifact = _captures.CapturedArtifact
 CaptureGap = _captures.CaptureGap
 CaptureMode = _captures.CaptureMode

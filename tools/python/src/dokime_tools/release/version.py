@@ -106,6 +106,19 @@ def run(directory: Path, verb: str, *, value: str | None = None) -> None:
             if versions(text, name) != [target] * len(current):
                 raise policy.ToolError(f"Synchronize Release Versions: could not synchronize version: {name}")
             pending.append((path, text))
+    for package, names in settings.get("requirements", {}).items():
+        # Match a Cargo `package = "X"` or a PEP 508 `package~=X` Requirement.
+        pattern = r"((?<![\w.-])" + re.escape(package) + r"""\s*(?:~=\s*|=\s*["']))(""" + VERSION + ")"
+        for name in names:
+            path = policy.inside(directory, name)
+            text = path.read_text(encoding="utf-8", newline="")
+            current = [found[2] for found in re.finditer(pattern, text)]
+            if len(current) != 1:
+                raise policy.ToolError(f"Synchronize Release Versions: {name} must require {package} once")
+            if verb == "check" and current != [target]:
+                raise policy.ToolError(f"{name}: {package} requirement {current[0]} differs from {target}")
+            if verb == "sync":
+                pending.append((path, re.sub(pattern, r"\g<1>" + target, text)))
     for path, text in pending:
         path.write_text(text, encoding="utf-8", newline="")
     sibling_pins(directory, verb, target)

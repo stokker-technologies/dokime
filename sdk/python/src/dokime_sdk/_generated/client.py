@@ -8,15 +8,15 @@ from grpc import CallCredentials
 from grpc.aio import AioRpcError, Channel
 from harmos import _connection
 from harmos._client_transport import Metadata, call_error, stream, unary
-from harmos._wire.host.v1.access.certificates_pb2 import CertificatesCreateRequest, CertificatesCreateResponse
-from harmos._wire.host.v1.access.listener_pb2 import (
+from harmos._generated.proto.host.v1.access.certificates_pb2 import CertificatesCreateRequest, CertificatesCreateResponse
+from harmos._generated.proto.host.v1.access.listener_pb2 import (
     ListenerGetRequest,
     ListenerGetResponse,
     ListenerSetRequest,
     ListenerSetResponse,
     ListenerValue,
 )
-from harmos._wire.host.v1.access.pairings_pb2 import (
+from harmos._generated.proto.host.v1.access.pairings_pb2 import (
     PairingsCreateRequest,
     PairingsCreateResponse,
     PairingsDeleteRequest,
@@ -24,39 +24,50 @@ from harmos._wire.host.v1.access.pairings_pb2 import (
     PairingsListRequest,
     PairingsListResponse,
 )
-from harmos._wire.host.v1.invocations_pb2 import InvocationsCreateRequest, InvocationsCreateResponse
-from harmos._wire.host.v1.operations_pb2 import OperationsGetRequest, OperationsGetResponse, OperationsListRequest, OperationsListResponse
-from harmos._wire.host.v1.status.diagnostics_pb2 import DiagnosticsGetRequest, DiagnosticsGetResponse
-from harmos._wire.host.v1.status.logs_pb2 import LogsListRequest, LogsListResponse, LogsWatchRequest, LogsWatchResponse
-from harmos._wire.host.v1.status.trace_events_pb2 import (
+from harmos._generated.proto.host.v1.invocations_pb2 import InvocationsCreateRequest, InvocationsCreateResponse
+from harmos._generated.proto.host.v1.operations_pb2 import (
+    OperationsGetRequest,
+    OperationsGetResponse,
+    OperationsListRequest,
+    OperationsListResponse,
+)
+from harmos._generated.proto.host.v1.status.diagnostics_pb2 import DiagnosticsGetRequest, DiagnosticsGetResponse
+from harmos._generated.proto.host.v1.status.logs_pb2 import LogsListRequest, LogsListResponse, LogsWatchRequest, LogsWatchResponse
+from harmos._generated.proto.host.v1.status.trace_events_pb2 import (
     TraceEventsListRequest,
     TraceEventsListResponse,
     TraceEventsWatchRequest,
     TraceEventsWatchResponse,
 )
-from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusWatchRequest
-from harmos._wire.model.v1.file_pb2 import FileMetadata, FileReference, Upload
-from harmos._wire.model.v1.operation_pb2 import DiscoveredOperation
-from harmos._wire.model.v1.page_pb2 import PageRequest
-from harmos._wire.model.v1.position_pb2 import Position, ReadCut
-from harmos._wire.model.v1.receipt_pb2 import Receipt
-from harmos._wire.model.v1.setting_pb2 import SettingValues
+from harmos._generated.proto.host.v1.status_pb2 import StatusGetRequest, StatusWatchRequest
+from harmos._generated.proto.model.v1.file_pb2 import FileMetadata, FileReference, Upload
+from harmos._generated.proto.model.v1.operation_pb2 import DiscoveredOperation
+from harmos._generated.proto.model.v1.page_pb2 import PageRequest
+from harmos._generated.proto.model.v1.position_pb2 import Position, ReadCut
+from harmos._generated.proto.model.v1.receipt_pb2 import Receipt
+from harmos._generated.proto.model.v1.setting_pb2 import SettingValues
 
-import dokime_sdk._wire.host.v1.plots.settings_pb2
-import dokime_sdk._wire.host.v1.plugins.secrets_pb2
-import dokime_sdk._wire.host.v1.plugins.settings_pb2
-import dokime_sdk._wire.host.v1.secrets_pb2
-import dokime_sdk._wire.host.v1.settings_pb2
-import dokime_sdk._wire.model.v1.metadata_pb2
-from dokime_sdk._wire.host.v1.aggregates_pb2 import AggregatesGetRequest, AggregatesGetResponse, QueryAggregate, QueryFilter, QuerySource
-from dokime_sdk._wire.host.v1.backend.overview_pb2 import (
+import dokime_sdk._generated.proto.host.v1.plots.settings_pb2
+import dokime_sdk._generated.proto.host.v1.plugins.secrets_pb2
+import dokime_sdk._generated.proto.host.v1.plugins.settings_pb2
+import dokime_sdk._generated.proto.host.v1.secrets_pb2
+import dokime_sdk._generated.proto.host.v1.settings_pb2
+import dokime_sdk._generated.proto.model.v1.metadata_pb2
+from dokime_sdk._generated.proto.host.v1.aggregates_pb2 import (
+    AggregatesGetRequest,
+    AggregatesGetResponse,
+    QueryAggregate,
+    QueryFilter,
+    QuerySource,
+)
+from dokime_sdk._generated.proto.host.v1.backend.overview_pb2 import (
     OverviewGetRequest,
     OverviewGetResponse,
     OverviewWatchRequest,
     OverviewWatchResponse,
 )
-from dokime_sdk._wire.host.v1.backend_pb2 import BackendAppearanceRequest, BackendAppearanceResponse
-from dokime_sdk._wire.host.v1.cases_pb2 import (
+from dokime_sdk._generated.proto.host.v1.backend_pb2 import BackendAppearanceRequest, BackendAppearanceResponse
+from dokime_sdk._generated.proto.host.v1.cases_pb2 import (
     CasesCreateRequest,
     CasesCreateResponse,
     CasesDeleteRequest,
@@ -71,7 +82,7 @@ from dokime_sdk._wire.host.v1.cases_pb2 import (
     CasesWatchResponse,
     SelectionPlan,
 )
-from dokime_sdk._wire.host.v1.content.artifacts_pb2 import (
+from dokime_sdk._generated.proto.host.v1.content.artifacts_pb2 import (
     ArtifactsCreateRequest,
     ArtifactsCreateResponse,
     ArtifactsGetRequest,
@@ -81,7 +92,7 @@ from dokime_sdk._wire.host.v1.content.artifacts_pb2 import (
     ArtifactsWatchRequest,
     ArtifactsWatchResponse,
 )
-from dokime_sdk._wire.host.v1.content.execution_files_pb2 import (
+from dokime_sdk._generated.proto.host.v1.content.execution_files_pb2 import (
     ExecutionFilesGetRequest,
     ExecutionFilesGetResponse,
     ExecutionFilesListRequest,
@@ -89,7 +100,7 @@ from dokime_sdk._wire.host.v1.content.execution_files_pb2 import (
     ExecutionFilesWatchRequest,
     ExecutionFilesWatchResponse,
 )
-from dokime_sdk._wire.host.v1.cycles_pb2 import (
+from dokime_sdk._generated.proto.host.v1.cycles_pb2 import (
     CycleFilter,
     CycleOrder,
     CyclesCreateRequest,
@@ -107,20 +118,20 @@ from dokime_sdk._wire.host.v1.cycles_pb2 import (
     CyclesWatchResponse,
     CycleWritable,
 )
-from dokime_sdk._wire.host.v1.documents_pb2 import (
+from dokime_sdk._generated.proto.host.v1.documents_pb2 import (
     DocumentScope,
     DocumentsGetRequest,
     DocumentsGetResponse,
     DocumentsWatchRequest,
     DocumentsWatchResponse,
 )
-from dokime_sdk._wire.host.v1.evidence.health_events_pb2 import (
+from dokime_sdk._generated.proto.host.v1.evidence.health_events_pb2 import (
     HealthEventsListRequest,
     HealthEventsListResponse,
     HealthEventsWatchRequest,
     HealthEventsWatchResponse,
 )
-from dokime_sdk._wire.host.v1.evidence.notes_pb2 import (
+from dokime_sdk._generated.proto.host.v1.evidence.notes_pb2 import (
     AnnotationOwner,
     AnnotationSelection,
     NotesCreateRequest,
@@ -135,7 +146,7 @@ from dokime_sdk._wire.host.v1.evidence.notes_pb2 import (
     NotesWatchResponse,
     NoteWritable,
 )
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import (
+from dokime_sdk._generated.proto.host.v1.evidence.records_pb2 import (
     CapturedRecordSelection,
     RecordScope,
     RecordsListRequest,
@@ -143,20 +154,20 @@ from dokime_sdk._wire.host.v1.evidence.records_pb2 import (
     RecordsWatchRequest,
     RecordsWatchResponse,
 )
-from dokime_sdk._wire.host.v1.evidence.samples_pb2 import (
+from dokime_sdk._generated.proto.host.v1.evidence.samples_pb2 import (
     BucketRequest,
     SamplesListRequest,
     SamplesListResponse,
     SamplesWatchRequest,
     SamplesWatchResponse,
 )
-from dokime_sdk._wire.host.v1.evidence.traceability_pb2 import (
+from dokime_sdk._generated.proto.host.v1.evidence.traceability_pb2 import (
     TraceabilityGetRequest,
     TraceabilityGetResponse,
     TraceabilityWatchRequest,
     TraceabilityWatchResponse,
 )
-from dokime_sdk._wire.host.v1.evidence_pb2 import (
+from dokime_sdk._generated.proto.host.v1.evidence_pb2 import (
     EvidenceArchiveRequest,
     EvidenceArchiveResponse,
     EvidenceStatisticsRequest,
@@ -164,21 +175,21 @@ from dokime_sdk._wire.host.v1.evidence_pb2 import (
     EvidenceSubject,
     Output,
 )
-from dokime_sdk._wire.host.v1.executions.commands_pb2 import (
+from dokime_sdk._generated.proto.host.v1.executions.commands_pb2 import (
     CommandsCreateRequest,
     CommandsCreateResponse,
     CommandsGetRequest,
     CommandsGetResponse,
     ExecutionCommandAction,
 )
-from dokime_sdk._wire.host.v1.executions.progress_pb2 import (
+from dokime_sdk._generated.proto.host.v1.executions.progress_pb2 import (
     ProgressGetRequest,
     ProgressGetResponse,
     ProgressWatchRequest,
     ProgressWatchResponse,
 )
-from dokime_sdk._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest, SchemasGetResponse
-from dokime_sdk._wire.host.v1.executions_pb2 import (
+from dokime_sdk._generated.proto.host.v1.executions.schemas_pb2 import SchemasGetRequest, SchemasGetResponse
+from dokime_sdk._generated.proto.host.v1.executions_pb2 import (
     ExecutionBinding,
     ExecutionFilter,
     ExecutionMode,
@@ -211,7 +222,7 @@ from dokime_sdk._wire.host.v1.executions_pb2 import (
     ExecutionsWatchResponse,
     ExecutionWritable,
 )
-from dokime_sdk._wire.host.v1.files.uploads_pb2 import (
+from dokime_sdk._generated.proto.host.v1.files.uploads_pb2 import (
     UploadsAppendRequest,
     UploadsAppendResponse,
     UploadsCreateRequest,
@@ -225,7 +236,7 @@ from dokime_sdk._wire.host.v1.files.uploads_pb2 import (
     UploadsResumeRequest,
     UploadsResumeResponse,
 )
-from dokime_sdk._wire.host.v1.files_pb2 import (
+from dokime_sdk._generated.proto.host.v1.files_pb2 import (
     FilesDeleteRequest,
     FilesDeleteResponse,
     FilesGetRequest,
@@ -235,7 +246,7 @@ from dokime_sdk._wire.host.v1.files_pb2 import (
     FilesWatchRequest,
     FilesWatchResponse,
 )
-from dokime_sdk._wire.host.v1.media.captures_pb2 import (
+from dokime_sdk._generated.proto.host.v1.media.captures_pb2 import (
     CaptureKind,
     CapturesCreateRequest,
     CapturesCreateResponse,
@@ -247,16 +258,16 @@ from dokime_sdk._wire.host.v1.media.captures_pb2 import (
     CapturesWatchResponse,
     RecordingAudio,
 )
-from dokime_sdk._wire.host.v1.plots.settings_pb2 import PlotSettingsValue
-from dokime_sdk._wire.host.v1.plots.snapshots_pb2 import (
+from dokime_sdk._generated.proto.host.v1.plots.settings_pb2 import PlotSettingsValue
+from dokime_sdk._generated.proto.host.v1.plots.snapshots_pb2 import (
     PlotRequest,
     SnapshotsListRequest,
     SnapshotsListResponse,
     SnapshotsWatchRequest,
     SnapshotsWatchResponse,
 )
-from dokime_sdk._wire.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
-from dokime_sdk._wire.host.v1.plugins_pb2 import (
+from dokime_sdk._generated.proto.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
+from dokime_sdk._generated.proto.host.v1.plugins_pb2 import (
     PluginEntry,
     PluginPlacement,
     PluginsCreateRequest,
@@ -277,14 +288,14 @@ from dokime_sdk._wire.host.v1.plugins_pb2 import (
     PluginsWatchResponse,
     PluginValue,
 )
-from dokime_sdk._wire.host.v1.prompt_definitions_pb2 import (
+from dokime_sdk._generated.proto.host.v1.prompt_definitions_pb2 import (
     PromptDefinitionsGetRequest,
     PromptDefinitionsGetResponse,
     PromptDefinitionsListRequest,
     PromptDefinitionsListResponse,
 )
-from dokime_sdk._wire.host.v1.prompts.answers_pb2 import AnswersCreateRequest, AnswersCreateResponse
-from dokime_sdk._wire.host.v1.prompts_pb2 import (
+from dokime_sdk._generated.proto.host.v1.prompts.answers_pb2 import AnswersCreateRequest, AnswersCreateResponse
+from dokime_sdk._generated.proto.host.v1.prompts_pb2 import (
     PromptsGetRequest,
     PromptsGetResponse,
     PromptsListRequest,
@@ -292,13 +303,13 @@ from dokime_sdk._wire.host.v1.prompts_pb2 import (
     PromptsWatchRequest,
     PromptsWatchResponse,
 )
-from dokime_sdk._wire.host.v1.record_schemas_pb2 import (
+from dokime_sdk._generated.proto.host.v1.record_schemas_pb2 import (
     RecordSchemasGetRequest,
     RecordSchemasGetResponse,
     RecordSchemasListRequest,
     RecordSchemasListResponse,
 )
-from dokime_sdk._wire.host.v1.reports_pb2 import (
+from dokime_sdk._generated.proto.host.v1.reports_pb2 import (
     ReportsCreateRequest,
     ReportsCreateResponse,
     ReportsGetRequest,
@@ -307,7 +318,7 @@ from dokime_sdk._wire.host.v1.reports_pb2 import (
     ReportsPublishResponse,
     ReportSubject,
 )
-from dokime_sdk._wire.host.v1.secrets_pb2 import (
+from dokime_sdk._generated.proto.host.v1.secrets_pb2 import (
     SecretImportChoice,
     SecretsDeleteRequest,
     SecretsDeleteResponse,
@@ -323,25 +334,25 @@ from dokime_sdk._wire.host.v1.secrets_pb2 import (
     SecretsWatchResponse,
     SecretWritable,
 )
-from dokime_sdk._wire.host.v1.settings_pb2 import ApplicationSettings, SettingsSchemaRequest, SettingsSchemaResponse
-from dokime_sdk._wire.host.v1.status_pb2 import StatusGetResponse, StatusWatchResponse
-from dokime_sdk._wire.host.v1.storage.sources_pb2 import (
+from dokime_sdk._generated.proto.host.v1.settings_pb2 import ApplicationSettings, SettingsSchemaRequest, SettingsSchemaResponse
+from dokime_sdk._generated.proto.host.v1.status_pb2 import StatusGetResponse, StatusWatchResponse
+from dokime_sdk._generated.proto.host.v1.storage.sources_pb2 import (
     SourcesGetRequest,
     SourcesGetResponse,
     SourcesSetRequest,
     SourcesSetResponse,
     StorageSources,
 )
-from dokime_sdk._wire.host.v1.stream_schemas_pb2 import (
+from dokime_sdk._generated.proto.host.v1.stream_schemas_pb2 import (
     StreamSchemasGetRequest,
     StreamSchemasGetResponse,
     StreamSchemasListRequest,
     StreamSchemasListResponse,
 )
-from dokime_sdk._wire.host.v1.suites_pb2 import SuitesGetRequest, SuitesGetResponse, SuitesListRequest, SuitesListResponse
-from dokime_sdk._wire.model.v1.evidence_pb2 import ArtifactScope, EvidenceScope, Window
-from dokime_sdk._wire.model.v1.execution_pb2 import Origin
-from dokime_sdk._wire.model.v1.scalar_pb2 import MapValue
+from dokime_sdk._generated.proto.host.v1.suites_pb2 import SuitesGetRequest, SuitesGetResponse, SuitesListRequest, SuitesListResponse
+from dokime_sdk._generated.proto.model.v1.evidence_pb2 import ArtifactScope, EvidenceScope, Window
+from dokime_sdk._generated.proto.model.v1.execution_pb2 import Origin
+from dokime_sdk._generated.proto.model.v1.scalar_pb2 import MapValue
 
 
 class AccessCertificatesResource:
@@ -552,7 +563,7 @@ class ContentArtifactsResource:
         *,
         scope: ArtifactScope | None = None,
         request_id: str | None = None,
-        metadata: dokime_sdk._wire.model.v1.metadata_pb2.Metadata | None = None,
+        metadata: dokime_sdk._generated.proto.model.v1.metadata_pb2.Metadata | None = None,
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
@@ -1527,15 +1538,15 @@ class PlotsSettingsResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> dokime_sdk._wire.host.v1.plots.settings_pb2.SettingsGetResponse:
-        request = dokime_sdk._wire.host.v1.plots.settings_pb2.SettingsGetRequest(
+    ) -> dokime_sdk._generated.proto.host.v1.plots.settings_pb2.SettingsGetResponse:
+        request = dokime_sdk._generated.proto.host.v1.plots.settings_pb2.SettingsGetRequest(
             scope=scope, document_id=document_id, plot_id=plot_id, at=at
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.plots.Settings/Get",
             request,
-            dokime_sdk._wire.host.v1.plots.settings_pb2.SettingsGetResponse,
+            dokime_sdk._generated.proto.host.v1.plots.settings_pb2.SettingsGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1555,8 +1566,8 @@ class PlotsSettingsResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> dokime_sdk._wire.host.v1.plots.settings_pb2.SettingsSetResponse:
-        request = dokime_sdk._wire.host.v1.plots.settings_pb2.SettingsSetRequest(
+    ) -> dokime_sdk._generated.proto.host.v1.plots.settings_pb2.SettingsSetResponse:
+        request = dokime_sdk._generated.proto.host.v1.plots.settings_pb2.SettingsSetRequest(
             scope=scope,
             document_id=document_id,
             plot_id=plot_id,
@@ -1568,7 +1579,7 @@ class PlotsSettingsResource:
             self._channel,
             "/dokime.host.v1.plots.Settings/Set",
             request,
-            dokime_sdk._wire.host.v1.plots.settings_pb2.SettingsSetResponse,
+            dokime_sdk._generated.proto.host.v1.plots.settings_pb2.SettingsSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1645,13 +1656,13 @@ class PluginsSecretsResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> dokime_sdk._wire.host.v1.plugins.secrets_pb2.SecretsListResponse:
-        request = dokime_sdk._wire.host.v1.plugins.secrets_pb2.SecretsListRequest(name=name, at=at)
+    ) -> dokime_sdk._generated.proto.host.v1.plugins.secrets_pb2.SecretsListResponse:
+        request = dokime_sdk._generated.proto.host.v1.plugins.secrets_pb2.SecretsListRequest(name=name, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.plugins.Secrets/List",
             request,
-            dokime_sdk._wire.host.v1.plugins.secrets_pb2.SecretsListResponse,
+            dokime_sdk._generated.proto.host.v1.plugins.secrets_pb2.SecretsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1696,15 +1707,15 @@ class PluginsSettingsResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetResponse:
-        request = dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetRequest(
+    ) -> dokime_sdk._generated.proto.host.v1.plugins.settings_pb2.SettingsSetResponse:
+        request = dokime_sdk._generated.proto.host.v1.plugins.settings_pb2.SettingsSetRequest(
             name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.plugins.Settings/Set",
             request,
-            dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetResponse,
+            dokime_sdk._generated.proto.host.v1.plugins.settings_pb2.SettingsSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -2295,7 +2306,7 @@ class CyclesResource:
     async def create(
         self,
         origins: Sequence[Origin],
-        metadata: dokime_sdk._wire.model.v1.metadata_pb2.Metadata,
+        metadata: dokime_sdk._generated.proto.model.v1.metadata_pb2.Metadata,
         continue_automatically: bool,
         source_cycle: str,
         *,
@@ -3584,13 +3595,13 @@ class SecretsResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> dokime_sdk._wire.host.v1.secrets_pb2.SecretsListResponse:
-        request = dokime_sdk._wire.host.v1.secrets_pb2.SecretsListRequest(at=at)
+    ) -> dokime_sdk._generated.proto.host.v1.secrets_pb2.SecretsListResponse:
+        request = dokime_sdk._generated.proto.host.v1.secrets_pb2.SecretsListRequest(at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.Secrets/List",
             request,
-            dokime_sdk._wire.host.v1.secrets_pb2.SecretsListResponse,
+            dokime_sdk._generated.proto.host.v1.secrets_pb2.SecretsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -3715,13 +3726,13 @@ class SettingsResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> dokime_sdk._wire.host.v1.settings_pb2.SettingsGetResponse:
-        request = dokime_sdk._wire.host.v1.settings_pb2.SettingsGetRequest(at=at)
+    ) -> dokime_sdk._generated.proto.host.v1.settings_pb2.SettingsGetResponse:
+        request = dokime_sdk._generated.proto.host.v1.settings_pb2.SettingsGetRequest(at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.Settings/Get",
             request,
-            dokime_sdk._wire.host.v1.settings_pb2.SettingsGetResponse,
+            dokime_sdk._generated.proto.host.v1.settings_pb2.SettingsGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -3738,15 +3749,15 @@ class SettingsResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> dokime_sdk._wire.host.v1.settings_pb2.SettingsSetResponse:
-        request = dokime_sdk._wire.host.v1.settings_pb2.SettingsSetRequest(
+    ) -> dokime_sdk._generated.proto.host.v1.settings_pb2.SettingsSetResponse:
+        request = dokime_sdk._generated.proto.host.v1.settings_pb2.SettingsSetRequest(
             value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.Settings/Set",
             request,
-            dokime_sdk._wire.host.v1.settings_pb2.SettingsSetResponse,
+            dokime_sdk._generated.proto.host.v1.settings_pb2.SettingsSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,

@@ -21,7 +21,7 @@ from google.protobuf.struct_pb2 import Struct
 
 # Local Imports
 from dokime_sdk import Plugin
-from dokime_sdk._wire.model.v1.metadata_pb2 import Metadata
+from dokime_sdk._generated.proto.model.v1.metadata_pb2 import Metadata
 from dokime_sdk.operations import Context, OperationError, operation
 
 # Type Checking Imports
