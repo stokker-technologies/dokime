@@ -72,6 +72,9 @@ def packaging(directory: Path) -> list[str]:
             return failures
         step("Version", lambda: version.run(tree, "check"))
         for lock in prepare.tracked(tree, "*uv.lock"):
+            # Mise Owns the Tool Locks Under .mise/; No Release Reads Them.
+            if ".mise" in Path(lock).parts:
+                continue
             command = ["uv", "lock", "--check", "--project", Path(lock).parent.as_posix()]
             step(f"Lock {lock}", lambda command=command: policy.execute(tree, command), stale(lock))
         for lock in prepare.tracked(tree, "*Cargo.lock"):
@@ -165,9 +168,13 @@ def worktree(directory: Path) -> Generator[Path]:
         with environment(CARGO_TARGET_DIR=os.environ.get("CARGO_TARGET_DIR") or str(directory / "target")):
             yield tree
     finally:
-        for command in (["git", "worktree", "remove", "--force", str(tree)], ["git", "worktree", "prune"]):
-            subprocess.run(command, cwd=directory, check=False, creationflags=spawn_flags())
+        removed = subprocess.run(
+            ["git", "worktree", "remove", "--force", str(tree)], cwd=directory, check=False, creationflags=spawn_flags()
+        )
         shutil.rmtree(tree.parent, ignore_errors=True)
+        if removed.returncode:
+            # Only a Worktree Whose Directory Is Gone Loses Its Record, Which Is Now This One.
+            subprocess.run(["git", "worktree", "prune"], cwd=directory, check=False, creationflags=spawn_flags())
 
 
 @contextmanager
