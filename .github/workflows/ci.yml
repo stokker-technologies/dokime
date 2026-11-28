@@ -226,6 +226,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: aqua:anchore/syft,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,minisign,node,pnpm,powershell,python,rust,uv
       CI_TRANSPORT: 'true'
+      GH_TOKEN: ${{ github.token }}
       RELEASE_PROFILE: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
     permissions:
       contents: read

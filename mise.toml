@@ -269,6 +269,7 @@ run = [
   "buf lint",
   "{{vars.tools}} dokime_tools.build.protocol_callers",
   "{{vars.tools}} dokime_tools.ci.mise",
+  "{{vars.tools}} dokime_tools.ci.tokens",
   "shellcheck --version",
   "actionlint",
 ]
