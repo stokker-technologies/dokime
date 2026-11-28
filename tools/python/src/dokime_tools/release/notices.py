@@ -101,6 +101,10 @@ PYTHON_LICENSE_SOURCES = {
         "https://raw.githubusercontent.com/grpc/grpc/558b7e3b09e42e2160018732acbbf56c9094c84d/LICENSE",
         "58c86a3f2b5cca0ebdf9ed3e7f4e6dc38e3b38796d8c3dc92064c62a4e39d0dd",
     ),
+    ("harmos-sdk", "0.1.15"): (
+        "https://raw.githubusercontent.com/stokker-technologies/harmos/5b8cfd47b8758fb2075d8cc69a6c753165067b79/LICENSE",
+        "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    ),
 }
 
 # === Types === #
