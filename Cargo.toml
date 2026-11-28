@@ -56,9 +56,9 @@ repository = "https://github.com/stokker-technologies/dokime"
 # Local
 dokime-client-internal = { path = "crates/dokime-client-internal" }
 dokime-operations = { version = "0.1.5", path = "crates/dokime-operations" }
-dokime-packaging = { version = "0.1.5", path = "crates/dokime-packaging" }
+dokime-packaging = { path = "crates/dokime-packaging" }
 dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
-dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime" }
+dokime-runtime = { path = "crates/dokime-runtime" }
 dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
 dokime-test-support = { path = "crates/dokime-test-support" }
 
