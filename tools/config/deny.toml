@@ -44,5 +44,3 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# Development dependencies are limited to the organization that owns this product.
-allow-git = ["https://github.com/stokker-technologies/harmos"]

@@ -47,26 +47,26 @@ jobs:
       with:
         name: build-cli-${{ env.PROFILE }}-${{ matrix.platform }}
         path: target/ci
-    - name: Read Pinned Library Revision
+    - name: Read Locked Library Release
       id: library
       shell: python
       run: |
         import os
         import tomllib
         from pathlib import Path
-        manifest = tomllib.loads(Path("Cargo.toml").read_text(encoding="utf-8"))
-        revision = manifest["workspace"]["dependencies"]["harmos"]["rev"]
-        Path(os.environ["GITHUB_OUTPUT"]).write_text(f"revision={revision}\n", encoding="utf-8")
-    - name: Restore Pinned Conformance Host
+        lock = tomllib.loads(Path("Cargo.lock").read_text(encoding="utf-8"))
+        version = next(package["version"] for package in lock["package"] if package["name"] == "harmos")
+        Path(os.environ["GITHUB_OUTPUT"]).write_text(f"version={version}\n", encoding="utf-8")
+    - name: Restore Locked Conformance Host
       id: reference_host
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: target/reference-host
-        key: conformance-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ steps.library.outputs.revision }}-${{ hashFiles('mise.lock') }}
+        key: conformance-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ steps.library.outputs.version }}-${{ hashFiles('mise.lock') }}
     # The Public Build Wrapper Collects Sccache Counts and Renders ci.summary to GITHUB_STEP_SUMMARY.
     - name: Build Tests and Report Compiler Cache Counts
       run: mise run build -- --artifact tests --profile ${{ env.PROFILE }}
-    - name: Save Pinned Conformance Host
+    - name: Save Locked Conformance Host
       if: success() && steps.reference_host.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
