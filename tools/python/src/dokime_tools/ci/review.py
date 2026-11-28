@@ -239,22 +239,21 @@ def github_release_mode() -> dict[str, str]:
         # The Closed Review Run on the Same Head Completes Too; Only the Validation Run Carries Evidence.
         runs = [json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))["workflow_run"]]
     else:
-        # A Dispatch Retries a Release Whose Review Merged Without Green Validation.
         runs = pages(f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={review['head']['sha']}", "workflow_runs")
-    if not any(validated(run, review) for run in runs):
-        return fallback
-    return {"mode": "tag", "sha": target}
+    runs = [run for run in runs if validation(run, review)]
+    if any(run.get("status") == "completed" and run.get("conclusion") == "success" for run in runs):
+        return {"mode": "tag", "sha": target}
+    if any(run.get("status") != "completed" for run in runs):
+        # Its Completion Starts Release Again, So Preparing Now Would Open a Second Release Commit.
+        print(f"{tag} review validation is still running; wait for it", flush=True)
+        return {"mode": "skip", "sha": ""}
+    # A Dispatch Retries a Release Whose Review Validation Completed Without Success.
+    return fallback
 
 
-def validated(run: dict, review: dict) -> bool:
-    """Whether a CI Run Is This Review's Completed Green Validation, Never Its Closed or Draft Review Run."""
-    return (
-        github_review_run(run, review)
-        and run.get("event") == "pull_request"
-        and run.get("display_title") == VALIDATION
-        and run.get("status") == "completed"
-        and run.get("conclusion") == "success"
-    )
+def validation(run: dict, review: dict) -> bool:
+    """Whether a CI Run Is This Review's Validation Run, Never Its Closed or Draft Review Run."""
+    return github_review_run(run, review) and run.get("event") == "pull_request" and run.get("display_title") == VALIDATION
 
 
 def lookup(sha: str = "HEAD") -> dict[str, str]:

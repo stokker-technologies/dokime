@@ -240,6 +240,14 @@ class ReleaseTagTests(unittest.TestCase):
                 # A Dispatch Re-Prepares the Untagged Version Instead of Tagging Unvalidated Evidence.
                 self.assertEqual(self.mode("workflow_dispatch", runs=({**validation, **mutation},)), {"mode": "prepare", "sha": ""})
         self.assertEqual(self.mode("workflow_dispatch"), {"mode": "prepare", "sha": ""})
+        failed = {**validation, "conclusion": "failure"}
+        for pending in ({"status": "queued", "conclusion": None}, {"status": "in_progress", "conclusion": None}):
+            running = {**validation, **pending}
+            with self.subTest(pending=pending), contextlib.redirect_stdout(io.StringIO()) as printed:
+                # A Running Validation Restarts Release on Completion; a Dispatch Neither Tags Nor Prepares Again.
+                self.assertEqual(self.mode("workflow_dispatch", runs=(failed, running)), {"mode": "skip", "sha": ""})
+                self.assertEqual(printed.getvalue(), f"{self.tag} review validation is still running; wait for it\n")
+                self.assertEqual(self.mode("workflow_dispatch", runs=(validation, running)), tagged)
 
     def test_untagged_version_is_prepared_again_from_dev(self) -> None:
         with patch.object(prepare.policy, "execute", return_value="") as execute:
