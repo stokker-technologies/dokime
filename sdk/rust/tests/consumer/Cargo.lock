@@ -747,7 +747,7 @@ dependencies = [
 
 [[package]]
 name = "dokime"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "dokime-derive",
  "dokime-protocol",
@@ -766,7 +766,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-derive"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -776,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-operations"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "arrow-array",
  "async-trait",
@@ -808,7 +808,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-packaging"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "base64 0.23.1",
  "harmos-packaging",
@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-protocol"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "harmos-protocol",
  "prost",
@@ -838,7 +838,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-runtime"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "async-trait",
  "dokime-operations",
@@ -892,7 +892,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-storage"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
