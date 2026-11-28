@@ -151,6 +151,32 @@ class PinTests(unittest.TestCase):
             with self.subTest(text=text), self.assertRaises(policy.ToolError):
                 version.run(self.directory, "check")
 
+    def test_manifest_audit_refuses_registry_requirements_on_unpublished_crates(self) -> None:
+        def package(name: str, publish: list | None, *dependencies: dict) -> dict:
+            manifest = str(ROOT / "crates" / name / "Cargo.toml")
+            return {
+                "id": name,
+                "name": name,
+                "publish": publish,
+                "manifest_path": manifest,
+                "targets": [{"kind": ["lib"]}],
+                "dependencies": list(dependencies),
+            }
+
+        hint = "is unpublished; publish internal or declare it as a path-only dev-dependency"
+        cases = (
+            ({"name": "internal", "kind": None, "req": "^1"}, [f"library: its normal dependency internal {hint}"]),
+            ({"name": "internal", "kind": "dev", "req": "^1"}, [f"library: its dev dependency internal {hint}"]),
+            ({"name": "internal", "kind": "dev", "req": "*"}, []),
+        )
+        for dependency, expected in cases:
+            metadata = {
+                "workspace_members": ["library", "internal"],
+                "packages": [package("library", None, dependency), package("internal", [])],
+            }
+            with self.subTest(dependency=dependency), patch.object(policy, "execute", return_value=json.dumps(metadata)):
+                self.assertEqual(registry.crates.audit(ROOT), expected)
+
     def test_nightly_skips(self) -> None:
         with (
             patch.object(pins, "check", return_value=False) as check,

@@ -144,6 +144,11 @@ run = "{{vars.tools}} dokime_tools.docs.image"
 description = "Prepare the Release Branch"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
 
+[tasks."release:preflight"]
+description = "Rehearse Release Preparation and Its Checks, or the Tag Gate of a Merged Release Review"
+usage = 'flag "--review <number>" help="Emulate the Tag Gate for This Merged Release Review"'
+run = "{{vars.tools}} dokime_tools.release.preflight{% if usage.review %} --review {{usage.review}}{% endif %}"
+
 [tasks."release:publish"]
 description = "Publish a Tagged Release"
 run = "{{vars.tools}} dokime_tools.ci.tasks publish"

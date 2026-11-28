@@ -67,6 +67,14 @@ def prepare(directory: Path, settings: dict) -> None:
     planned = planned_version(directory, current)
     if re.fullmatch(context.STABLE, planned) is None:
         raise policy.ToolError(f"Prepare Release: the next version is not a stable version: {planned}")
+    refresh(directory, settings, planned)
+    if policy.policy(directory, "screenshots").get("scenes"):
+        dokime_tools.screenshots.run.capture(directory)
+    print(f"Prepared v{planned}; review the changes, or let Release / Prepare open the release review")
+
+
+def refresh(directory: Path, settings: dict, planned: str) -> None:
+    """Prepare's Local Step: Move Every Version Carrier to the Planned Version and Refresh Every Lock."""
     version.run(directory, "sync", value=planned)
     policy_version(directory, planned)
     commands = settings.get("lock_commands")
@@ -80,12 +88,9 @@ def prepare(directory: Path, settings: dict) -> None:
         for lock in tracked(directory, "*pnpm-lock.yaml"):
             commands.append(["pnpm", "install", "--lockfile-only", "--ignore-scripts", "--dir", str(directory / Path(lock).parent)])
         for lock in tracked(directory, "*uv.lock"):
-            commands.append(["uv", "lock", "--offline", "--project", str(directory / Path(lock).parent)])
+            commands.append(["uv", "lock", "--project", str(directory / Path(lock).parent)])
     for command in commands:
         policy.execute(directory, policy.command(command, "release.lock_commands"))
-    if policy.policy(directory, "screenshots").get("scenes"):
-        dokime_tools.screenshots.run.capture(directory)
-    print(f"Prepared v{planned}; review the changes, or let Release / Prepare open the release review")
 
 
 def policy_version(directory: Path, value: str) -> None:

@@ -257,9 +257,9 @@ def validated(run: dict, review: dict) -> bool:
     )
 
 
-def lookup() -> dict[str, str]:
-    sha = command("git", "rev-parse", "HEAD")
-    tree = command("git", "rev-parse", "HEAD^{tree}")
+def lookup(sha: str = "HEAD") -> dict[str, str]:
+    tree = command("git", "rev-parse", sha + "^{tree}")
+    sha = command("git", "rev-parse", sha)
     if OID.fullmatch(tree) is None:
         raise ValueError("Verify Release Evidence: invalid checkout tree")
     github = bool(os.environ.get("GITHUB_ACTIONS"))
