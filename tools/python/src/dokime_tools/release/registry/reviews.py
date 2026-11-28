@@ -37,9 +37,7 @@ from . import provider
 
 # === Constants === #
 
-REHEARSAL_CHECK = "Release / Rehearsal"
 RELEASE_BRANCH = "release/"
-GITLAB_REHEARSAL_JOB = "Release / Rehearsal"
 
 # === Types === #
 
@@ -161,9 +159,11 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
             raise policy.ToolError(
                 f"Verify Release Review: release PR #{review['number']} head {head} has no green validation: {error}"
             ) from error
-        if not any(job.get("name") == REHEARSAL_CHECK and job.get("conclusion") == "success" for job in jobs):
+        if not any(
+            dokime_tools.ci.review.job_named(job, dokime_tools.ci.review.REHEARSAL) and job.get("conclusion") == "success" for job in jobs
+        ):
             raise policy.ToolError(
-                f"Verify Release Review: release PR #{review['number']} head {head} has no successful {REHEARSAL_CHECK} check"
+                f"Verify Release Review: release PR #{review['number']} head {head} has no successful {dokime_tools.ci.review.REHEARSAL} check"
             )
         _same_tree(directory, head, sha)
         return
@@ -175,13 +175,13 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
     pipeline_jobs = provider.pages(settings, f"pipelines/{pipeline['id']}/jobs?include_retried=false")
     jobs = []
     for jobs_job in pipeline_jobs:
-        if jobs_job.get("name") != GITLAB_REHEARSAL_JOB:
+        if not dokime_tools.ci.review.job_named(jobs_job, dokime_tools.ci.review.REHEARSAL):
             continue
         jobs.append(jobs_job)
 
     if not jobs or any(job.get("status") != "success" for job in jobs):
         raise policy.ToolError(
-            f"Verify Release Review: release MR !{review['number']} pipeline {pipeline['id']} has no successful {GITLAB_REHEARSAL_JOB} job"
+            f"Verify Release Review: release MR !{review['number']} pipeline {pipeline['id']} has no successful {dokime_tools.ci.review.REHEARSAL} job"
         )
     _same_tree(directory, head, sha)
 

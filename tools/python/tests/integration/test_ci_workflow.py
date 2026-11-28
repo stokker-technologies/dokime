@@ -514,7 +514,7 @@ class WorkflowTests(unittest.TestCase):
         }
         jobs = [
             {"name": "Check / CI / Required", "conclusion": "success"},
-            {"name": registry.reviews.REHEARSAL_CHECK, "conclusion": "success"},
+            {"name": "release_rehearsal / Release / Rehearsal", "conclusion": "success"},
         ]
 
         def pages(settings: dict, endpoint: str, key: str | None = None) -> list[dict]:
