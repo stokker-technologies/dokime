@@ -433,6 +433,31 @@ jobs:
     permissions:
       actions: read
       contents: read
+  preflight:
+    # Advisory: Nightly Publication Never Needs This Job.
+    name: Release / Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: ./.github/actions/setup
+      with:
+        platform: unix
+        cache-backend: ''
+        cache-mode: ''
+        bootstrap: '[]'
+    - run: mise run release:preflight --
+    env:
+      MISE_ENABLE_TOOLS: git-cliff,node,pnpm,python,rust,uv
+      GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: read
+    needs:
+    - freshness
+    if: github.ref == 'refs/heads/dev' && needs.freshness.outputs.build == 'true'
   publish:
     name: Release / Publish / GitHub
     uses: ./.github/workflows/publish.yml
