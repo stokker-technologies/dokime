@@ -1960,7 +1960,7 @@ dependencies = [
 
 [[package]]
 name = "dokime"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "dokime-derive",
  "dokime-protocol",
@@ -1979,7 +1979,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-cli"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "dokime",
@@ -2008,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-client-internal"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "dokime-protocol",
  "harmos",
@@ -2022,7 +2022,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-derive"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",
@@ -2032,7 +2032,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-gui"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2084,7 +2084,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-operations"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "arrow-array",
  "async-trait",
@@ -2116,7 +2116,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-packaging"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "base64 0.23.1",
  "flate2",
@@ -2146,7 +2146,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-protocol"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "dokime-protocol-generator",
  "harmos-protocol",
@@ -2161,7 +2161,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-protocol-generator"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "heck 0.5.0",
  "prost-build",
@@ -2173,7 +2173,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-runtime"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2214,7 +2214,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-sdk-benches"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "criterion",
  "dokime",
@@ -2233,7 +2233,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-storage"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -2264,7 +2264,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-test-support"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "dokime-runtime",
  "tempfile",
@@ -5799,7 +5799,7 @@ dependencies = [
 
 [[package]]
 name = "plugin-host"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "criterion",
  "dokime",
@@ -5815,7 +5815,7 @@ dependencies = [
 
 [[package]]
 name = "plugin-obc"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "dokime",
  "prost",

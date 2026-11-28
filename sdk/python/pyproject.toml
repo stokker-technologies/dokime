@@ -12,7 +12,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dokime-sdk"
-version = "0.1.5"
+version = "0.1.6"
 description = "Remote Dokime plugin authoring and generated gRPC clients."
 requires-python = ">=3.13"
 license = "Apache-2.0"

@@ -42,7 +42,7 @@ resolver = "2"
 # === Workspace Package === #
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 rust-version = "1.99"
 description = "Dokime application and runtime packages."
@@ -55,11 +55,11 @@ repository = "https://github.com/stokker-technologies/dokime"
 [workspace.dependencies]
 # Local
 dokime-client-internal = { path = "crates/dokime-client-internal" }
-dokime-operations = { version = "0.1.5", path = "crates/dokime-operations" }
+dokime-operations = { version = "0.1.6", path = "crates/dokime-operations" }
 dokime-packaging = { path = "crates/dokime-packaging" }
-dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
+dokime-protocol = { version = "0.1.6", path = "crates/dokime-protocol" }
 dokime-runtime = { path = "crates/dokime-runtime" }
-dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
+dokime-storage = { version = "0.1.6", path = "crates/dokime-storage" }
 dokime-test-support = { path = "crates/dokime-test-support" }
 
 # Library

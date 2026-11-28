@@ -15,7 +15,7 @@ description = "Browse cycles on a running Dokime host."
 authors = [{ name = "Your Name", email = "you@example.com" }]
 license = "Apache-2.0"
 requires-python = ">=3.13"
-dependencies = ["dokime-sdk~=0.1.5", "rich"]
+dependencies = ["dokime-sdk~=0.1.6", "rich"]
 
 [project.urls]
 Repository = "https://github.com/your-organization/dokime-client-example"

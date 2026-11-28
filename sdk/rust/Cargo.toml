@@ -27,7 +27,7 @@ publish.workspace = true
 
 [dependencies]
 # Local
-dokime-derive = { version = "0.1.5", path = "derive" }
+dokime-derive = { version = "0.1.6", path = "derive" }
 dokime-protocol = { workspace = true }
 
 # Git

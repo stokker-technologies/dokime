@@ -54,7 +54,7 @@ path = "src/bin/client.rs"
 # Logging
 
 # Utilities
-dokime = "0.1.5"
+dokime = "0.1.6"
 
 # Serialization
 
