@@ -236,14 +236,25 @@ def github_release_mode() -> dict[str, str]:
     if target_version != version:
         return fallback
     if os.environ["GITHUB_EVENT_NAME"] == "workflow_run":
-        completed = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))["workflow_run"]
-        if (
-            completed.get("head_sha") != review["head"]["sha"]
-            or completed.get("event") != "pull_request"
-            or completed.get("conclusion") != "success"
-        ):
-            return fallback
+        # The Closed Review Run on the Same Head Completes Too; Only the Validation Run Carries Evidence.
+        runs = [json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))["workflow_run"]]
+    else:
+        # A Dispatch Retries a Release Whose Review Merged Without Green Validation.
+        runs = pages(f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={review['head']['sha']}", "workflow_runs")
+    if not any(validated(run, review) for run in runs):
+        return fallback
     return {"mode": "tag", "sha": target}
+
+
+def validated(run: dict, review: dict) -> bool:
+    """Whether a CI Run Is This Review's Completed Green Validation, Never Its Closed or Draft Review Run."""
+    return (
+        github_review_run(run, review)
+        and run.get("event") == "pull_request"
+        and run.get("display_title") == VALIDATION
+        and run.get("status") == "completed"
+        and run.get("conclusion") == "success"
+    )
 
 
 def lookup() -> dict[str, str]:
